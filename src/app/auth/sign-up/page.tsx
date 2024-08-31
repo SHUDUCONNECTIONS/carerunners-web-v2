@@ -80,7 +80,7 @@ export default function SignUpPage() {
         type: "COMPANY_ADMIN", // Adjust this as needed
       })
 
-      router.push("/dashboard") // Redirect to dashboard or appropriate page
+      router.push("/firm-registration") // Redirect to dashboard or appropriate page
     } catch (error) {
       console.error("Error during Google signup:", error)
       setErrors({ submit: "An error occurred during Google signup. Please try again." })
