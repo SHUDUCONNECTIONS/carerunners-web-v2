@@ -64,12 +64,17 @@ export default function FirmRegistrationComponent() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-white p-4">
-      <Card className="w-full max-w-lg shadow-lg">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-3xl font-bold text-center">
-            Company Registration
-          </CardTitle>
+        <Card className="w-full max-w-md">
+        <CardHeader className="bg-teal-600 text-white">
+          <CardTitle className="text-2xl font-bold text-center">Firm Registration</CardTitle>
         </CardHeader>
+        <div className="mx-auto w-32 h-32">
+          <img
+            src="/carerunnerlogo.png"
+            alt="Care Runners Logo"
+            className="w-full h-full object-contain"
+          />
+        </div>
         <CardContent className="space-y-4">
           {isSubmitted && (
             <Alert className="bg-green-100 border-green-500 text-green-700">
@@ -222,7 +227,7 @@ export default function FirmRegistrationComponent() {
                 </p>
               )}
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full bg-teal-600 hover:bg-teal-700 text-white" disabled={loading}>
               {loading ? "Registering..." : "Register Firm"}
             </Button>
           </form>
