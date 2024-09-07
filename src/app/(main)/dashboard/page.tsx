@@ -48,8 +48,8 @@ export default function Dashboard() {
     { icon: <Upload className="h-8 w-8" />, label: "Upload Case File",link:'/upload'  },
     { icon: <Briefcase className="h-8 w-8" />, label: "Firm Records",link:'/records'  },
     { icon: <User className="h-8 w-8" />, label: "Account Profile" ,link:'/profile' },
-    { icon: <Users className="h-8 w-8" />, label: "Membership Access",link:'/request'  },
-    { icon: <CreditCard className="h-8 w-8" />, label: "Billing Information",link:'/trips'  },
+    { icon: <Users className="h-8 w-8" />, label: "Membership Access",link:'/pricing'  },
+    { icon: <CreditCard className="h-8 w-8" />, label: "Trips Information",link:'/trips'  },
   ]
 
   return (

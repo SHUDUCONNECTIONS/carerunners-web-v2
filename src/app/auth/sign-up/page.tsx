@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useState } from "react"
@@ -10,9 +9,9 @@ import { Label } from "@/components/ui/label"
 import { User, Mail, Lock, Phone, AlertCircle } from "lucide-react"
 import { auth, db } from "@/utils/firebase" // Adjust this import path if necessary
 import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from "firebase/auth"
-import { doc, setDoc } from "firebase/firestore"
+import { doc, setDoc, collection } from "firebase/firestore"
 
-export default function SignUpPage() {
+export default function UserRegistrationPage() {
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
   const [contact, setContact] = useState("")
@@ -40,6 +39,28 @@ export default function SignUpPage() {
     return Object.keys(newErrors).length === 0
   }
 
+  const createUserAndFirm = async (userId: string) => {
+    // Create a new firm document
+    const firmRef = doc(collection(db, "firms"))
+    await setDoc(firmRef, {
+      adminId: userId,
+      createdAt: new Date(),
+      // Add any other initial firm data here
+    })
+
+    // Create the user document
+    await setDoc(doc(db, "users", userId), {
+      firstName,
+      lastName,
+      contact,
+      email,
+      type: "COMPANY_ADMIN",
+      firmId: firmRef.id
+    })
+
+    return firmRef.id
+  }
+
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
     if (validateForm()) {
@@ -48,15 +69,9 @@ export default function SignUpPage() {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password)
         const user = userCredential.user
 
-        await setDoc(doc(db, "users", user.uid), {
-          firstName,
-          lastName,
-          contact,
-          email,
-          type: "COMPANY_ADMIN", // Adjust this as needed
-        })
+        const firmId = await createUserAndFirm(user.uid)
 
-        router.push("/firm-registration") // Redirect to dashboard or appropriate page
+        router.push(`/firm-registration?firmId=${firmId}`)
       } catch (error) {
         console.error("Error during signup:", error)
         setErrors({ submit: "An error occurred during signup. Please try again." })
@@ -73,14 +88,9 @@ export default function SignUpPage() {
       const result = await signInWithPopup(auth, provider)
       const user = result.user
 
-      await setDoc(doc(db, "users", user.uid), {
-        firstName: user.displayName?.split(" ")[0] || "",
-        lastName: user.displayName?.split(" ").slice(1).join(" ") || "",
-        email: user.email,
-        type: "COMPANY_ADMIN", // Adjust this as needed
-      })
+      const firmId = await createUserAndFirm(user.uid)
 
-      router.push("/firm-registration") // Redirect to dashboard or appropriate page
+      router.push(`/firm-registration?firmId=${firmId}`)
     } catch (error) {
       console.error("Error during Google signup:", error)
       setErrors({ submit: "An error occurred during Google signup. Please try again." })
@@ -95,13 +105,6 @@ export default function SignUpPage() {
         <CardHeader className="bg-teal-600 text-white">
           <CardTitle className="text-2xl font-bold text-center">Sign Up</CardTitle>
         </CardHeader>
-        <div className="mx-auto w-32 h-32">
-          <img
-            src="/carerunnerlogo.png"
-            alt="Care Runners Logo"
-            className="w-full h-full object-contain"
-          />
-        </div>
         <CardContent className="mt-6">
           <Button
             onClick={handleGoogleSignUp}
