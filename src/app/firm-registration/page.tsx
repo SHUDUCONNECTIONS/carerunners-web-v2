@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect,Suspense } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Building2, Mail, MapPin, Phone, Hash } from "lucide-react";
 import { db } from "@/utils/firebase";
-import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
+import LoadingComponent from "@/components/loader";  // Custom loading component
 
 type FormData = {
   companyName: string;
@@ -21,18 +22,18 @@ type FormData = {
   registrationNumber: string;
 };
 
-export default function FirmRegistrationComponent() {
+function FirmRegistrationContent() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const firmId = searchParams.get('firmId');
+  const firmId = searchParams.get("firmId");
 
   const {
     register,
     handleSubmit,
     formState: { errors },
-    setValue
+    setValue,
   } = useForm<FormData>();
 
   useEffect(() => {
@@ -63,7 +64,7 @@ export default function FirmRegistrationComponent() {
       setLoading(true);
       await updateDoc(doc(db, "firms", firmId), {
         ...data,
-        updatedAt: new Date()
+        updatedAt: new Date(),
       });
 
       setIsSubmitted(true);
@@ -79,7 +80,7 @@ export default function FirmRegistrationComponent() {
   };
 
   return (
-    <Suspense>
+    <Suspense fallback={<LoadingComponent />}>
     <div className="min-h-screen flex items-center justify-center bg-white p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="bg-teal-600 text-white">
@@ -236,4 +237,11 @@ export default function FirmRegistrationComponent() {
     </div>
     </Suspense>
   );
+}
+export default function FirmRegistrationComponent() {
+  return (
+    <Suspense fallback={<LoadingComponent />}>
+      <FirmRegistrationContent />
+    </Suspense>
+  )
 }
