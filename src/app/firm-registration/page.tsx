@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect,Suspense } from "react";
 import { useForm } from "react-hook-form";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -79,6 +79,7 @@ export default function FirmRegistrationComponent() {
   };
 
   return (
+    <Suspense>
     <div className="min-h-screen flex items-center justify-center bg-white p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="bg-teal-600 text-white">
@@ -233,5 +234,6 @@ export default function FirmRegistrationComponent() {
         </CardContent>
       </Card>
     </div>
+    </Suspense>
   );
 }
