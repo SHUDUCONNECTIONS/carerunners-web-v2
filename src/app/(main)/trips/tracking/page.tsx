@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { MapPin, Banknote, Clock, CheckCircle, XCircle, Package, Truck, User, Home } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSearchParams } from 'next/navigation';
+import LoadingComponent from '@/components/loader';
 
 const deliverySteps = [
   { icon: Clock, label: "Waiting for pickup", time: "Scheduled pickup time" },
@@ -82,7 +83,7 @@ export default function TripDetailsPage() {
         fetchTripDetails();
     }, [tripId]);
 
-    if (loading) return <p>Loading trip details...</p>;
+    if (loading) return <LoadingComponent/>;
     if (error) return <p>Error: {error}</p>;
     if (!trip) return <p>Trip not found</p>;
 
