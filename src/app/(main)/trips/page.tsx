@@ -7,11 +7,11 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Banknote, Clock, CheckCircle, XCircle } from "lucide-react";
-import { db } from '@/utils/firebase'; // Import your Firebase config
+import { db } from '@/utils/firebase'; 
 import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
-import { auth } from '@/utils/firebase'; // Import Firebase auth
+import { auth } from '@/utils/firebase'; 
 import { onAuthStateChanged } from 'firebase/auth';
-
+import { useRouter } from "next/navigation";
 type Trip = {
   id: string;
   from: string;
@@ -40,7 +40,7 @@ export default function UserTrips() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
-
+  const router = useRouter();
 
   console.log(trips)
   useEffect(() => {
@@ -86,6 +86,11 @@ export default function UserTrips() {
     }
   }, [user]);
 
+
+  const handleTripClick = (tripId: string) => {
+    router.push(`/trips/tracking?tripId=${tripId}`);
+  };
+
   if (loading) return <p>Loading trips...</p>;
   if (error) return <p>Error: {error}</p>;
 
@@ -99,7 +104,7 @@ export default function UserTrips() {
           <CardContent className="mt-6">
             <div className="space-y-6">
               {trips.map((trip) => (
-                <Card key={trip.id} className="overflow-hidden">
+                <Card key={trip.id} className="overflow-hidden"      onClick={() => handleTripClick(trip.id)}>
                   <CardContent className="p-4">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
                       <div className="flex items-center mb-2 sm:mb-0">

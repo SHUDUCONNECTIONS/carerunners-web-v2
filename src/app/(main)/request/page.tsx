@@ -120,10 +120,32 @@ export default function AttorneyDocumentPickup() {
     return () => unsubscribe();
   }, [setValue]);
 
+  const calculatePrice = (distance, urgency) => {
+    let price;
+    if (urgency === "urgent") {
+      if (distance <= 2) {
+        price = 60;
+      } else {
+        price = 60 + (distance - 2) * 7.5;
+      }
+    } else {
+      if (distance <= 2) {
+        price = 28;
+      } else {
+        price = 28 + (distance - 2) * 6;
+      }
+    }
+    return price.toFixed(2);
+  };
+
+ 
   const onSubmit = async (data: FormData) => {
     const user = auth.currentUser;
     if (user) {
       try {
+        const calculatedPrice = calculatePrice(parseFloat(distance), data.urgency);
+        setPrice(calculatedPrice);
+
         // Save pickup request data
         const pickupRequestRef = doc(
           db,
@@ -134,21 +156,20 @@ export default function AttorneyDocumentPickup() {
           ...data,
           userId: user.uid,
           distance: distance,
-          price: price,
+          price: calculatedPrice,
           status: "pending",
           createdAt: new Date(),
         });
 
         // Redirect to payment page
         router.push(
-          `/payment?requestId=${pickupRequestRef.id}&amount=${price}`
+          `/payment?requestId=${pickupRequestRef.id}&amount=${calculatedPrice}`
         );
       } catch (error) {
         console.error("Error saving pickup request:", error);
       }
     }
   };
-
   const handleDirectionsResponse = (response) => {
     if (response.status === "OK") {
       setDirections(response);
