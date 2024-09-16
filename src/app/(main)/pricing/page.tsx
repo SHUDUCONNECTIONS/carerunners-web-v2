@@ -28,13 +28,13 @@ type User = {
 const standardPlans: PlanTier[] = [
   {
     name: "Bronze",
-    price: 19,
+    price: 50,
     description: "Great for getting started",
     features: ["Basic features", "Email support", "1 user"]
   },
   {
     name: "Silver",
-    price: 39,
+    price: 80,
     description: "Perfect for small teams",
     features: ["All Bronze features", "Priority support", "5 users", "Advanced analytics"]
   }
@@ -43,13 +43,13 @@ const standardPlans: PlanTier[] = [
 const premiumPlans: PlanTier[] = [
   {
     name: "Gold",
-    price: 79,
+    price: 120,
     description: "Best for growing businesses",
     features: ["All Silver features", "24/7 phone support", "10 users", "Custom integrations"]
   },
   {
     name: "Platinum",
-    price: 129,
+    price: 150,
     description: "For large enterprises",
     features: ["All Gold features", "Dedicated account manager", "Unlimited users", "Advanced security"]
   }
@@ -205,7 +205,7 @@ export default function PricingPage() {
         updatedAt: new Date()
       })
 
-      router.push(`/payment?firmId=${firmId}&plan=${plan.name}&price=${plan.price}`)
+      router.push(`/pricing/payment?firmId=${firmId}&plan=${plan.name}&price=${plan.price}`)
     } catch (error) {
       console.error("Error updating firm with selected plan:", error)
       setLoading(false)

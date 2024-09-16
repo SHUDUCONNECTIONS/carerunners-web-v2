@@ -68,7 +68,7 @@ const defaultCenter = {
 };
 
 // Assuming this is stored in an environment variable
-const PRICE_PER_KM = 50;
+const PRICE_PER_KM = 28;
 
 export default function AttorneyDocumentPickup() {
   const [pickupCoords, setPickupCoords] = useState(defaultCenter);
@@ -238,7 +238,7 @@ export default function AttorneyDocumentPickup() {
               />
 
               <LoadScript
-                googleMapsApiKey="AIzaSyC_58aAQXXybqra-Y4TlyIaZqnQE5KZKoA"
+                googleMapsApiKey="AIzaSyDUyjpfSOAoS2fULkqKvN_Qds_lyw_JL9U"
                 libraries={["places"]}
               >
                 <div className="mb-4">
