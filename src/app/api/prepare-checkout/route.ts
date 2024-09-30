@@ -10,10 +10,11 @@ function formatCurrency(value, locale = 'en-US', currency = 'ZAR') {
       maximumFractionDigits: 2,
     }).format(value);
   }
-  
+
 export async function POST(req: NextRequest) {
   if (req.method !== 'POST') {
-    return NextResponse.json({ message: 'Method Not Allowed' }, { status: 405 });
+    return NextResponse.json({ message: 'Method Not Allowed' }, {
+status: 405 });
   }
 
   const ENTITY_ID = process.env.ENTITY_ID;
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
   });
 
   const options = {
-    host: 'eu-test.oppwa.com',
+    host: 'card.peachpayments.com',
     port: 443,
     path: path,
     method: 'POST',
@@ -71,6 +72,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result, { status: 200 });
   } catch (error) {
     console.error('Error processing payment:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal Server Error' }, {
+status: 500 });
   }
 }

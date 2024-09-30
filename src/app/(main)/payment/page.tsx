@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/utils/firebase';
@@ -8,7 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { MapPin, Calendar, Clock, FileText, DollarSign, Truck, Briefcase, User } from "lucide-react";
 import LoadingComponent from '@/components/loader';
 
-function formatCurrency(value, locale = 'en-US', currency = 'ZAR') {
+function formatCurrency(value: number, locale = 'en-US', currency = 'ZAR') {
   return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency: currency,
@@ -37,7 +37,7 @@ export default function TripSummary() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [checkoutId, setCheckoutId] = useState<string | null>(null);
-  const [shopperResultUrl, setShopperResultUrl] = useState<string>("");
+  const [shopperResultUrl, setShopperResultUrl] = useState("");
 
   const searchParams = useSearchParams();
   const requestId = searchParams.get('requestId');
@@ -103,12 +103,12 @@ export default function TripSummary() {
     if (tripData?.price) {
       callApi();
     }
-  }, [tripData]);
+  }, [tripData, requestId]);
 
   useEffect(() => {
     if (checkoutId) {
       const script = document.createElement("script");
-      script.src = `https://eu-test.oppwa.com/v1/paymentWidgets.js?checkoutId=${checkoutId}`;
+      script.src = `https://card.peachpayments.com/v1/paymentWidgets.js?checkoutId=${checkoutId}`;
       script.async = true;
       document.body.appendChild(script);
       return () => {
@@ -118,7 +118,7 @@ export default function TripSummary() {
   }, [checkoutId]);
 
   if (loading) {
-    return <LoadingComponent/>
+    return <LoadingComponent />;
   }
 
   if (error) {
@@ -231,7 +231,7 @@ export default function TripSummary() {
                 <span>{formattedPrice}</span>
               </div>
             </div>
-            
+
             {checkoutId && (
               <div className="mt-8">
                 <h3 className="text-lg font-semibold mb-4">Payment</h3>

@@ -142,7 +142,7 @@ export default function PlanPaymentSummary() {
   useEffect(() => {
     if (checkoutId) {
       const script = document.createElement("script");
-      script.src = `https://eu-test.oppwa.com/v1/paymentWidgets.js?checkoutId=${checkoutId}`;
+      script.src = `https://card.peachpayments.com/v1/paymentWidgets.js?checkoutId=${checkoutId}`;
       script.async = true;
       document.body.appendChild(script);
       return () => {

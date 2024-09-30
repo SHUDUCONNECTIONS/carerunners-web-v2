@@ -31,7 +31,7 @@ import LoadingComponent from "@/components/loader";
 
 const menuItems = [
   { icon: <Home className="mr-2 h-4 w-4" />, label: "HOME", link: '/dashboard' },
-  { icon: <CreditCard className="mr-2 h-4 w-4" />, label: "PAYMENT", link: '/payment' },
+  //{ icon: <CreditCard className="mr-2 h-4 w-4" />, label: "PAYMENT", link: '/payment' },
   { icon: <User className="mr-2 h-4 w-4" />, label: "PROFILE", link: '/profile' },
   { icon: <FileSpreadsheet className="mr-2 h-4 w-4" />, label: "RECORDS", link: '/records' },
   { icon: <Truck className="mr-2 h-4 w-4" />, label: "REQUEST PICK-UP", link: '/request' },

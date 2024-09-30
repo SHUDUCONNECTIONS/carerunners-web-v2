@@ -9,11 +9,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ message: 'Missing or invalid payment ID' }, { status: 400 });
   }
 
-  const entityId = '8ac7a4c98e7dd70f018e7f100e6302d2';
-  const authBearerToken = 'Bearer OGFjN2E0Y2E4ZTdkZGVmOTAxOGU3ZjBmYzdiYjAyZWN8U2dlQVdwTjJhSjdTcGFmag==';
+  const entityId = process.env.ENTITY_ID;
+  const authBearerToken = process.env.BEARER_TOKEN;
 
   try {
-    const response = await fetch(`https://eu-test.oppwa.com/v1/checkouts/${id}/payment?entityId=${entityId}`, {
+    const response = await fetch(`https://card.peachpayments.com/v1/checkouts/${id}/payment?entityId=${entityId}`, {
       method: 'GET',
       headers: {
         'Authorization': authBearerToken,
