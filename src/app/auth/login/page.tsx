@@ -55,6 +55,10 @@ export default function LoginPage() {
     }
   }
 
+  const handleSignUp = () => {
+    router.push("/auth/sign-up") // Redirect to sign-up page
+  }
+
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <Card className="w-full max-w-md">
@@ -124,6 +128,11 @@ export default function LoginPage() {
                 {loading ? "Signing In..." : "Sign In"}
               </Button>
             </div>
+            <div className="mt-6 text-center">
+            <Button onClick={handleSignUp} className="w-full bg-teal-600 hover:bg-teal-700 text-white">
+              Sign Up
+            </Button>
+          </div>
           </form>
 
           <div className="mt-6">
@@ -157,6 +166,8 @@ export default function LoginPage() {
               Forgot your password?
             </a>
           </div>
+
+
         </CardContent>
       </Card>
     </div>

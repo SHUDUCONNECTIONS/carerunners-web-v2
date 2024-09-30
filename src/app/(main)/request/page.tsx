@@ -138,12 +138,13 @@ export default function AttorneyDocumentPickup() {
     return price.toFixed(2);
   };
 
- 
+
   const onSubmit = async (data: FormData) => {
     const user = auth.currentUser;
     if (user) {
       try {
-        const calculatedPrice = calculatePrice(parseFloat(distance), data.urgency);
+        const calculatedPrice = calculatePrice(parseFloat(distance),
+data.urgency);
         setPrice(calculatedPrice);
 
         // Save pickup request data
@@ -234,11 +235,12 @@ export default function AttorneyDocumentPickup() {
                 icon={<Briefcase className="h-5 w-5 text-gray-500" />}
                 label="Firm Name"
                 name="firmName"
-                
+
               />
 
               <LoadScript
                 googleMapsApiKey="AIzaSyDUyjpfSOAoS2fULkqKvN_Qds_lyw_JL9U"
+                //shudu:AIzaSyDUyjpfSOAoS2fULkqKvN_Qds_lyw_JL9U
                 libraries={["places"]}
               >
                 <div className="mb-4">

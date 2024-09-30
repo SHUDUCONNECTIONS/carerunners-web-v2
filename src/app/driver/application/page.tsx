@@ -20,7 +20,7 @@ export default function DriverSignUpConfirmation() {
             </p>
             <div className="flex items-center justify-center text-teal-600">
               <Clock className="h-6 w-6 mr-2" />
-              <span className="text-lg font-semibold">What&aposs Next?</span>
+              <span className="text-lg font-semibold">What's Next?</span>
             </div>
             <ul className="text-left text-gray-600 space-y-4">
               <li className="flex items-start">
@@ -33,7 +33,7 @@ export default function DriverSignUpConfirmation() {
                 <div className="flex-shrink-0">
                   <Mail className="h-6 w-6 text-teal-500" />
                 </div>
-                <p className="ml-3">We&aposll send you an email within 3-5 business days with the next steps or if we need any additional information.</p>
+                <p className="ml-3">Care Runners team will send you an email within 3-5 business days with the next steps or if we need any additional information.</p>
               </li>
             </ul>
             <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
