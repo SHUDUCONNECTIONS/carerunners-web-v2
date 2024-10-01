@@ -11,32 +11,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue,} from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Calendar as CalendarIcon,
-  Clock,
-  MapPin,
-  FileText,
-  Truck,
-  User,
-  Briefcase,
-  Scale,
-} from "lucide-react";
-import {
-  GoogleMap,
-  LoadScript,
-  Autocomplete,
-  Marker,
-  DirectionsService,
-  DirectionsRenderer,
-} from "@react-google-maps/api";
+import {Calendar as CalendarIcon, Clock, MapPin, FileText, Truck, User, Briefcase, Scale,} from "lucide-react";
+import { GoogleMap, LoadScript, Autocomplete, Marker, DirectionsService, DirectionsRenderer,} from "@react-google-maps/api";
 import { db, auth } from "@/utils/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
@@ -48,8 +26,8 @@ type FormData = {
   barNumber: string;
   pickupLocation: string;
   dropoffLocation: string;
-  pickupDate: string;
-  pickupTime: string;
+  pickupDate: string;  // Make sure this is included
+  pickupTime: string;  // Make sure this is included
   documentType: string;
   documentDescription: string;
   urgency: string;
@@ -78,6 +56,19 @@ export default function AttorneyDocumentPickup() {
   const [price, setPrice] = useState(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const [urgency, setUrgency] = useState("standard");
+  const today = new Date().toISOString().split('T')[0];
+  const validateTime = (time: string, date: string) => {
+    if (date === today) {
+      const now = new Date();
+      const [hours, minutes] = time.split(':').map(Number);
+      const selectedTime = new Date();
+      selectedTime.setHours(hours, minutes);
+      
+      return selectedTime > now || "Pickup time must be in the future";
+    }
+    return true;
+  };
 
   const {
     register,
@@ -85,7 +76,9 @@ export default function AttorneyDocumentPickup() {
     control,
     formState: { errors },
     setValue,
+    getValues // Make sure this is included
   } = useForm<FormData>();
+
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -122,7 +115,7 @@ export default function AttorneyDocumentPickup() {
 
   const calculatePrice = (distance, urgency) => {
     let price;
-    if (urgency === "urgent") {
+    if (urgency === "urgent" || urgency === "same_day") {
       if (distance <= 2) {
         price = 60;
       } else {
@@ -177,11 +170,23 @@ data.urgency);
       const route = response.routes[0];
       const distanceInKm = route.legs[0].distance.value / 1000;
       setDistance(distanceInKm.toFixed(2));
-      setPrice((distanceInKm * PRICE_PER_KM).toFixed(2));
+      setPrice(calculatePrice(distanceInKm, urgency)); // Calculate price with urgency
     } else {
       console.error(`Error fetching directions ${response}`);
     }
   };
+
+  // Update the price when urgency changes
+  const handleUrgencyChange = (e) => {
+    const selectedUrgency = e.target.value;
+    setUrgency(selectedUrgency);
+
+    if (distance) {
+      const updatedPrice = calculatePrice(distance, selectedUrgency);
+      setPrice(updatedPrice);
+    }
+  };
+  
 
   const InputField = ({
     icon,
@@ -240,7 +245,6 @@ data.urgency);
 
               <LoadScript
                 googleMapsApiKey="AIzaSyDUyjpfSOAoS2fULkqKvN_Qds_lyw_JL9U"
-                //shudu:AIzaSyDUyjpfSOAoS2fULkqKvN_Qds_lyw_JL9U
                 libraries={["places"]}
               >
                 <div className="mb-4">
@@ -355,21 +359,63 @@ data.urgency);
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <InputField
-                  icon={<CalendarIcon className="h-5 w-5 text-gray-500" />}
-                  label="Pickup Date"
-                  name="pickupDate"
-                  type="date"
-                />
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  <div className="mb-4">
+    <Label 
+      htmlFor="pickupDate" 
+      className="flex items-center space-x-2 mb-1"
+    >
+      <CalendarIcon className="h-5 w-5 text-gray-500" />
+      <span>Pickup Date</span>
+    </Label>
+    <Controller
+      name="pickupDate"
+      control={control}
+      rules={{ required: "Pickup date is required" }}
+      render={({ field }) => (
+<Input
+  type="date"
+  id="pickupDate"
+  min={today}
+  {...field}
+  className={`w-full ${errors.pickupDate ? "border-red-500" : ""}`}
+/>
+      )}
+    />
+    {errors.pickupDate && (
+      <p className="text-red-500 text-sm mt-1">{errors.pickupDate.message}</p>
+    )}
+  </div>
 
-              </div>
-              <InputField
-                  icon={<Clock className="h-5 w-5 text-gray-500" />}
-                  label="Pickup Time"
-                  name="pickupTime"
-                  type="time"
-                />
+  <div className="mb-4">
+    <Label 
+      htmlFor="pickupTime" 
+      className="flex items-center space-x-2 mb-1"
+    >
+      <Clock className="h-5 w-5 text-gray-500" />
+      <span>Pickup Time</span>
+    </Label>
+    <Controller
+  name="pickupTime"
+  control={control}
+  rules={{ 
+    required: "Pickup time is required",
+    validate: (value) => validateTime(value, getValues("pickupDate"))
+  }}
+  render={({ field }) => (
+    <Input
+      type="time"
+      id="pickupTime"
+      {...field}
+      className={`w-full ${errors.pickupTime ? "border-red-500" : ""}`}
+    />
+  )}
+/>
+    {errors.pickupTime && (
+      <p className="text-red-500 text-sm mt-1">{errors.pickupTime.message}</p>
+    )}
+  </div>
+</div>
 
               <div className="mb-4">
                 <Label
@@ -377,12 +423,12 @@ data.urgency);
                   className="flex items-center space-x-2 mb-1"
                 >
                   <FileText className="h-5 w-5 text-gray-500" />
-                  <span>Document Type</span>
+                  <span>Request Type</span>
                 </Label>
                 <Controller
                   name="documentType"
                   control={control}
-                  rules={{ required: "Document type is required" }}
+                  rules={{ required: "Request type is required" }}
                   render={({ field }) => (
                     <Select
                       onValueChange={field.onChange}
@@ -392,14 +438,12 @@ data.urgency);
                         <SelectValue placeholder="Select document type" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="legal_brief">Legal Brief</SelectItem>
-                        <SelectItem value="court_filing">
-                          Court Filing
-                        </SelectItem>
-                        <SelectItem value="contract">Contract</SelectItem>
+                        <SelectItem value="legal_brief">Magistrate Court</SelectItem>
+                        <SelectItem value="court_filing">High Court</SelectItem>
+                        {/* <SelectItem value="contract">Contract</SelectItem>
                         <SelectItem value="evidence">Evidence</SelectItem>
                         <SelectItem value="affidavit">Affidavit</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
+                        <SelectItem value="other">Other</SelectItem> */}
                       </SelectContent>
                     </Select>
                   )}
@@ -437,39 +481,74 @@ data.urgency);
               </div>
 
               <div className="mb-4">
-                <Label
-                  htmlFor="urgency"
-                  className="flex items-center space-x-2 mb-1"
-                >
-                  <Clock className="h-5 w-5 text-gray-500" />
-                  <span>Urgency</span>
-                </Label>
-                <Controller
-                  name="urgency"
-                  control={control}
-                  rules={{ required: "Urgency level is required" }}
-                  render={({ field }) => (
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select urgency level" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="standard">Standard</SelectItem>
-                        <SelectItem value="urgent">Urgent</SelectItem>
-                        <SelectItem value="same_day">Same Day</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-                {errors.urgency && (
-                  <p className="text-red-500 text-sm mt-1">
-                    {errors.urgency.message}
-                  </p>
-                )}
-              </div>
+  <Label
+    htmlFor="urgency"
+    className="flex items-center space-x-2 mb-1"
+  >
+    <Clock className="h-5 w-5 text-gray-500" />
+    <span>Urgency</span>
+  </Label>
+  <Controller
+    name="urgency"
+    control={control}
+    rules={{ required: "Urgency level is required" }}
+    render={({ field }) => (
+      <Select
+        onValueChange={(value) => {
+          field.onChange(value);
+          setUrgency(value);
+          if (distance) {
+            const updatedPrice = calculatePrice(parseFloat(distance), value);
+            setPrice(updatedPrice);
+          }
+        }}
+        defaultValue={field.value}
+      >
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="Select urgency level" />
+        </SelectTrigger>
+        <SelectContent>
+  <SelectItem value="standard">
+    <div className="flex justify-between w-full items-center">
+      <span className="mr-8">Standard</span>
+      {distance && (
+        <span className="text-gray-500 ml-auto">
+          R{calculatePrice(parseFloat(distance), 'standard')}
+        </span>
+      )}
+    </div>
+  </SelectItem>
+  <SelectItem value="urgent">
+    <div className="flex justify-between w-full items-center">
+      <span className="mr-8">Urgent</span>
+      {distance && (
+        <span className="text-gray-500 ml-auto">
+          R{calculatePrice(parseFloat(distance), 'urgent')}
+        </span>
+      )}
+    </div>
+  </SelectItem>
+  {/* Commented out as per your example, but formatted for consistency */}
+  {/* <SelectItem value="same_day">
+    <div className="flex justify-between w-full items-center">
+      <span className="mr-8">Same Day</span>
+      {distance && (
+        <span className="text-gray-500 ml-auto">
+          R{calculatePrice(parseFloat(distance), 'urgent')}
+        </span>
+      )}
+    </div>
+  </SelectItem> */}
+</SelectContent>
+      </Select>
+    )}
+  />
+  {errors.urgency && (
+    <p className="text-red-500 text-sm mt-1">
+      {errors.urgency.message}
+    </p>
+  )}
+</div>
 
               <div className="mb-4">
                 <Label

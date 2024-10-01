@@ -278,7 +278,7 @@ export default function UserRegistrationPage() {
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
               Already have an account?{" "}
-              <a href="/login" className="font-medium text-teal-600 hover:text-teal-500">
+              <a href="/auth/login" className="font-medium text-teal-600 hover:text-teal-500">
                 Sign in
               </a>
             </p>

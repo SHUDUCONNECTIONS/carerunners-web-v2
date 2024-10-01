@@ -4,16 +4,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { User, Lock, AlertCircle } from "lucide-react"
+import { User, Lock, AlertCircle, Check } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { auth } from "@/utils/firebase"
-import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from "firebase/auth"
+import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, sendPasswordResetEmail } from "firebase/auth"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const [resetEmailSent, setResetEmailSent] = useState(false)
+  const [isResettingPassword, setIsResettingPassword] = useState(false)
   const router = useRouter()
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -28,8 +30,7 @@ export default function LoginPage() {
     
     try {
       await signInWithEmailAndPassword(auth, email, password)
-      // Successful login
-      router.push("/dashboard") // Redirect to dashboard or appropriate page
+      router.push("/dashboard")
     } catch (error) {
       console.error("Error during login:", error)
       setError("Invalid email or password. Please try again.")
@@ -45,8 +46,7 @@ export default function LoginPage() {
     try {
       const provider = new GoogleAuthProvider()
       await signInWithPopup(auth, provider)
-      // Successful Google login
-      router.push("/dashboard") // Redirect to dashboard or appropriate page
+      router.push("/dashboard")
     } catch (error) {
       console.error("Error during Google login:", error)
       setError("An error occurred during Google sign-in. Please try again.")
@@ -56,7 +56,42 @@ export default function LoginPage() {
   }
 
   const handleSignUp = () => {
-    router.push("/auth/sign-up") // Redirect to sign-up page
+    router.push("/auth/sign-up")
+  }
+
+  const handlePasswordReset = async () => {
+    if (!email) {
+      setError("Please enter your email address to reset password.")
+      return
+    }
+
+    setError("")
+    setLoading(true)
+    setIsResettingPassword(true)
+    
+    try {
+      await sendPasswordResetEmail(auth, email)
+      setResetEmailSent(true)
+      setError("")
+    } catch (error: any) {
+      console.error("Error sending password reset email:", error)
+      switch (error.code) {
+        case 'auth/user-not-found':
+          setError("No user found with this email address.")
+          break
+        case 'auth/invalid-email':
+          setError("Please enter a valid email address.")
+          break
+        default:
+          setError("An error occurred. Please try again.")
+      }
+    } finally {
+      setLoading(false)
+      setTimeout(() => {
+        setIsResettingPassword(false)
+        setResetEmailSent(false)
+      }, 5000)
+    }
   }
 
   return (
@@ -123,9 +158,16 @@ export default function LoginPage() {
               </div>
             )}
 
+            {resetEmailSent && (
+              <div className="text-green-600 text-sm flex items-center">
+                <Check className="h-4 w-4 mr-2" />
+                Password reset email sent! Check your inbox.
+              </div>
+            )}
+
             <div>
               <Button type="submit" className="w-full bg-teal-600 hover:bg-teal-700 text-white" disabled={loading}>
-                {loading ? "Signing In..." : "Sign In"}
+                {loading && !isResettingPassword ? "Signing In..." : "Sign In"}
               </Button>
             </div>
             <div className="mt-6 text-center">
@@ -162,12 +204,15 @@ export default function LoginPage() {
           </div>
 
           <div className="mt-6 text-center">
-            <a href="#" className="text-sm text-teal-600 hover:text-teal-500">
-              Forgot your password?
-            </a>
+            <Button
+              onClick={handlePasswordReset}
+              className="text-sm text-teal-600 hover:text-teal-500"
+              variant="link"
+              disabled={loading}
+            >
+              {loading && isResettingPassword ? "Sending reset email..." : "Forgot your password?"}
+            </Button>
           </div>
-
-
         </CardContent>
       </Card>
     </div>

@@ -69,7 +69,8 @@ function FirmRegistrationContent() {
 
       setIsSubmitted(true);
       setTimeout(() => {
-        router.push(`/pricing?firmId=${firmId}`);
+        router.push(`/auth/login`);
+        // router.push(`/pricing?firmId=${firmId}`)[This will direct the user to the payment page];
       }, 2000);
     } catch (error) {
       console.error("Error during firm registration:", error);

@@ -8,6 +8,7 @@ import { CheckCircle, XCircle, Clock, AlertTriangle } from "lucide-react";
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db, auth } from '@/utils/firebase';
 import LoadingComponent from '@/components/loader'
+import router from 'next/router';
 
 const INITIAL_DELAY = 2000; // 2 seconds
 
@@ -112,9 +113,14 @@ export default function PaymentStatusPage() {
         icon: <CheckCircle className="h-16 w-16 text-green-500" />,
         title: "Payment Successful",
         description: "Your plan payment has been processed successfully.",
-        buttonText: "Go to Dashboard",
-        buttonVariant: "default",
-      };
+        button: (
+          <Button 
+            className="w-full bg-teal-600 hover:bg-teal-700 text-white" 
+            onClick={() => router.push('/dashboard')}
+          >
+            Go to Dashboard
+          </Button>
+        )};
     } else if (resultCode.startsWith("100.") || resultCode.startsWith("200.")) {
       return {
         icon: <Clock className="h-16 w-16 text-yellow-500" />,

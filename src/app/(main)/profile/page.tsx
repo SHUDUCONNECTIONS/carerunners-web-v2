@@ -14,6 +14,7 @@ import { db, auth } from "@/utils/firebase";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import LoadingComponent from "@/components/loader";
+import { query, collection, where, getDocs } from "firebase/firestore";
 
 type FormData = {
   fullName: string;
@@ -45,25 +46,35 @@ export default function EditableProfilePage() {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         try {
+         
           const userDoc = await getDoc(doc(db, "users", user.uid));
-          const firmDoc = await getDoc(doc(db, "firms", user.uid));
-
-          if (userDoc.exists() && firmDoc.exists()) {
+      
+          const firmQuery = query(collection(db, "firms"), where("adminId", "==", user.uid));
+          const firmQuerySnapshot = await getDocs(firmQuery);
+          const firmDoc = firmQuerySnapshot.docs[0];
+    
+          
+          if (userDoc.exists() && firmDoc) {
+           
             const userData = userDoc.data();
             const firmData = firmDoc.data();
-
+            
+            // Set user values
             setValue("fullName", `${userData.firstName} ${userData.lastName}`);
             setValue("email", userData.email);
-            setValue("phone", userData.contactNumber);
+            setValue("phone", userData.contact);
             setValue("dateOfBirth", userData.dateOfBirth || "");
             setValue("jobTitle", userData.jobTitle || "");
             setValue("bio", userData.bio || "");
-
+            
+            // Set company values
             setValue("companyName", firmData.companyName);
             setValue("companyEmail", firmData.companyEmail);
             setValue("companyPhone", firmData.telephone);
             setValue("companyAddress", firmData.address);
             setValue("companyDescription", firmData.companyDescription || "");
+          } else {
+            console.log("Document does not exist for user or firm.");
           }
         } catch (error) {
           console.error("Error fetching user or firm data:", error);
@@ -76,7 +87,7 @@ export default function EditableProfilePage() {
       }
       setAuthLoading(false);
     });
-
+    
     return () => unsubscribe();
   }, [setValue]);
 
@@ -85,33 +96,42 @@ export default function EditableProfilePage() {
     try {
       const user = auth.currentUser;
       if (user) {
-        // Update user information
+        
         await updateDoc(doc(db, "users", user.uid), {
           firstName: data.fullName.split(" ")[0],
           lastName: data.fullName.split(" ").slice(1).join(" "),
-          contactNumber: data.phone,
+          contact: data.phone,
           email: data.email,
           dateOfBirth: data.dateOfBirth,
           jobTitle: data.jobTitle,
           bio: data.bio,
         });
-
-        // Update firm information
-        await updateDoc(doc(db, "firms", user.uid), {
-          companyName: data.companyName,
-          companyEmail: data.companyEmail,
-          telephone: data.companyPhone,
-          address: data.companyAddress,
-          companyDescription: data.companyDescription,
-        });
-
-        setSubmitSuccess(true);
+  
+        const firmQuery = query(collection(db, "firms"), where("adminId", "==", user.uid));
+        const firmQuerySnapshot = await getDocs(firmQuery);
+        const firmDoc = firmQuerySnapshot.docs[0];
+  
+        if (firmDoc) {
+          
+          await updateDoc(doc(db, "firms", firmDoc.id), {
+            companyName: data.companyName,
+            companyEmail: data.companyEmail,
+            telephone: data.companyPhone,
+            address: data.companyAddress,
+            companyDescription: data.companyDescription,
+          });
+          
+          setSubmitSuccess(true);
+        } else {
+          console.error("No firm found for this user");
+        
+        }
       }
     } catch (error) {
       console.error("Error updating profile:", error);
     } finally {
       setSubmitLoading(false);
-      setTimeout(() => setSubmitSuccess(false), 3000); // Reset success message after 3 seconds
+      setTimeout(() => setSubmitSuccess(false), 3000); 
     }
   };
 
