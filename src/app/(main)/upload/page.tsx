@@ -28,7 +28,6 @@ export default function FirmDocumentUpload() {
   const [selectedFirm, setSelectedFirm] = useState("");
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedPlan, setSelectedPlan] = useState(null);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((currentUser) => {
@@ -45,16 +44,6 @@ export default function FirmDocumentUpload() {
         setNotification({
           type: "error",
           message: "You must be logged in to view firms and upload documents.",
-        });
-        return;
-      }
-
-      // Check if a plan has been selected
-      const storedPlan = JSON.parse(localStorage.getItem('selectedPlan'));
-      if (!selectedPlan && !storedPlan) {
-        setNotification({
-          type: "error",
-          message: "You must choose a plan to upload documents.",
         });
         return;
       }
@@ -84,7 +73,7 @@ export default function FirmDocumentUpload() {
     if (user) {
       fetchUserFirms();
     }
-  }, [user, selectedPlan]);
+  }, [user]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
@@ -156,11 +145,6 @@ export default function FirmDocumentUpload() {
             type: "success",
             message: "Your file has been uploaded and processed successfully.",
           });
-
-          setFileType("");
-          setDescription("");
-          setFile(null);
-          setUploadProgress(0); 
         }
       );
     } catch (error) {
@@ -319,8 +303,7 @@ export default function FirmDocumentUpload() {
             <Button
               onClick={handleUpload}
               className="w-full bg-teal-600 hover:bg-teal-700 text-white"
-              disabled={uploadStatus === "uploading"}
-            >
+              disabled={uploadStatus === "uploading"}>
               {uploadStatus === "uploading" ? "Uploading..." : "Upload File"}
             </Button>
           </CardContent>

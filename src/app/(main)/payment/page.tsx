@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/utils/firebase';
@@ -8,7 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { MapPin, Calendar, Clock, FileText, DollarSign, Truck, Briefcase, User } from "lucide-react";
 import LoadingComponent from '@/components/loader';
 
-function formatCurrency(value: number, locale = 'en-US', currency = 'ZAR') {
+function formatCurrency(value, locale = 'en-US', currency = 'ZAR') {
   return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency: currency,
@@ -17,17 +17,21 @@ function formatCurrency(value: number, locale = 'en-US', currency = 'ZAR') {
   }).format(value);
 }
 
+type DropoffLocation = {
+  address: string;
+  documentType: string;
+  documentDescription: string;
+};
+
 type TripSummaryData = {
   attorneyName: string;
   firmName: string;
   pickupLocation: string;
-  dropoffLocation: string;
+  dropoffLocations: DropoffLocation[];
   pickupDate: string;
   pickupTime: string;
-  documentType: string;
-  documentDescription: string;
   urgency: string;
-  specialInstructions: string;
+  specialInstructions?: string;
   distance: string;
   price: string;
 };
@@ -37,7 +41,7 @@ export default function TripSummary() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [checkoutId, setCheckoutId] = useState<string | null>(null);
-  const [shopperResultUrl, setShopperResultUrl] = useState("");
+  const [shopperResultUrl, setShopperResultUrl] = useState<string>("");
 
   const searchParams = useSearchParams();
   const requestId = searchParams.get('requestId');
@@ -103,7 +107,7 @@ export default function TripSummary() {
     if (tripData?.price) {
       callApi();
     }
-  }, [tripData, requestId]);
+  }, [tripData]);
 
   useEffect(() => {
     if (checkoutId) {
@@ -118,7 +122,7 @@ export default function TripSummary() {
   }, [checkoutId]);
 
   if (loading) {
-    return <LoadingComponent />;
+    return <LoadingComponent/>
   }
 
   if (error) {
@@ -162,59 +166,36 @@ export default function TripSummary() {
                 </div>
                 <span>{tripData.pickupLocation}</span>
               </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <MapPin className="h-5 w-5 text-teal-600" />
-                  <span className="font-semibold">Dropoff:</span>
-                </div>
-                <span>{tripData.dropoffLocation}</span>
-              </div>
-              <Separator />
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Calendar className="h-5 w-5 text-teal-600" />
-                  <span className="font-semibold">Date:</span>
-                </div>
-                <span>{tripData.pickupDate}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Clock className="h-5 w-5 text-teal-600" />
-                  <span className="font-semibold">Time:</span>
-                </div>
-                <span>{tripData.pickupTime}</span>
-              </div>
-              <Separator />
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <FileText className="h-5 w-5 text-teal-600" />
-                  <span className="font-semibold">Document Type:</span>
-                </div>
-                <span>{tripData.documentType}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <FileText className="h-5 w-5 text-teal-600" />
-                  <span className="font-semibold">Description:</span>
-                </div>
-                <span>{tripData.documentDescription}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Truck className="h-5 w-5 text-teal-600" />
-                  <span className="font-semibold">Urgency:</span>
-                </div>
-                <span className="capitalize">{tripData.urgency}</span>
-              </div>
-              {tripData.specialInstructions && (
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <FileText className="h-5 w-5 text-teal-600" />
-                    <span className="font-semibold">Special Instructions:</span>
+              <div className="space-y-4">
+                {tripData.dropoffLocations.map((location, index) => (
+                  <div key={index} className="bg-gray-200 p-4 rounded-lg text-black">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center space-x-2">
+                        <MapPin className="h-5 w-5 text-teal-600" />
+                        <span className="font-semibold">Dropoff {index + 1}:</span>
+                      </div>
+                      <span>{location.address}</span>
+                    </div>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center space-x-2">
+                        <FileText className="h-5 w-5 text-teal-600" />
+                        <span className="font-semibold">Document Type:</span>
+                      </div>
+                      <span>{location.documentType}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <FileText className="h-5 w-5 text-teal-600" />
+                        <span className="font-semibold">Description:</span>
+                      </div>
+                      <span>{location.documentDescription}</span>
+                    </div>
                   </div>
-                  <span>{tripData.specialInstructions}</span>
-                </div>
-              )}
+                ))}
+              </div>
+              
+              
+              
               <Separator />
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
@@ -231,7 +212,7 @@ export default function TripSummary() {
                 <span>{formattedPrice}</span>
               </div>
             </div>
-
+            
             {checkoutId && (
               <div className="mt-8">
                 <h3 className="text-lg font-semibold mb-4">Payment</h3>

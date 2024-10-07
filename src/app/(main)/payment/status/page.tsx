@@ -9,6 +9,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/utils/firebase';
 import { auth } from '@/utils/firebase'; 
 import LoadingComponent from '@/components/loader'
+import { useRouter } from "next/navigation"
 
 const INITIAL_DELAY = 2000; // 2 seconds
 
@@ -18,6 +19,7 @@ export default function PaymentStatusPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const apiCalledRef = useRef(false);
+  const router = useRouter();
 
   const updateFirestore = async (status: string) => {
     const requestId = searchParams.get('requestId');
@@ -110,6 +112,7 @@ export default function PaymentStatusPage() {
         description: "Your payment has been processed successfully.",
         buttonText: "Back to Dashboard",
         buttonVariant: "default",
+        onButtonClick: () => router.push('../../dashboard')
       };
     } else if (resultCode.startsWith("100.") || resultCode.startsWith("200.")) {
       return {
@@ -118,6 +121,7 @@ export default function PaymentStatusPage() {
         description: "Your payment is being processed. This may take a few moments.",
         buttonText: "Check Status",
         buttonVariant: "outline",
+        
       };
     } else {
       return {
@@ -126,6 +130,7 @@ export default function PaymentStatusPage() {
         description: "We're sorry, but your payment could not be processed.",
         buttonText: "Try Again",
         buttonVariant: "destructive",
+        onButtonClick: () => router.push('../../request')
       };
     }
   };
@@ -191,13 +196,14 @@ export default function PaymentStatusPage() {
             </div>
             
             <div className="mt-8">
-              <Button 
-                className="w-full" 
-                variant={statusContent.buttonVariant}
-              >
-                {statusContent.buttonText}
-              </Button>
-            </div>
+  <Button 
+    className="w-full" 
+    variant={statusContent.buttonVariant}
+    onClick={statusContent.onButtonClick}  // Add this line
+  >
+    {statusContent.buttonText}
+  </Button>
+</div>
             
             {statusContent.title === "Payment Failed" && (
               <div className="mt-4 text-center">

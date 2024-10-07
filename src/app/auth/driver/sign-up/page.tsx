@@ -1,30 +1,13 @@
 "use client";
 
 import React, { useState } from "react";
+import { fetchSignInMethodsForEmail } from "firebase/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  User,
-  Mail,
-  AlertCircle,
-  Lock,
-  Phone,
-  MapPin,
-  Car,
-  FileText,
-  ChevronRight,
-  ChevronLeft,
-  Upload,
-} from "lucide-react";
+import {Select, SelectContent,  SelectItem,  SelectTrigger,  SelectValue,} from "@/components/ui/select";
+import {  User,  Mail,  AlertCircle,  Lock,  Phone,  MapPin,  Car,  FileText,  ChevronRight,  ChevronLeft,  Upload,} from "lucide-react";
 import { auth, db, storage } from "@/utils/firebase"; // Adjust this import path if necessary
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
@@ -149,65 +132,86 @@ export default function DriverSignUpStepper() {
     return await getDownloadURL(storageRef);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (validateStep(currentStep)) {
-      setLoading(true);
-      try {
-        // Create user in Firebase Authentication
-        const userCredential = await createUserWithEmailAndPassword(
-          auth,
-          formData.email,
-          formData.password
-        );
-        const user = userCredential.user;
+ 
 
-        // Upload documents to Firebase Storage
-        const idDocUrl = formData.identificationDoc
-          ? await uploadFile(
-              formData.identificationDoc,
-              `drivers/${user.uid}/identification`
-            )
-          : null;
-        const residenceDocUrl = formData.proofOfResidenceDoc
-          ? await uploadFile(
-              formData.proofOfResidenceDoc,
-              `drivers/${user.uid}/residence_proof`
-            )
-          : null;
-
-        // Create driver document in Firestore
-        await setDoc(doc(db, "drivers", user.uid), {
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          email: formData.email,
-          phone: formData.phone,
-          baseLocation: formData.baseLocation,
-          vehicleType: formData.vehicleType,
-          vehicleMake: formData.vehicleMake,
-          vehicleModel: formData.vehicleModel,
-          vehicleYear: formData.vehicleYear,
-          licenseNumber: formData.licenseNumber,
-          insuranceProvider: formData.insuranceProvider,
-          insuranceNumber: formData.insuranceNumber,
-          identificationDocUrl: idDocUrl,
-          proofOfResidenceDocUrl: residenceDocUrl,
-          isApproved: false, // Initial approval status
-          createdAt: new Date(),
-        });
-
-        // Redirect to a success page or dashboard
-        router.push("/driver/application");
-      } catch (error) {
-        console.error("Error during driver signup:", error);
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (validateStep(currentStep)) {
+    setLoading(true);
+    try {
+      // Check if email already exists
+      const signInMethods = await fetchSignInMethodsForEmail(auth, formData.email);
+      if (signInMethods.length > 0) {
         setErrors({
-          submit: "An error occurred during signup. Please try again.",
+          email: "This email is already registered. Please use a different email.",
         });
-      } finally {
-        setLoading(false);
+        setCurrentStep(0); // Go back to the first step where email input is
+        return;
       }
+
+      // Create user in Firebase Authentication
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        formData.email,
+        formData.password
+      );
+      const user = userCredential.user;
+
+      // Upload documents to Firebase Storage
+      const idDocUrl = formData.identificationDoc
+        ? await uploadFile(
+            formData.identificationDoc,
+            `drivers/${user.uid}/identification`
+          )
+        : null;
+      const residenceDocUrl = formData.proofOfResidenceDoc
+        ? await uploadFile(
+            formData.proofOfResidenceDoc,
+            `drivers/${user.uid}/residence_proof`
+          )
+        : null;
+
+      // Create driver document in Firestore
+      await setDoc(doc(db, "drivers", user.uid), {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phone: formData.phone,
+        baseLocation: formData.baseLocation,
+        vehicleType: formData.vehicleType,
+        vehicleMake: formData.vehicleMake,
+        vehicleModel: formData.vehicleModel,
+        vehicleYear: formData.vehicleYear,
+        licenseNumber: formData.licenseNumber,
+        insuranceProvider: formData.insuranceProvider,
+        insuranceNumber: formData.insuranceNumber,
+        identificationDocUrl: idDocUrl,
+        proofOfResidenceDocUrl: residenceDocUrl,
+        isApproved: false,
+        createdAt: new Date(),
+      });
+
+      // Redirect to a success page or dashboard
+      router.push("/driver/application");
+    } catch (error: any) {
+      console.error("Error during driver signup:", error);
+      
+      // Handle specific Firebase auth errors
+      if (error.code === 'auth/email-already-in-use') {
+        setErrors({
+          email: "This email is already registered. Please use a different email.",
+        });
+        setCurrentStep(0); // Go back to the first step where email input is
+      } else {
+        setErrors({
+          submit: "An error occurred during signup. Please try again later.",
+        });
+      }
+    } finally {
+      setLoading(false);
     }
-  };
+  }
+};
 
 
 
@@ -414,8 +418,8 @@ export default function DriverSignUpStepper() {
                   <SelectContent>
                     <SelectItem value="sedan">Sedan</SelectItem>
                     <SelectItem value="suv">SUV</SelectItem>
-                    <SelectItem value="van">Van</SelectItem>
-                    <SelectItem value="truck">Truck</SelectItem>
+                    <SelectItem value="truck">Hatchback</SelectItem>
+                    <SelectItem value="truck">Van</SelectItem>
                   </SelectContent>
                 </Select>
                 {errors.vehicleType && (
