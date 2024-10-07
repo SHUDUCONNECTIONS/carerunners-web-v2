@@ -381,12 +381,12 @@ export default function AttorneyDocumentPickup() {
                         className="flex items-center space-x-2 mb-1"
                       >
                         <FileText className="h-5 w-5 text-gray-500" />
-                        <span>Document Type</span>
+                        <span>Request Type</span>
                       </Label>
                       <Controller
                         name={`dropoffLocations.${index}.documentType` as const}
                         control={control}
-                        rules={{ required: "Document type is required" }}
+                        rules={{ required: "Request type is required" }}
                         render={({ field }) => (
                           <Select
                             onValueChange={field.onChange}
@@ -577,70 +577,7 @@ export default function AttorneyDocumentPickup() {
                 </div>
               </div>
 
-              <div className="mb-4">
-                <Label
-                  htmlFor="documentType"
-                  className="flex items-center space-x-2 mb-1"
-                >
-                  <FileText className="h-5 w-5 text-gray-500" />
-                  <span>Request Type</span>
-                </Label>
-                <Controller
-                  name="documentType"
-                  control={control}
-                  rules={{ required: "Request type is required" }}
-                  render={({ field }) => (
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select document type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="legal_brief">
-                          Magistrate Court
-                        </SelectItem>
-                        <SelectItem value="court_filing">High Court</SelectItem>
-                        {/* <SelectItem value="contract">Contract</SelectItem>
-                        <SelectItem value="evidence">Evidence</SelectItem>
-                        <SelectItem value="affidavit">Affidavit</SelectItem>
-                        <SelectItem value="other">Other</SelectItem> */}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-                {errors.documentType && (
-                  <p className="text-red-500 text-sm mt-1">
-                    {errors.documentType.message}
-                  </p>
-                )}
-              </div>
-
-              <div className="mb-4">
-                <Label
-                  htmlFor="documentDescription"
-                  className="flex items-center space-x-2 mb-1"
-                >
-                  <FileText className="h-5 w-5 text-gray-500" />
-                  <span>Document Description</span>
-                </Label>
-                <Textarea
-                  id="documentDescription"
-                  {...register("documentDescription", {
-                    required: "Document description is required",
-                  })}
-                  className={`w-full ${
-                    errors.documentDescription ? "border-red-500" : ""
-                  }`}
-                  rows={3}
-                />
-                {errors.documentDescription && (
-                  <p className="text-red-500 text-sm mt-1">
-                    {errors.documentDescription.message}
-                  </p>
-                )}
-              </div>
+            
 
               <div className="mb-4">
                 <Label
