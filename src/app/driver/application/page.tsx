@@ -6,17 +6,22 @@ import { Button } from "@/components/ui/button"
 import { CheckCircle, Mail, Clock, ArrowRight } from "lucide-react"
 
 export default function DriverSignUpConfirmation() {
+  // Function to handle redirect
+  const redirectToHomepage = () => {
+    window.location.href = "https://carerunners.co.za/driver.html";
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <Card className="w-full max-w-md">
         <CardHeader className="bg-teal-600 text-white text-center">
           <CheckCircle className="mx-auto h-12 w-12 text-white mb-4" />
-          <CardTitle className="text-2xl font-bold">Application Received!</CardTitle>
+          <CardTitle className="text-2xl font-bold">Driver Application Received!</CardTitle>
         </CardHeader>
         <CardContent className="mt-6 text-center">
           <div className="space-y-6">
             <p className="text-lg text-gray-700">
-              Thank you for applying to be a driver with us. We&aposve received your application and are excited to review it!
+              Thank you for applying to be a driver with us. We&apos;ve received your application and are excited to review it!
             </p>
             <div className="flex items-center justify-center text-teal-600">
               <Clock className="h-6 w-6 mr-2" />
@@ -48,7 +53,10 @@ export default function DriverSignUpConfirmation() {
                 </div>
               </div>
             </div>
-            <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white">
+            <Button 
+              className="w-full bg-teal-600 hover:bg-teal-700 text-white" 
+              onClick={redirectToHomepage} // Attach click handler
+            >
               Return to Homepage
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>

@@ -10,6 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { UserIcon, PhoneIcon } from "@heroicons/react/24/solid";
+
 import {
   Select,
   SelectContent,
@@ -28,6 +30,7 @@ import {
   Briefcase,
   Plus,
   Trash2,
+  Phone,
 } from "lucide-react";
 import {
   GoogleMap,
@@ -59,6 +62,10 @@ type FormData = {
   urgency: string;
   specialInstructions: string;
   agreeToTerms: boolean;
+  senderName: string;
+  senderNumber: string;
+  receiverName: string;
+  receiverNumber: string;
 };
 
 const mapContainerStyle = {
@@ -140,10 +147,10 @@ export default function AttorneyDocumentPickup() {
   const validateTime = (time: string, date: string) => {
     if (date === today) {
       const now = new Date();
-      const [hours, minutes] = time.split(':').map(Number);
+      const [hours, minutes] = time.split(":").map(Number);
       const selectedTime = new Date();
       selectedTime.setHours(hours, minutes);
-      
+
       return selectedTime > now || "Pickup time must be in the future";
     }
     return true;
@@ -192,7 +199,7 @@ export default function AttorneyDocumentPickup() {
         });
 
         router.push(
-          `/payment?requestId=${pickupRequestRef.id}&amount=${calculatedPrice}`
+          `/payment?requestId=${pickupRequestRef.id}&amount=${calculatedPrice}&senderName=${data.senderName}&senderNumber=${data.senderNumber}&receiverName=${data.receiverName}&receiverNumber=${data.receiverNumber}`
         );
       } catch (error) {
         console.error("Error saving pickup request:", error);
@@ -213,7 +220,6 @@ export default function AttorneyDocumentPickup() {
     }
   };
 
-  // Update the price when urgency changes
   const handleUrgencyChange = (e) => {
     const selectedUrgency = e.target.value;
     setUrgency(selectedUrgency);
@@ -231,6 +237,7 @@ export default function AttorneyDocumentPickup() {
     type = "text",
     required = true,
     pattern = undefined,
+    placeholder = "",
   }) => (
     <div className="mb-4">
       <Label htmlFor={name} className="flex items-center space-x-2 mb-1">
@@ -240,6 +247,7 @@ export default function AttorneyDocumentPickup() {
       <Input
         type={type}
         id={name}
+        placeholder={placeholder}
         {...register(name, {
           required: required ? `${label} is required` : false,
           pattern,
@@ -271,12 +279,59 @@ export default function AttorneyDocumentPickup() {
                 icon={<User className="h-5 w-5 text-gray-500" />}
                 label="Attorney Name"
                 name="attorneyName"
+                placeholder="Enter attorney name"
               />
               <InputField
                 icon={<Briefcase className="h-5 w-5 text-gray-500" />}
                 label="Firm Name"
                 name="firmName"
+                placeholder="Enter firm name"
               />
+
+              <>
+                <div className="flex space-x-4">
+                  <div className="flex-1">
+                    <InputField
+                      icon={<User className="h-5 w-5 text-gray-500" />}
+                      label="Sender's Name"
+                      name="senderName"
+                      placeholder="Enter sender's name"
+                      required={true}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <InputField
+                      icon={<Phone className="h-5 w-5 text-gray-500" />}
+                      label="Sender's Number"
+                      name="senderNumber"
+                      placeholder="Enter sender's phone number"
+                      required={true}
+                      type="tel"
+                    />
+                  </div>
+                </div>
+                <div className="flex space-x-4 mt-4">
+                  <div className="flex-1">
+                    <InputField
+                      icon={<User className="h-5 w-5 text-gray-500" />}
+                      label="Receiver's Name"
+                      name="receiverName"
+                      placeholder="Enter receiver's name"
+                      required={false}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <InputField
+                      icon={<Phone className="h-5 w-5 text-gray-500" />}
+                      label="Receiver's Number"
+                      name="receiverNumber"
+                      placeholder="Enter receiver's phone number"
+                      type="tel"
+                      required={false}
+                    />
+                  </div>
+                </div>
+              </>
 
               <LoadScript
                 googleMapsApiKey="AIzaSyDUyjpfSOAoS2fULkqKvN_Qds_lyw_JL9U"
@@ -374,7 +429,6 @@ export default function AttorneyDocumentPickup() {
                         </p>
                       )}
                     </div>
-
                     <div className="mb-4">
                       <Label
                         htmlFor={`dropoffLocations.${index}.documentType`}
@@ -412,7 +466,6 @@ export default function AttorneyDocumentPickup() {
                         </p>
                       )}
                     </div>
-
                     <div className="mb-4">
                       <Label
                         htmlFor={`dropoffLocations.${index}.documentDescription`}
@@ -444,16 +497,15 @@ export default function AttorneyDocumentPickup() {
                         </p>
                       )}
                     </div>
-
                     {index > 0 && (
                       <Button
                         type="button"
                         onClick={() => remove(index)}
                         className="mt-2"
                       >
-                        <Trash2 className="h-4 w-4 mr-2" /> Remove Dropoff
+                        <Trash2 className="h-4 w-4 mr-2" /> Remove Dropoff{" "}
                       </Button>
-                    )}
+                    )}{" "}
                   </div>
                 ))}
 
@@ -577,8 +629,6 @@ export default function AttorneyDocumentPickup() {
                 </div>
               </div>
 
-            
-
               <div className="mb-4">
                 <Label
                   htmlFor="urgency"
@@ -635,17 +685,7 @@ export default function AttorneyDocumentPickup() {
                             )}
                           </div>
                         </SelectItem>
-                        {/* Commented out as per your example, but formatted for consistency */}
-                        {/* <SelectItem value="same_day">
-    <div className="flex justify-between w-full items-center">
-      <span className="mr-8">Same Day</span>
-      {distance && (
-        <span className="text-gray-500 ml-auto">
-          R{calculatePrice(parseFloat(distance), 'urgent')}
-        </span>
-      )}
-    </div>
-  </SelectItem> */}
+                       
                       </SelectContent>
                     </Select>
                   )}
@@ -654,6 +694,32 @@ export default function AttorneyDocumentPickup() {
                   <p className="text-red-500 text-sm mt-1">
                     {errors.urgency.message}
                   </p>
+                )}
+              </div>
+
+              <div className="mb-4">
+                <Label htmlFor="deliveryType" className="flex items-center space-x-2 mb-1">
+                  <Truck className="h-5 w-5 text-gray-500" />
+                  <span>Delivery Type</span>
+                </Label>
+                <Controller
+                  name="deliveryType"
+                  control={control}
+                  rules={{ required: "Delivery type is required" }}
+                  render={({ field }) => (
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select delivery type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="one_way">One Way Delivery</SelectItem>
+                        <SelectItem value="bulk">Bulk Delivery (For multiple dropoffs)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                {errors.deliveryType && (
+                  <p className="text-red-500 text-sm mt-1">{errors.deliveryType.message}</p>
                 )}
               </div>
 

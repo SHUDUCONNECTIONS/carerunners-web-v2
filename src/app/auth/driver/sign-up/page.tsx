@@ -1,24 +1,46 @@
 "use client";
 
+
 import React, { useState } from "react";
 import { fetchSignInMethodsForEmail } from "firebase/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {Select, SelectContent,  SelectItem,  SelectTrigger,  SelectValue,} from "@/components/ui/select";
-import {  User,  Mail,  AlertCircle,  Lock,  Phone,  MapPin,  Car,  FileText,  ChevronRight,  ChevronLeft,  Upload,} from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  User,
+  Mail,
+  AlertCircle,
+
+
+  Lock,
+  Phone,  MapPin,
+  Car,
+  FileText,
+  ChevronRight,
+  ChevronLeft,
+  Upload,
+} from "lucide-react";
 import { auth, db, storage } from "@/utils/firebase"; // Adjust this import path if necessary
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useRouter } from "next/navigation";
 
+
 const steps = [
   "Personal Details",
   "Vehicle Information",
   "Document Submission",
 ];
+
 
 export default function DriverSignUpStepper() {
   const [currentStep, setCurrentStep] = useState(0);
@@ -34,6 +56,8 @@ export default function DriverSignUpStepper() {
     vehicleMake: "",
     vehicleModel: "",
     vehicleYear: "",
+    numberPlate: "",
+    vehicleColor: "",
     licenseNumber: "",
     insuranceProvider: "",
     insuranceNumber: "",
@@ -45,14 +69,17 @@ export default function DriverSignUpStepper() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
   };
 
+
   const handleSelectChange = (name: string, value: string) => {
     setFormData({ ...formData, [name]: value });
   };
+
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, files } = e.target;
@@ -61,8 +88,10 @@ export default function DriverSignUpStepper() {
     }
   };
 
+
   const validateStep = (step: number) => {
     const newErrors: { [key: string]: string } = {};
+
 
     switch (step) {
       case 0:
@@ -92,6 +121,10 @@ export default function DriverSignUpStepper() {
           newErrors.vehicleMake = "Vehicle make is required";
         if (!formData.vehicleModel.trim())
           newErrors.vehicleModel = "Vehicle model is required";
+        if (!formData.numberPlate.trim())
+          newErrors.numberPlate = "Number plate is required";
+        if (!formData.vehicleColor.trim())
+          newErrors.vehicleColor = "Vehicle color is required";
         if (!formData.vehicleYear.trim())
           newErrors.vehicleYear = "Vehicle year is required";
         if (!/^\d{4}$/.test(formData.vehicleYear))
@@ -112,9 +145,11 @@ export default function DriverSignUpStepper() {
         break;
     }
 
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
+
 
   const handleNext = () => {
     if (validateStep(currentStep)) {
@@ -122,9 +157,11 @@ export default function DriverSignUpStepper() {
     }
   };
 
+
   const handlePrevious = () => {
     setCurrentStep(currentStep - 1);
   };
+
 
   const uploadFile = async (file: File, path: string) => {
     const storageRef = ref(storage, path);
@@ -132,87 +169,97 @@ export default function DriverSignUpStepper() {
     return await getDownloadURL(storageRef);
   };
 
- 
 
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (validateStep(currentStep)) {
-    setLoading(true);
-    try {
-      // Check if email already exists
-      const signInMethods = await fetchSignInMethodsForEmail(auth, formData.email);
-      if (signInMethods.length > 0) {
-        setErrors({
-          email: "This email is already registered. Please use a different email.",
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (validateStep(currentStep)) {
+      setLoading(true);
+      try {
+        // Check if email already exists
+        const signInMethods = await fetchSignInMethodsForEmail(
+          auth,
+          formData.email
+        );
+        if (signInMethods.length > 0) {
+          setErrors({
+            email:
+              "This email is already registered. Please use a different email.",
+          });
+          setCurrentStep(0); // Go back to the first step where email input is
+          return;
+        }
+
+
+        // Create user in Firebase Authentication
+        const userCredential = await createUserWithEmailAndPassword(
+          auth,
+          formData.email,
+          formData.password
+        );
+        const user = userCredential.user;
+
+
+        // Upload documents to Firebase Storage
+        const idDocUrl = formData.identificationDoc
+          ? await uploadFile(
+              formData.identificationDoc,
+              `drivers/${user.uid}/identification`
+            )
+          : null;
+        const residenceDocUrl = formData.proofOfResidenceDoc
+          ? await uploadFile(
+              formData.proofOfResidenceDoc,
+              `drivers/${user.uid}/residence_proof`
+            )
+          : null;
+
+
+        // Create driver document in Firestore
+        await setDoc(doc(db, "drivers", user.uid), {
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email,
+          phone: formData.phone,
+          baseLocation: formData.baseLocation,
+          vehicleType: formData.vehicleType,
+          vehicleMake: formData.vehicleMake,
+          vehicleModel: formData.vehicleModel,
+          vehicleYear: formData.vehicleYear,
+          numberPlate: formData.numberPlate,
+          vehicleColor: formData.vehicleColor,
+          licenseNumber: formData.licenseNumber,
+          insuranceProvider: formData.insuranceProvider,
+          insuranceNumber: formData.insuranceNumber,
+          identificationDocUrl: idDocUrl,
+          proofOfResidenceDocUrl: residenceDocUrl,
+          isApproved: false,
+          createdAt: new Date(),
         });
-        setCurrentStep(0); // Go back to the first step where email input is
-        return;
+
+
+        // Redirect to a success page or dashboard
+        router.push("/driver/application");
+      } catch (error: any) {
+        console.error("Error during driver signup:", error);
+
+
+        // Handle specific Firebase auth errors
+        if (error.code === "auth/email-already-in-use") {
+          setErrors({
+            email:
+              "This email is already registered. Please use a different email.",
+          });
+          setCurrentStep(0); // Go back to the first step where email input is
+        } else {
+          setErrors({
+            submit: "An error occurred during signup. Please try again later.",
+          });
+        }
+      } finally {
+        setLoading(false);
       }
-
-      // Create user in Firebase Authentication
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        formData.email,
-        formData.password
-      );
-      const user = userCredential.user;
-
-      // Upload documents to Firebase Storage
-      const idDocUrl = formData.identificationDoc
-        ? await uploadFile(
-            formData.identificationDoc,
-            `drivers/${user.uid}/identification`
-          )
-        : null;
-      const residenceDocUrl = formData.proofOfResidenceDoc
-        ? await uploadFile(
-            formData.proofOfResidenceDoc,
-            `drivers/${user.uid}/residence_proof`
-          )
-        : null;
-
-      // Create driver document in Firestore
-      await setDoc(doc(db, "drivers", user.uid), {
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        email: formData.email,
-        phone: formData.phone,
-        baseLocation: formData.baseLocation,
-        vehicleType: formData.vehicleType,
-        vehicleMake: formData.vehicleMake,
-        vehicleModel: formData.vehicleModel,
-        vehicleYear: formData.vehicleYear,
-        licenseNumber: formData.licenseNumber,
-        insuranceProvider: formData.insuranceProvider,
-        insuranceNumber: formData.insuranceNumber,
-        identificationDocUrl: idDocUrl,
-        proofOfResidenceDocUrl: residenceDocUrl,
-        isApproved: false,
-        createdAt: new Date(),
-      });
-
-      // Redirect to a success page or dashboard
-      router.push("/driver/application");
-    } catch (error: any) {
-      console.error("Error during driver signup:", error);
-      
-      // Handle specific Firebase auth errors
-      if (error.code === 'auth/email-already-in-use') {
-        setErrors({
-          email: "This email is already registered. Please use a different email.",
-        });
-        setCurrentStep(0); // Go back to the first step where email input is
-      } else {
-        setErrors({
-          submit: "An error occurred during signup. Please try again later.",
-        });
-      }
-    } finally {
-      setLoading(false);
     }
-  }
-};
-
+  };
 
 
   const renderStep = () => {
@@ -247,6 +294,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                 )}
               </div>
 
+
               <div>
                 <Label htmlFor="lastName">Last Name</Label>
                 <div className="mt-1 relative rounded-md shadow-sm">
@@ -270,6 +318,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                   <p className="mt-1 text-sm text-red-600">{errors.lastName}</p>
                 )}
               </div>
+
 
               <div>
                 <Label htmlFor="email">Email</Label>
@@ -295,6 +344,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                 )}
               </div>
 
+
               <div>
                 <Label htmlFor="phone">Phone Number</Label>
                 <div className="mt-1 relative rounded-md shadow-sm">
@@ -319,6 +369,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                 )}
               </div>
 
+
               <div>
                 <Label htmlFor="password">Password</Label>
                 <div className="mt-1 relative rounded-md shadow-sm">
@@ -342,6 +393,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                   <p className="mt-1 text-sm text-red-600">{errors.password}</p>
                 )}
               </div>
+
 
               <div>
                 <Label htmlFor="confirmPassword">Confirm Password</Label>
@@ -368,6 +420,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                   </p>
                 )}
               </div>
+
 
               <div className="sm:col-span-2">
                 <Label htmlFor="baseLocation">Base Location</Label>
@@ -418,8 +471,8 @@ const handleSubmit = async (e: React.FormEvent) => {
                   <SelectContent>
                     <SelectItem value="sedan">Sedan</SelectItem>
                     <SelectItem value="suv">SUV</SelectItem>
-                    <SelectItem value="truck">Hatchback</SelectItem>
-                    <SelectItem value="truck">Van</SelectItem>
+                    <SelectItem value="hatchback">Hatchback</SelectItem>
+                    <SelectItem value="van">Van</SelectItem>
                   </SelectContent>
                 </Select>
                 {errors.vehicleType && (
@@ -428,6 +481,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                   </p>
                 )}
               </div>
+
 
               <div>
                 <Label htmlFor="vehicleMake">Vehicle Make</Label>
@@ -455,6 +509,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                 )}
               </div>
 
+
               <div>
                 <Label htmlFor="vehicleModel">Vehicle Model</Label>
                 <div className="mt-1 relative rounded-md shadow-sm">
@@ -481,6 +536,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                 )}
               </div>
 
+
               <div>
                 <Label htmlFor="vehicleYear">Vehicle Year</Label>
                 <div className="mt-1 relative rounded-md shadow-sm">
@@ -503,6 +559,58 @@ const handleSubmit = async (e: React.FormEvent) => {
                 {errors.vehicleYear && (
                   <p className="mt-1 text-sm text-red-600">
                     {errors.vehicleYear}
+                  </p>
+                )}
+              </div>
+              <div>
+                <Label htmlFor="numberPlate">Number Plate</Label>
+                <div className="mt-1 relative rounded-md shadow-sm">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Car className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <Input
+                    id="numberPlate"
+                    name="numberPlate"
+                    type="text"
+                    required
+                    className={`pl-10 block w-full ${
+                      errors.numberPlate ? "border-red-500" : ""
+                    }`}
+                    placeholder="Vehicle Number Plate"
+                    value={formData.numberPlate}
+                    onChange={handleInputChange}
+                  />
+                </div>
+                {errors.numberPlate && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {errors.numberPlate}
+                  </p>
+                )}
+              </div>
+
+
+              <div>
+                <Label htmlFor="vehicleColor">Vehicle Color</Label>
+                <div className="mt-1 relative rounded-md shadow-sm">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Car className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <Input
+                    id="vehicleColor"
+                    name="vehicleColor"
+                    type="text"
+                    required
+                    className={`pl-10 block w-full ${
+                      errors.vehicleColor ? "border-red-500" : ""
+                    }`}
+                    placeholder="Vehicle Color"
+                    value={formData.vehicleColor}
+                    onChange={handleInputChange}
+                  />
+                </div>
+                {errors.vehicleColor && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {errors.vehicleColor}
                   </p>
                 )}
               </div>
@@ -541,6 +649,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                 )}
               </div>
 
+
               <div>
                 <Label htmlFor="vehicleMake">Vehicle Make</Label>
                 <div className="mt-1 relative rounded-md shadow-sm">
@@ -566,6 +675,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                   </p>
                 )}
               </div>
+
 
               <div>
                 <Label htmlFor="vehicleModel">Vehicle Model</Label>
@@ -593,6 +703,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                 )}
               </div>
 
+
               <div>
                 <Label htmlFor="vehicleYear">Vehicle Year</Label>
                 <div className="mt-1 relative rounded-md shadow-sm">
@@ -615,6 +726,58 @@ const handleSubmit = async (e: React.FormEvent) => {
                 {errors.vehicleYear && (
                   <p className="mt-1 text-sm text-red-600">
                     {errors.vehicleYear}
+                  </p>
+                )}
+              </div>
+              <div>
+                <Label htmlFor="numberPlate">Number Plate</Label>
+                <div className="mt-1 relative rounded-md shadow-sm">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Car className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <Input
+                    id="numberPlate"
+                    name="numberPlate"
+                    type="text"
+                    required
+                    className={`pl-10 block w-full ${
+                      errors.numberPlate ? "border-red-500" : ""
+                    }`}
+                    placeholder="Vehicle Number Plate"
+                    value={formData.numberPlate}
+                    onChange={handleInputChange}
+                  />
+                </div>
+                {errors.numberPlate && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {errors.numberPlate}
+                  </p>
+                )}
+              </div>
+
+
+              <div>
+                <Label htmlFor="vehicleColor">Vehicle Color</Label>
+                <div className="mt-1 relative rounded-md shadow-sm">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Car className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <Input
+                    id="vehicleColor"
+                    name="vehicleColor"
+                    type="text"
+                    required
+                    className={`pl-10 block w-full ${
+                      errors.vehicleColor ? "border-red-500" : ""
+                    }`}
+                    placeholder="Vehicle Color"
+                    value={formData.vehicleColor}
+                    onChange={handleInputChange}
+                  />
+                </div>
+                {errors.vehicleColor && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {errors.vehicleColor}
                   </p>
                 )}
               </div>
@@ -651,6 +814,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                 )}
               </div>
 
+
               <div>
                 <Label htmlFor="insuranceProvider">Insurance Provider</Label>
                 <div className="mt-1 relative rounded-md shadow-sm">
@@ -676,6 +840,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                   </p>
                 )}
               </div>
+
 
               <div>
                 <Label htmlFor="insuranceNumber">Insurance Policy Number</Label>
@@ -703,6 +868,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                 )}
               </div>
 
+
               <div className="sm:col-span-2">
                 <Label htmlFor="identificationDoc">
                   Identification Document
@@ -728,6 +894,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                   </p>
                 )}
               </div>
+
 
               <div className="sm:col-span-2">
                 <Label htmlFor="proofOfResidenceDoc">
@@ -761,6 +928,7 @@ const handleSubmit = async (e: React.FormEvent) => {
         return null;
     }
   };
+
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
@@ -810,6 +978,7 @@ const handleSubmit = async (e: React.FormEvent) => {
             </ol>
           </div>
 
+
           <form onSubmit={handleSubmit}>
             {renderStep()}
             <div className="mt-8 flex justify-between">
@@ -846,6 +1015,7 @@ const handleSubmit = async (e: React.FormEvent) => {
             </div>
           </form>
 
+
           {errors.submit && (
             <div className="mt-4 text-red-600 text-sm flex items-center">
               <AlertCircle className="h-4 w-4 mr-2" />
@@ -857,3 +1027,5 @@ const handleSubmit = async (e: React.FormEvent) => {
     </div>
   );
 }
+
+

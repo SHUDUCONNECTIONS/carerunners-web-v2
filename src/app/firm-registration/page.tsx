@@ -98,7 +98,7 @@ function FirmRegistrationContent() {
           {isSubmitted && (
             <Alert className="bg-green-100 border-green-500 text-green-700">
               <AlertDescription>
-                Company registration successful! Redirecting you to choose a plan...
+                Company registration successful! Redirecting you to Login...
               </AlertDescription>
             </Alert>
           )}
