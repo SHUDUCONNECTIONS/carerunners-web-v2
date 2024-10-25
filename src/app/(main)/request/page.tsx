@@ -1,6 +1,12 @@
 // @ts-nocheck
 
+
+
+
 "use client";
+
+
+
 
 import React, { useState, useEffect } from "react";
 import { useForm, Controller, useFieldArray } from "react-hook-form";
@@ -11,6 +17,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { UserIcon, PhoneIcon } from "@heroicons/react/24/solid";
+
+
+
 
 import {
   Select,
@@ -45,11 +54,17 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import LoadingComponent from "@/components/loader";
 
+
+
+
 type DropoffLocation = {
   address: string;
   documentType: string;
   documentDescription: string;
 };
+
+
+
 
 type FormData = {
   attorneyName: string;
@@ -68,17 +83,29 @@ type FormData = {
   receiverNumber: string;
 };
 
+
+
+
 const mapContainerStyle = {
   width: "100%",
   height: "300px",
 };
+
+
+
 
 const defaultCenter = {
   lat: -26.2041,
   lng: 28.0473,
 };
 
+
+
+
 const PRICE_PER_KM = 28;
+
+
+
 
 export default function AttorneyDocumentPickup() {
   const [pickupCoords, setPickupCoords] = useState(defaultCenter);
@@ -90,6 +117,9 @@ export default function AttorneyDocumentPickup() {
   const router = useRouter();
   const [urgency, setUrgency] = useState("standard");
   const today = new Date().toISOString().split("T")[0];
+
+
+
 
   const {
     register,
@@ -106,10 +136,16 @@ export default function AttorneyDocumentPickup() {
     },
   });
 
+
+
+
   const { fields, append, remove } = useFieldArray({
     control,
     name: "dropoffLocations",
   });
+
+
+
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -118,9 +154,15 @@ export default function AttorneyDocumentPickup() {
           const userDoc = await getDoc(doc(db, "users", user.uid));
           const firmDoc = await getDoc(doc(db, "firms", user.uid));
 
+
+
+
           if (userDoc.exists() && firmDoc.exists()) {
             const userData = userDoc.data();
             const firmData = firmDoc.data();
+
+
+
 
             setValue(
               "attorneyName",
@@ -141,8 +183,14 @@ export default function AttorneyDocumentPickup() {
       }
     });
 
+
+
+
     return () => unsubscribe();
   }, [setValue]);
+
+
+
 
   const validateTime = (time: string, date: string) => {
     if (date === today) {
@@ -151,10 +199,16 @@ export default function AttorneyDocumentPickup() {
       const selectedTime = new Date();
       selectedTime.setHours(hours, minutes);
 
+
+
+
       return selectedTime > now || "Pickup time must be in the future";
     }
     return true;
   };
+
+
+
 
   const calculatePrice = (distance, urgency) => {
     let price;
@@ -174,6 +228,9 @@ export default function AttorneyDocumentPickup() {
     return price.toFixed(2);
   };
 
+
+
+
   const onSubmit = async (data: FormData) => {
     const user = auth.currentUser;
     if (user) {
@@ -183,6 +240,9 @@ export default function AttorneyDocumentPickup() {
           data.urgency
         );
         setPrice(calculatedPrice);
+
+
+
 
         const pickupRequestRef = doc(
           db,
@@ -198,6 +258,9 @@ export default function AttorneyDocumentPickup() {
           createdAt: new Date(),
         });
 
+
+
+
         router.push(
           `/payment?requestId=${pickupRequestRef.id}&amount=${calculatedPrice}&senderName=${data.senderName}&senderNumber=${data.senderNumber}&receiverName=${data.receiverName}&receiverNumber=${data.receiverNumber}`
         );
@@ -206,6 +269,9 @@ export default function AttorneyDocumentPickup() {
       }
     }
   };
+
+
+
 
   const handleDirectionsResponse = (response) => {
     if (response.status === "OK") {
@@ -220,15 +286,24 @@ export default function AttorneyDocumentPickup() {
     }
   };
 
+
+
+
   const handleUrgencyChange = (e) => {
     const selectedUrgency = e.target.value;
     setUrgency(selectedUrgency);
+
+
+
 
     if (distance) {
       const updatedPrice = calculatePrice(distance, selectedUrgency);
       setPrice(updatedPrice);
     }
   };
+
+
+
 
   const InputField = ({
     icon,
@@ -260,9 +335,15 @@ export default function AttorneyDocumentPickup() {
     </div>
   );
 
+
+
+
   if (loading) {
     return <LoadingComponent />;
   }
+
+
+
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -287,6 +368,9 @@ export default function AttorneyDocumentPickup() {
                 name="firmName"
                 placeholder="Enter firm name"
               />
+
+
+
 
               <>
                 <div className="flex space-x-4">
@@ -333,8 +417,11 @@ export default function AttorneyDocumentPickup() {
                 </div>
               </>
 
+
+
+
               <LoadScript
-                googleMapsApiKey="AIzaSyDUyjpfSOAoS2fULkqKvN_Qds_lyw_JL9U"
+                googleMapsApiKey="AIzaSyAuzjtvfjuDgxVfuCmpeeoOyOy53eadqcc"
                 libraries={["places"]}
               >
                 <div className="mb-4">
@@ -377,6 +464,9 @@ export default function AttorneyDocumentPickup() {
                     </p>
                   )}
                 </div>
+
+
+
 
                 {fields.map((field, index) => (
                   <div key={field.id} className="mb-4 p-4 border rounded">
@@ -509,6 +599,9 @@ export default function AttorneyDocumentPickup() {
                   </div>
                 ))}
 
+
+
+
                 <Button
                   type="button"
                   onClick={() =>
@@ -522,6 +615,9 @@ export default function AttorneyDocumentPickup() {
                 >
                   <Plus className="h-4 w-4 mr-2" /> Add Dropoff Location
                 </Button>
+
+
+
 
                 <GoogleMap
                   mapContainerStyle={mapContainerStyle}
@@ -537,6 +633,9 @@ export default function AttorneyDocumentPickup() {
                     />
                   ))}
 
+
+
+
                   {pickupCoords && dropoffCoords.length > 0 && (
                     <DirectionsService
                       options={{
@@ -551,9 +650,15 @@ export default function AttorneyDocumentPickup() {
                     />
                   )}
 
+
+
+
                   {directions && <DirectionsRenderer directions={directions} />}
                 </GoogleMap>
               </LoadScript>
+
+
+
 
               {distance && price && (
                 <div className="mt-4 p-4 bg-blue-100 rounded-md">
@@ -561,6 +666,9 @@ export default function AttorneyDocumentPickup() {
                   <p>Estimated Price: R{price}</p>
                 </div>
               )}
+
+
+
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="mb-4">
@@ -593,6 +701,9 @@ export default function AttorneyDocumentPickup() {
                     </p>
                   )}
                 </div>
+
+
+
 
                 <div className="mb-4">
                   <Label
@@ -628,6 +739,9 @@ export default function AttorneyDocumentPickup() {
                   )}
                 </div>
               </div>
+
+
+
 
               <div className="mb-4">
                 <Label
@@ -697,6 +811,9 @@ export default function AttorneyDocumentPickup() {
                 )}
               </div>
 
+
+
+
               <div className="mb-4">
                 <Label htmlFor="deliveryType" className="flex items-center space-x-2 mb-1">
                   <Truck className="h-5 w-5 text-gray-500" />
@@ -723,6 +840,9 @@ export default function AttorneyDocumentPickup() {
                 )}
               </div>
 
+
+
+
               <div className="mb-4">
                 <Label
                   htmlFor="specialInstructions"
@@ -738,6 +858,9 @@ export default function AttorneyDocumentPickup() {
                   rows={3}
                 />
               </div>
+
+
+
 
               <div className="flex items-center space-x-2">
                 <Checkbox
@@ -755,6 +878,9 @@ export default function AttorneyDocumentPickup() {
                   {errors.agreeToTerms.message}
                 </p>
               )}
+
+
+
 
               <Button
                 type="submit"
