@@ -1,41 +1,51 @@
-'use client';
-
+"use client";
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/utils/firebase';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { MapPin, Calendar, Clock, FileText, DollarSign, Truck, Briefcase, User } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { MapPin, Calendar, Clock, FileText, DollarSign, Truck, Briefcase, User } from "lucide-react";
 import LoadingComponent from '@/components/loader';
 
-interface DropoffLocation {
-  address: string;
-  documentType: string;
-  documentDescription: string;
+
+function formatCurrency(value, locale = 'en-US', currency = 'ZAR') {
+  return new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency: currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
 }
 
-interface TripSummaryData {
+
+type TripSummaryData = {
   attorneyName: string;
   firmName: string;
   pickupLocation: string;
-  dropoffLocations: DropoffLocation[];
+  dropoffLocation: string;
   pickupDate: string;
   pickupTime: string;
+  documentType: string;
+  documentDescription: string;
   urgency: string;
-  specialInstructions?: string;
+  specialInstructions: string;
   distance: string;
   price: string;
-}
+};
 
-const PaymentPage: React.FC = () => {
+
+export default function TripSummary() {
   const [tripData, setTripData] = useState<TripSummaryData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [checkoutId, setCheckoutId] = useState<string | null>(null);
-  const [shopperResultUrl, setShopperResultUrl] = useState<string>('');
+  const [shopperResultUrl, setShopperResultUrl] = useState<string>("");
+
 
   const searchParams = useSearchParams();
   const requestId = searchParams.get('requestId');
+
 
   useEffect(() => {
     const fetchTripData = async () => {
@@ -45,17 +55,14 @@ const PaymentPage: React.FC = () => {
         return;
       }
 
+
       try {
         const docRef = doc(db, 'pickupRequests', requestId);
         const docSnap = await getDoc(docRef);
 
+
         if (docSnap.exists()) {
-          const data = docSnap.data() as TripSummaryData;
-          // Ensure dropoffLocations exists and is an array
-          setTripData({
-            ...data,
-            dropoffLocations: Array.isArray(data.dropoffLocations) ? data.dropoffLocations : []
-          });
+          setTripData(docSnap.data() as TripSummaryData);
         } else {
           setError('No such document!');
         }
@@ -67,45 +74,55 @@ const PaymentPage: React.FC = () => {
       }
     };
 
+
     fetchTripData();
   }, [requestId]);
 
+
   useEffect(() => {
     const callApi = async () => {
-      if (!tripData?.price) return;
+      if (!tripData) return;
+
 
       try {
+        // Format the price to always have two decimal places
         const formattedPrice = parseFloat(tripData.price).toFixed(2);
 
-        const response = await fetch('/api/prepare-checkout', {
-          method: 'POST',
+
+        const response = await fetch("/api/prepare-checkout", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             price: formattedPrice,
           }),
         });
 
+
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
+
 
         const data = await response.json();
         setCheckoutId(data.id);
         setShopperResultUrl(`/payment/status?requestId=${requestId}`);
       } catch (error) {
-        console.error('Error calling API:', error);
-        setError('Failed to initialize payment. Please try again.');
+        console.error("Error calling API:", error);
       }
     };
 
-    callApi();
-  }, [tripData, requestId]);
+
+    if (tripData?.price) {
+      callApi();
+    }
+  }, [tripData]);
+
 
   useEffect(() => {
     if (checkoutId) {
-      const script = document.createElement('script');
+      const script = document.createElement("script");
       script.src = `https://card.peachpayments.com/v1/paymentWidgets.js?checkoutId=${checkoutId}`;
       script.async = true;
       document.body.appendChild(script);
@@ -115,44 +132,24 @@ const PaymentPage: React.FC = () => {
     }
   }, [checkoutId]);
 
+
   if (loading) {
-    return <LoadingComponent />;
+    return <LoadingComponent/>
   }
+
 
   if (error) {
-    return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <Card className="w-full max-w-2xl">
-          <CardContent className="p-6">
-            <div className="text-center text-red-600">
-              <h2 className="text-xl font-semibold mb-2">Error</h2>
-              <p>{error}</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return <div>Error: {error}</div>;
   }
+
 
   if (!tripData) {
-    return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <Card className="w-full max-w-2xl">
-          <CardContent className="p-6">
-            <div className="text-center">
-              <h2 className="text-xl font-semibold mb-2">No Data Available</h2>
-              <p>Trip information could not be loaded.</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return <div>No trip data available</div>;
   }
 
-  const formattedPrice = new Intl.NumberFormat('en-ZA', {
-    style: 'currency',
-    currency: 'ZAR',
-  }).format(parseFloat(tripData.price || '0'));
+
+  const formattedPrice = formatCurrency(parseFloat(tripData.price));
+
 
   return (
     <div className="min-h-screen bg-gray-100 py-8 px-4 sm:px-6 lg:px-8">
@@ -177,6 +174,7 @@ const PaymentPage: React.FC = () => {
                 </div>
                 <span>{tripData.firmName}</span>
               </div>
+              <Separator />
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <MapPin className="h-5 w-5 text-teal-600" />
@@ -184,27 +182,60 @@ const PaymentPage: React.FC = () => {
                 </div>
                 <span>{tripData.pickupLocation}</span>
               </div>
-              <div className="space-y-4">
-                {(tripData.dropoffLocations || []).map((location, index) => (
-                  <div key={index} className="bg-gray-200 p-4 rounded-lg text-black">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center space-x-2">
-                        <MapPin className="h-5 w-5 text-teal-600" />
-                        <span className="font-semibold">Dropoff {index + 1}:</span>
-                      </div>
-                      <span>{location.address}</span>
-                    </div>
-                    
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <FileText className="h-5 w-5 text-teal-600" />
-                        <span className="font-semibold">Description:</span>
-                      </div>
-                      <span>{location.documentDescription}</span>
-                    </div>
-                  </div>
-                ))}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <MapPin className="h-5 w-5 text-teal-600" />
+                  <span className="font-semibold">Dropoff:</span>
+                </div>
+                <span>{tripData.dropoffLocation}</span>
               </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Calendar className="h-5 w-5 text-teal-600" />
+                  <span className="font-semibold">Date:</span>
+                </div>
+                <span>{tripData.pickupDate}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Clock className="h-5 w-5 text-teal-600" />
+                  <span className="font-semibold">Time:</span>
+                </div>
+                <span>{tripData.pickupTime}</span>
+              </div>
+              <Separator />
+              {/* <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <FileText className="h-5 w-5 text-teal-600" />
+                  <span className="font-semibold">Document Type:</span>
+                </div>
+                <span>{tripData.documentType}</span>
+              </div> */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <FileText className="h-5 w-5 text-teal-600" />
+                  <span className="font-semibold">Description:</span>
+                </div>
+                <span>{tripData.documentDescription}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Truck className="h-5 w-5 text-teal-600" />
+                  <span className="font-semibold">Urgency:</span>
+                </div>
+                <span className="capitalize">{tripData.urgency}</span>
+              </div>
+              {tripData.specialInstructions && (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <FileText className="h-5 w-5 text-teal-600" />
+                    <span className="font-semibold">Special Instructions:</span>
+                  </div>
+                  <span>{tripData.specialInstructions}</span>
+                </div>
+              )}
+              <Separator />
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <Truck className="h-5 w-5 text-teal-600" />
@@ -220,6 +251,7 @@ const PaymentPage: React.FC = () => {
                 <span>{formattedPrice}</span>
               </div>
             </div>
+           
             {checkoutId && (
               <div className="mt-8">
                 <h3 className="text-lg font-semibold mb-4">Payment</h3>
@@ -237,6 +269,5 @@ const PaymentPage: React.FC = () => {
       </div>
     </div>
   );
-};
+}
 
-export default PaymentPage;
