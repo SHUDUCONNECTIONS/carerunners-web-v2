@@ -1,29 +1,20 @@
-"use client";
+'use client';
+
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/utils/firebase';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { MapPin, Calendar, Clock, FileText, DollarSign, Truck, Briefcase, User } from "lucide-react";
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { MapPin, Calendar, Clock, FileText, DollarSign, Truck, Briefcase, User } from 'lucide-react';
 import LoadingComponent from '@/components/loader';
 
-function formatCurrency(value, locale = 'en-US', currency = 'ZAR') {
-  return new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency: currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
-}
-
-type DropoffLocation = {
+interface DropoffLocation {
   address: string;
   documentType: string;
   documentDescription: string;
-};
+}
 
-type TripSummaryData = {
+interface TripSummaryData {
   attorneyName: string;
   firmName: string;
   pickupLocation: string;
@@ -34,14 +25,14 @@ type TripSummaryData = {
   specialInstructions?: string;
   distance: string;
   price: string;
-};
+}
 
-export default function TripSummary() {
+const PaymentPage: React.FC = () => {
   const [tripData, setTripData] = useState<TripSummaryData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [checkoutId, setCheckoutId] = useState<string | null>(null);
-  const [shopperResultUrl, setShopperResultUrl] = useState<string>("");
+  const [shopperResultUrl, setShopperResultUrl] = useState<string>('');
 
   const searchParams = useSearchParams();
   const requestId = searchParams.get('requestId');
@@ -59,7 +50,12 @@ export default function TripSummary() {
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
-          setTripData(docSnap.data() as TripSummaryData);
+          const data = docSnap.data() as TripSummaryData;
+          // Ensure dropoffLocations exists and is an array
+          setTripData({
+            ...data,
+            dropoffLocations: Array.isArray(data.dropoffLocations) ? data.dropoffLocations : []
+          });
         } else {
           setError('No such document!');
         }
@@ -76,16 +72,15 @@ export default function TripSummary() {
 
   useEffect(() => {
     const callApi = async () => {
-      if (!tripData) return;
+      if (!tripData?.price) return;
 
       try {
-        // Format the price to always have two decimal places
         const formattedPrice = parseFloat(tripData.price).toFixed(2);
 
-        const response = await fetch("/api/prepare-checkout", {
-          method: "POST",
+        const response = await fetch('/api/prepare-checkout', {
+          method: 'POST',
           headers: {
-            "Content-Type": "application/json",
+            'Content-Type': 'application/json',
           },
           body: JSON.stringify({
             price: formattedPrice,
@@ -100,18 +95,17 @@ export default function TripSummary() {
         setCheckoutId(data.id);
         setShopperResultUrl(`/payment/status?requestId=${requestId}`);
       } catch (error) {
-        console.error("Error calling API:", error);
+        console.error('Error calling API:', error);
+        setError('Failed to initialize payment. Please try again.');
       }
     };
 
-    if (tripData?.price) {
-      callApi();
-    }
-  }, [tripData]);
+    callApi();
+  }, [tripData, requestId]);
 
   useEffect(() => {
     if (checkoutId) {
-      const script = document.createElement("script");
+      const script = document.createElement('script');
       script.src = `https://card.peachpayments.com/v1/paymentWidgets.js?checkoutId=${checkoutId}`;
       script.async = true;
       document.body.appendChild(script);
@@ -122,18 +116,43 @@ export default function TripSummary() {
   }, [checkoutId]);
 
   if (loading) {
-    return <LoadingComponent/>
+    return <LoadingComponent />;
   }
 
   if (error) {
-    return <div>Error: {error}</div>;
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <Card className="w-full max-w-2xl">
+          <CardContent className="p-6">
+            <div className="text-center text-red-600">
+              <h2 className="text-xl font-semibold mb-2">Error</h2>
+              <p>{error}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   if (!tripData) {
-    return <div>No trip data available</div>;
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <Card className="w-full max-w-2xl">
+          <CardContent className="p-6">
+            <div className="text-center">
+              <h2 className="text-xl font-semibold mb-2">No Data Available</h2>
+              <p>Trip information could not be loaded.</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
-  const formattedPrice = formatCurrency(parseFloat(tripData.price));
+  const formattedPrice = new Intl.NumberFormat('en-ZA', {
+    style: 'currency',
+    currency: 'ZAR',
+  }).format(parseFloat(tripData.price || '0'));
 
   return (
     <div className="min-h-screen bg-gray-100 py-8 px-4 sm:px-6 lg:px-8">
@@ -158,7 +177,6 @@ export default function TripSummary() {
                 </div>
                 <span>{tripData.firmName}</span>
               </div>
-              <Separator />
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <MapPin className="h-5 w-5 text-teal-600" />
@@ -167,7 +185,7 @@ export default function TripSummary() {
                 <span>{tripData.pickupLocation}</span>
               </div>
               <div className="space-y-4">
-                {tripData.dropoffLocations.map((location, index) => (
+                {(tripData.dropoffLocations || []).map((location, index) => (
                   <div key={index} className="bg-gray-200 p-4 rounded-lg text-black">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center space-x-2">
@@ -176,13 +194,7 @@ export default function TripSummary() {
                       </div>
                       <span>{location.address}</span>
                     </div>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center space-x-2">
-                        <FileText className="h-5 w-5 text-teal-600" />
-                        <span className="font-semibold">Document Type:</span>
-                      </div>
-                      <span>{location.documentType}</span>
-                    </div>
+                    
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
                         <FileText className="h-5 w-5 text-teal-600" />
@@ -193,10 +205,6 @@ export default function TripSummary() {
                   </div>
                 ))}
               </div>
-              
-              
-              
-              <Separator />
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <Truck className="h-5 w-5 text-teal-600" />
@@ -212,7 +220,6 @@ export default function TripSummary() {
                 <span>{formattedPrice}</span>
               </div>
             </div>
-            
             {checkoutId && (
               <div className="mt-8">
                 <h3 className="text-lg font-semibold mb-4">Payment</h3>
@@ -230,4 +237,6 @@ export default function TripSummary() {
       </div>
     </div>
   );
-}
+};
+
+export default PaymentPage;
