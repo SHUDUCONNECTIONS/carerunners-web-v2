@@ -1,19 +1,17 @@
 // @ts-nocheck
 
-
-
-
 "use client";
 
-
 import React, { useState, useEffect } from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { UserIcon, PhoneIcon } from "@heroicons/react/24/solid";
+
 import {
   Select,
   SelectContent,
@@ -23,14 +21,16 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Calendar as CalendarIcon,
+  CalendarIcon,
   Clock,
   MapPin,
   FileText,
   Truck,
   User,
   Briefcase,
-  Scale,
+  Plus,
+  Trash2,
+  Phone,
 } from "lucide-react";
 import {
   GoogleMap,
@@ -45,7 +45,6 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import LoadingComponent from "@/components/loader";
 
-
 type FormData = {
   attorneyName: string;
   firmName: string;
@@ -54,29 +53,29 @@ type FormData = {
   dropoffLocation: string;
   pickupDate: string;
   pickupTime: string;
-  documentType: string;
-  documentDescription: string;
   urgency: string;
   specialInstructions: string;
   agreeToTerms: boolean;
+  senderName: string;
+  senderNumber: string;
+  receiverName: string;
+  receiverNumber: string;
+  documentDescription: string;
+  requestType: string;
 };
-
 
 const mapContainerStyle = {
   width: "100%",
   height: "300px",
 };
 
-
 const defaultCenter = {
   lat: -26.2041, // Johannesburg Latitude
   lng: 28.0473, // Johannesburg Longitude
 };
 
-
 // Assuming this is stored in an environment variable
 const PRICE_PER_KM = 28;
-
 
 export default function AttorneyDocumentPickup() {
   const [pickupCoords, setPickupCoords] = useState(defaultCenter);
@@ -86,7 +85,26 @@ export default function AttorneyDocumentPickup() {
   const [price, setPrice] = useState(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const today = new Date().toISOString().split("T")[0];
+  const [urgency, setUrgency] = useState("standard");
 
+  const defaultValues: FormData = {
+    attorneyName: "",
+    firmName: "",
+    barNumber: "",
+    pickupLocation: "",
+    dropoffLocation: "",
+    pickupDate: today,
+    pickupTime: "",
+    urgency: "standard",
+    specialInstructions: "",
+    senderName: "",
+    senderNumber: "",
+    receiverName: "",
+    receiverNumber: "",
+    documentDescription: "",
+    requestType: ""
+  };
 
   const {
     register,
@@ -94,8 +112,11 @@ export default function AttorneyDocumentPickup() {
     control,
     formState: { errors },
     setValue,
-  } = useForm<FormData>();
-
+    getValues,
+    reset
+  } = useForm<FormData>({
+    defaultValues
+  });
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -104,11 +125,9 @@ export default function AttorneyDocumentPickup() {
           const userDoc = await getDoc(doc(db, "users", user.uid));
           const firmDoc = await getDoc(doc(db, "firms", user.uid));
 
-
           if (userDoc.exists() && firmDoc.exists()) {
             const userData = userDoc.data();
             const firmData = firmDoc.data();
-
 
             setValue(
               "attorneyName",
@@ -129,38 +148,86 @@ export default function AttorneyDocumentPickup() {
       }
     });
 
+    return () => unsubscribe();
+  }, [setValue]); useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        try {
+          const userDoc = await getDoc(doc(db, "users", user.uid));
+          const firmDoc = await getDoc(doc(db, "firms", user.uid));
+
+          if (userDoc.exists() && firmDoc.exists()) {
+            const userData = userDoc.data();
+            const firmData = firmDoc.data();
+
+            // Update form values
+            reset({
+              ...defaultValues,
+              attorneyName: `${userData.firstName} ${userData.lastName}`,
+              firmName: firmData.companyName,
+              barNumber: userData.barNumber || "",
+              pickupLocation: firmData.address || ""
+            });
+          }
+        } catch (error) {
+          console.error("Error fetching user or firm data:", error);
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        console.error("No authenticated user found.");
+        setLoading(false);
+      }
+    });
 
     return () => unsubscribe();
-  }, [setValue]);
+  }, [reset]);
 
+  const validateTime = (time: string, date: string) => {
+    if (date === today) {
+      const now = new Date();
+      const [hours, minutes] = time.split(":").map(Number);
+      const selectedTime = new Date();
+      selectedTime.setHours(hours, minutes);
+
+      return selectedTime > now || "Pickup time must be in the future";
+    }
+    return true;
+  };
 
   const calculatePrice = (distance, urgency) => {
     let price;
-    if (urgency === "urgent") {
-      if (distance <= 2) {
-        price = 60;
+    const distanceInKm = parseFloat(distance);
+  
+    // For urgent deliveries
+    if (urgency === "urgent" || urgency === "same_day") {
+      if (distanceInKm <= 2) {
+        price = 60; // Fixed price for urgent deliveries under 2km
       } else {
-        price = 60 + (distance - 2) * 7.5;
+        price = 60 + (distanceInKm - 2) * 7.5; // Base price + additional distance charge
       }
-    } else {
-      if (distance <= 2) {
-        price = 28;
+    } 
+    // For standard deliveries
+    else {
+      if (distanceInKm <= 2) {
+        price = 28; // Fixed price for standard deliveries under 2km
       } else {
-        price = 28 + (distance - 2) * 6;
+        price = 28 + (distanceInKm - 2) * 6; // Base price + additional distance charge
       }
     }
+  
     return price.toFixed(2);
   };
 
-
- 
   const onSubmit = async (data: FormData) => {
     const user = auth.currentUser;
     if (user) {
       try {
-        const calculatedPrice = calculatePrice(parseFloat(distance), data.urgency);
+        const calculatedPrice = calculatePrice(
+          parseFloat(distance),
+          data.urgency
+        );
         setPrice(calculatedPrice);
-
 
         // Save pickup request data
         const pickupRequestRef = doc(
@@ -177,7 +244,6 @@ export default function AttorneyDocumentPickup() {
           createdAt: new Date(),
         });
 
-
         // Redirect to payment page
         router.push(
           `/payment?requestId=${pickupRequestRef.id}&amount=${calculatedPrice}`
@@ -193,12 +259,14 @@ export default function AttorneyDocumentPickup() {
       const route = response.routes[0];
       const distanceInKm = route.legs[0].distance.value / 1000;
       setDistance(distanceInKm.toFixed(2));
-      setPrice((distanceInKm * PRICE_PER_KM).toFixed(2));
+      
+      // Calculate price using the current urgency state
+      const calculatedPrice = calculatePrice(distanceInKm, urgency);
+      setPrice(calculatedPrice);
     } else {
       console.error(`Error fetching directions ${response}`);
     }
   };
-
 
   const InputField = ({
     icon,
@@ -207,20 +275,29 @@ export default function AttorneyDocumentPickup() {
     type = "text",
     required = true,
     pattern = undefined,
+    placeholder = "",
   }) => (
     <div className="mb-4">
       <Label htmlFor={name} className="flex items-center space-x-2 mb-1">
         {icon}
         <span>{label}</span>
       </Label>
-      <Input
-        type={type}
-        id={name}
-        {...register(name, {
+      <Controller
+        name={name}
+        control={control}
+        rules={{
           required: required ? `${label} is required` : false,
-          pattern,
-        })}
-        className={`w-full ${errors[name] ? "border-red-500" : ""}`}
+          pattern
+        }}
+        render={({ field }) => (
+          <Input
+            type={type}
+            id={name}
+            placeholder={placeholder}
+            {...field}
+            className={`w-full ${errors[name] ? "border-red-500" : ""}`}
+          />
+        )}
       />
       {errors[name] && (
         <p className="text-red-500 text-sm mt-1">{errors[name].message}</p>
@@ -228,11 +305,9 @@ export default function AttorneyDocumentPickup() {
     </div>
   );
 
-
   if (loading) {
-    return <LoadingComponent/>
+    return <LoadingComponent />;
   }
-
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -249,102 +324,193 @@ export default function AttorneyDocumentPickup() {
                 icon={<User className="h-5 w-5 text-gray-500" />}
                 label="Attorney Name"
                 name="attorneyName"
+                placeholder="Enter attorney name"
               />
               <InputField
                 icon={<Briefcase className="h-5 w-5 text-gray-500" />}
                 label="Firm Name"
                 name="firmName"
-               
+                placeholder="Enter firm name"
               />
 
+              <>
+                <div className="flex space-x-4">
+                  <div className="flex-1">
+                    <InputField
+                      icon={<User className="h-5 w-5 text-gray-500" />}
+                      label="Sender's Name"
+                      name="senderName"
+                      placeholder="Enter sender's name"
+                      required={true}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <InputField
+                      icon={<Phone className="h-5 w-5 text-gray-500" />}
+                      label="Sender's Number"
+                      name="senderNumber"
+                      placeholder="Enter sender's phone number"
+                      required={true}
+                      type="tel"
+                    />
+                  </div>
+                </div>
+                <div className="flex space-x-4 mt-4">
+                  <div className="flex-1">
+                    <InputField
+                      icon={<User className="h-5 w-5 text-gray-500" />}
+                      label="Receiver's Name"
+                      name="receiverName"
+                      placeholder="Enter receiver's name"
+                      required={false}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <InputField
+                      icon={<Phone className="h-5 w-5 text-gray-500" />}
+                      label="Receiver's Number"
+                      name="receiverNumber"
+                      placeholder="Enter receiver's phone number"
+                      type="tel"
+                      required={false}
+                    />
+                  </div>
+                </div>
+              </>
 
               <LoadScript
                 googleMapsApiKey="AIzaSyAuzjtvfjuDgxVfuCmpeeoOyOy53eadqcc"
+                // googleMapsApiKey="AIzaSyDUyjpfSOAoS2fULkqKvN_Qds_lyw_JL9U"
                 libraries={["places"]}
               >
                 <div className="mb-4">
-                  <Label
-                    htmlFor="pickupLocation"
-                    className="flex items-center space-x-2 mb-1"
-                  >
-                    <MapPin className="h-5 w-5 text-gray-500" />
-                    <span>Pickup Location</span>
-                  </Label>
-                  <Autocomplete
-                    onLoad={(autocomplete) => {
-                      autocomplete.setComponentRestrictions({ country: "za" });
-                      autocomplete.addListener("place_changed", () => {
-                        const place = autocomplete.getPlace();
-                        if (place.geometry) {
-                          const location = {
-                            lat: place.geometry.location.lat(),
-                            lng: place.geometry.location.lng(),
-                          };
-                          setPickupCoords(location);
-                        }
-                      });
-                    }}
-                  >
-                    <Input
-                      type="text"
-                      id="pickupLocation"
-                      {...register("pickupLocation", {
-                        required: "Pickup location is required",
-                      })}
-                      className={`w-full ${
-                        errors.pickupLocation ? "border-red-500" : ""
-                      }`}
-                    />
-                  </Autocomplete>
-                  {errors.pickupLocation && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {errors.pickupLocation.message}
+      <Label
+        htmlFor="pickupLocation"
+        className="flex items-center space-x-2 mb-1"
+      >
+        <MapPin className="h-5 w-5 text-gray-500" />
+        <span>Pickup Location</span>
+      </Label>
+      <Controller
+        name="pickupLocation"
+        control={control}
+        rules={{ required: "Pickup location is required" }}
+        render={({ field }) => (
+          <Autocomplete
+            onLoad={(autocomplete) => {
+              autocomplete.setComponentRestrictions({ country: "za" });
+              autocomplete.addListener("place_changed", () => {
+                const place = autocomplete.getPlace();
+                if (place.geometry) {
+                  const location = {
+                    lat: place.geometry.location.lat(),
+                    lng: place.geometry.location.lng(),
+                  };
+                  setPickupCoords(location);
+                  field.onChange(place.formatted_address);
+                }
+              });
+            }}
+          >
+            <Input
+              type="text"
+              id="pickupLocation"
+              value={field.value}
+              onChange={(e) => field.onChange(e.target.value)}
+              className={`w-full ${errors.pickupLocation ? "border-red-500" : ""}`}
+            />
+          </Autocomplete>
+        )}
+      />
+      {errors.pickupLocation && (
+        <p className="text-red-500 text-sm mt-1">
+          {errors.pickupLocation.message}
                     </p>
                   )}
                 </div>
 
+                <div className="space-y-4">
+                  <div className="mb-4">
+                    <Label
+                      htmlFor="dropoffLocation"
+                      className="flex items-center space-x-2 mb-1"
+                    >
+                      <MapPin className="h-5 w-5 text-gray-500" />
+                      <span>Dropoff Location</span>
+                    </Label>
+                    <Autocomplete
+                      onLoad={(autocomplete) => {
+                        autocomplete.setComponentRestrictions({
+                          country: "za",
+                        });
+                        autocomplete.addListener("place_changed", () => {
+                          const place = autocomplete.getPlace();
+                          if (place.geometry) {
+                            const location = {
+                              lat: place.geometry.location.lat(),
+                              lng: place.geometry.location.lng(),
+                            };
+                            setDropoffCoords(location);
+                          }
+                        });
+                      }}
+                    >
+                      <Input
+                        type="text"
+                        id="dropoffLocation"
+                        {...register("dropoffLocation", {
+                          required: "Dropoff location is required",
+                        })}
+                        className={`w-full ${
+                          errors.dropoffLocation ? "border-red-500" : ""
+                        }`}
+                      />
+                    </Autocomplete>
+                    {errors.dropoffLocation && (
+                      <p className="text-red-500 text-sm mt-1">
+                        {errors.dropoffLocation.message}
+                      </p>
+                    )}
+                  </div>
 
-                <div className="mb-4">
-                  <Label
-                    htmlFor="dropoffLocation"
-                    className="flex items-center space-x-2 mb-1"
-                  >
-                    <MapPin className="h-5 w-5 text-gray-500" />
-                    <span>Dropoff Location</span>
-                  </Label>
-                  <Autocomplete
-                    onLoad={(autocomplete) => {
-                      autocomplete.setComponentRestrictions({ country: "za" });
-                      autocomplete.addListener("place_changed", () => {
-                        const place = autocomplete.getPlace();
-                        if (place.geometry) {
-                          const location = {
-                            lat: place.geometry.location.lat(),
-                            lng: place.geometry.location.lng(),
-                          };
-                          setDropoffCoords(location);
-                        }
-                      });
-                    }}
-                  >
-                    <Input
-                      type="text"
-                      id="dropoffLocation"
-                      {...register("dropoffLocation", {
-                        required: "Dropoff location is required",
-                      })}
-                      className={`w-full ${
-                        errors.dropoffLocation ? "border-red-500" : ""
-                      }`}
+                  <div className="mb-4">
+                    <Label
+                      htmlFor="requestType"
+                      className="flex items-center space-x-2 mb-1"
+                    >
+                      <FileText className="h-5 w-5 text-gray-500" />
+                      <span>Request Type</span>
+                    </Label>
+                    <Controller
+                      name="requestType"
+                      control={control}
+                      rules={{ required: "Request type is required" }}
+                      render={({ field }) => (
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select request type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="magistrate_court">
+                              Magistrate Court
+                            </SelectItem>
+                            <SelectItem value="high_court">
+                              High Court
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
                     />
-                  </Autocomplete>
-                  {errors.dropoffLocation && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {errors.dropoffLocation.message}
-                    </p>
-                  )}
+                    {errors.requestType && (
+                      <p className="text-red-500 text-sm mt-1">
+                        {errors.requestType.message}
+                      </p>
+                    )}
+                  </div>
                 </div>
-
 
                 <GoogleMap
                   mapContainerStyle={mapContainerStyle}
@@ -353,7 +519,6 @@ export default function AttorneyDocumentPickup() {
                 >
                   {pickupCoords && <Marker position={pickupCoords} />}
                   {dropoffCoords && <Marker position={dropoffCoords} />}
-
 
                   {pickupCoords && dropoffCoords && (
                     <DirectionsService
@@ -366,11 +531,9 @@ export default function AttorneyDocumentPickup() {
                     />
                   )}
 
-
                   {directions && <DirectionsRenderer directions={directions} />}
                 </GoogleMap>
               </LoadScript>
-
 
               {distance && price && (
                 <div className="mt-4 p-4 bg-blue-100 rounded-md">
@@ -379,65 +542,74 @@ export default function AttorneyDocumentPickup() {
                 </div>
               )}
 
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <InputField
-                  icon={<CalendarIcon className="h-5 w-5 text-gray-500" />}
-                  label="Pickup Date"
-                  name="pickupDate"
-                  type="date"
-                />
-
-
-              </div>
-              <InputField
-                  icon={<Clock className="h-5 w-5 text-gray-500" />}
-                  label="Pickup Time"
-                  name="pickupTime"
-                  type="time"
-                />
-
-
               <div className="mb-4">
-                <Label
-                  htmlFor="documentType"
-                  className="flex items-center space-x-2 mb-1"
-                >
-                  <FileText className="h-5 w-5 text-gray-500" />
-                  <span>Document Type</span>
-                </Label>
-                <Controller
-                  name="documentType"
-                  control={control}
-                  rules={{ required: "Document type is required" }}
-                  render={({ field }) => (
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select document type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="legal_brief">Legal Brief</SelectItem>
-                        <SelectItem value="court_filing">
-                          Court Filing
-                        </SelectItem>
-                        <SelectItem value="contract">Contract</SelectItem>
-                        <SelectItem value="evidence">Evidence</SelectItem>
-                        <SelectItem value="affidavit">Affidavit</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <Label
+                    htmlFor="pickupDate"
+                    className="flex items-center space-x-2 mb-1"
+                  >
+                    <CalendarIcon className="h-5 w-5 text-gray-500" />
+                    <span>Pickup Date</span>
+                  </Label>
+                  <Controller
+                    name="pickupDate"
+                    control={control}
+                    rules={{ required: "Pickup date is required" }}
+                    render={({ field }) => (
+                      <Input
+                        type="date"
+                        id="pickupDate"
+                        min={today}
+                        {...field}
+                        className={`w-full ${
+                          errors.pickupDate ? "border-red-500" : ""
+                        }`}
+                      />
+                    )}
+                  />
+                  {errors.pickupDate && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.pickupDate.message}
+                    </p>
                   )}
-                />
-                {errors.documentType && (
-                  <p className="text-red-500 text-sm mt-1">
-                    {errors.documentType.message}
-                  </p>
-                )}
+                </div>
+
+                <div className="mb-4">
+                  <Label
+                    htmlFor="pickupTime"
+                    className="flex items-center space-x-2 mb-1"
+                  >
+                    <Clock className="h-5 w-5 text-gray-500" />
+                    <span>Pickup Time</span>
+                  </Label>
+                  <Controller
+                    name="pickupTime"
+                    control={control}
+                    rules={{
+                      required: "Pickup time is required",
+                      validate: (value) =>
+                        validateTime(value, getValues("pickupDate")),
+                    }}
+                    render={({ field }) => (
+                      <Input
+                        type="time"
+                        id="pickupTime"
+                        {...field}
+                        className={`w-full ${
+                          errors.pickupTime ? "border-red-500" : ""
+                        }`}
+                      />
+                    )}
+                  />
+                  {errors.pickupTime && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.pickupTime.message}
+                    </p>
+                  )}
+                </div>
               </div>
 
+              
 
               <div className="mb-4">
                 <Label
@@ -464,7 +636,6 @@ export default function AttorneyDocumentPickup() {
                 )}
               </div>
 
-
               <div className="mb-4">
                 <Label
                   htmlFor="urgency"
@@ -479,16 +650,49 @@ export default function AttorneyDocumentPickup() {
                   rules={{ required: "Urgency level is required" }}
                   render={({ field }) => (
                     <Select
-                      onValueChange={field.onChange}
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        setUrgency(value);
+                        if (distance) {
+                          const updatedPrice = calculatePrice(
+                            parseFloat(distance),
+                            value
+                          );
+                          setPrice(updatedPrice);
+                        }
+                      }}
                       defaultValue={field.value}
                     >
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select urgency level" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="standard">Standard</SelectItem>
-                        <SelectItem value="urgent">Urgent</SelectItem>
-                        <SelectItem value="same_day">Same Day</SelectItem>
+                        <SelectItem value="standard">
+                          <div className="flex justify-between w-full items-center">
+                            <span className="mr-8">Standard</span>
+                            {distance && (
+                              <span className="text-gray-500 ml-auto">
+                                R
+                                {calculatePrice(
+                                  parseFloat(distance),
+                                  "standard"
+                                )}
+                              </span>
+                            )}
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="urgent">
+                          <div className="flex justify-between w-full items-center">
+                            <span className="mr-8">Urgent</span>
+                            {distance && (
+                              <span className="text-gray-500 ml-auto">
+                                R
+                                {calculatePrice(parseFloat(distance), "urgent")}
+                              </span>
+                            )}
+                          </div>
+                        </SelectItem>
+                       
                       </SelectContent>
                     </Select>
                   )}
@@ -499,7 +703,6 @@ export default function AttorneyDocumentPickup() {
                   </p>
                 )}
               </div>
-
 
               <div className="mb-4">
                 <Label
@@ -516,7 +719,6 @@ export default function AttorneyDocumentPickup() {
                   rows={3}
                 />
               </div>
-
 
               <div className="flex items-center space-x-2">
                 <Checkbox
@@ -535,7 +737,6 @@ export default function AttorneyDocumentPickup() {
                 </p>
               )}
 
-
               <Button
                 type="submit"
                 className="w-full bg-teal-600 hover:bg-teal-700 text-white"
@@ -549,8 +750,3 @@ export default function AttorneyDocumentPickup() {
     </div>
   );
 }
-
-
-
-
-
