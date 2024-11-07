@@ -549,10 +549,9 @@ export default function AttorneyDocumentPickup() {
                           <SelectValue placeholder="Select request type" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="magistrate_court">
-                            Magistrate Court
-                          </SelectItem>
+                          <SelectItem value="magistrate_court">Magistrate Court</SelectItem>
                           <SelectItem value="high_court">High Court</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
                         </SelectContent>
                       </Select>
                     )}
