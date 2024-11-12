@@ -60,13 +60,13 @@ const calculatePrice = (distance, urgency) => {
     if (distanceInKm <= 2) {
       price = 60;
     } else {
-      price = 60 + (distanceInKm - 2) * 7.5;
+      price = 60 + (distanceInKm - 2) * 9;
     }
   } else {
     if (distanceInKm <= 2) {
       price = 28;
     } else {
-      price = 28 + (distanceInKm - 2) * 6;
+      price = 28 + (distanceInKm - 2) * 8;
     }
   }
 
