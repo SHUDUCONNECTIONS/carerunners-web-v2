@@ -8,6 +8,7 @@ import { User, Lock, AlertCircle, Check } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { auth } from "@/utils/firebase"
 import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, sendPasswordResetEmail } from "firebase/auth"
+import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore'
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -17,7 +18,31 @@ export default function LoginPage() {
   const [resetEmailSent, setResetEmailSent] = useState(false)
   const [isResettingPassword, setIsResettingPassword] = useState(false)
   const router = useRouter()
+  const db = getFirestore()
 
+  const checkIsFirm = async (uid: string) => {
+    try {
+      // console.log("Checking firm status for UID:", uid)
+      
+      // Query the firms collection where adminId matches the authentication UID
+      const firmsRef = collection(db, 'firms')
+      const q = query(firmsRef, where('adminId', '==', uid))
+      const querySnapshot = await getDocs(q)
+      
+      // If we find any documents, this UID is an admin of a firm
+       const isFirmAdmin = !querySnapshot.empty
+      
+      console.log("Is firm admin:", isFirmAdmin)
+      if (isFirmAdmin) {
+      }
+      
+      return isFirmAdmin
+    } catch (error) {
+      console.error("Error checking firm status:", error)
+      return false
+    }
+  }
+  
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!email || !password) {
@@ -29,11 +54,45 @@ export default function LoginPage() {
     setLoading(true)
     
     try {
-      await signInWithEmailAndPassword(auth, email, password)
+      const userCredential = await signInWithEmailAndPassword(auth, email, password)
+      // console.log("User UID:", userCredential.user.uid)
+      
+      // Check if the user's UID matches any firm's adminId
+      const isFirm = await checkIsFirm(userCredential.user.uid)
+      
+      if (!isFirm) {
+        // Sign out the user if they're not a firm admin
+        await auth.signOut()
+        setError("Access denied. Only registered law firm administrators can access this portal.")
+        return
+      }
+  
       router.push("/dashboard")
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error during login:", error)
-      setError("Invalid email or password. Please try again.")
+      
+      switch (error.code) {
+        case 'auth/invalid-email':
+          setError("Invalid email address format.")
+          break
+        case 'auth/user-disabled':
+          setError("This account has been disabled.")
+          break
+        case 'auth/user-not-found':
+          setError("No account found with this email.")
+          break
+        case 'auth/wrong-password':
+          setError("Incorrect password.")
+          break
+        case 'auth/too-many-requests':
+          setError("Too many failed attempts. Please try again later.")
+          break
+        case 'auth/network-request-failed':
+          setError("Network error. Please check your connection.")
+          break
+        default:
+          setError("An error occurred during login. Please try again.")
+      }
     } finally {
       setLoading(false)
     }
@@ -45,7 +104,18 @@ export default function LoginPage() {
     
     try {
       const provider = new GoogleAuthProvider()
-      await signInWithPopup(auth, provider)
+      const result = await signInWithPopup(auth, provider)
+      
+      // Check if the user's UID matches any firm's adminId
+      const isFirm = await checkIsFirm(result.user.uid)
+      
+      if (!isFirm) {
+        // Sign out the user if they're not a firm admin
+        await auth.signOut()
+        setError("Access denied. Only registered law firm administrators can access this portal.")
+        return
+      }
+
       router.push("/dashboard")
     } catch (error) {
       console.error("Error during Google login:", error)
@@ -98,7 +168,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <Card className="w-full max-w-md">
         <CardHeader className="bg-teal-600 text-white">
-          <CardTitle className="text-2xl font-bold text-center">Login</CardTitle>
+          <CardTitle className="text-2xl font-bold text-center">Law Firm Portal Login</CardTitle>
         </CardHeader>
         <div className="mx-auto w-32 h-32">
           <img
@@ -108,6 +178,9 @@ export default function LoginPage() {
           />
         </div>
         <CardContent className="mt-6">
+          <div className="mb-4 text-sm text-gray-600 text-center">
+            This portal is exclusively for registered law firm administrators.
+          </div>
           <form onSubmit={handleLogin} className="space-y-6">
             <div>
               <Label htmlFor="email" className="block text-sm font-medium text-gray-700">
@@ -115,12 +188,12 @@ export default function LoginPage() {
               </Label>
               <div className="mt-1 relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <User className="h-5 w-5 text-gray-400" />
+                  <User aria-hidden="true" />
                 </div>
                 <Input
                   id="email"
                   name="email"
-                  type="email"
+                  autoComplete="email"
                   required
                   className="pl-10 block w-full"
                   placeholder="Enter your email"
@@ -136,12 +209,13 @@ export default function LoginPage() {
               </Label>
               <div className="mt-1 relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
+                  <Lock aria-hidden="true" />
                 </div>
                 <Input
                   id="password"
                   name="password"
                   type="password"
+                  autoComplete="current-password"
                   required
                   className="pl-10 block w-full"
                   placeholder="Enter your password"
@@ -153,14 +227,14 @@ export default function LoginPage() {
 
             {error && (
               <div className="text-red-600 text-sm flex items-center">
-                <AlertCircle className="h-4 w-4 mr-2" />
+                <AlertCircle aria-hidden="true" className="mr-2" />
                 {error}
               </div>
             )}
 
             {resetEmailSent && (
               <div className="text-green-600 text-sm flex items-center">
-                <Check className="h-4 w-4 mr-2" />
+                <Check aria-hidden="true" className="mr-2" />
                 Password reset email sent! Check your inbox.
               </div>
             )}
@@ -171,10 +245,10 @@ export default function LoginPage() {
               </Button>
             </div>
             <div className="mt-6 text-center">
-            <Button onClick={handleSignUp} className="w-full bg-teal-600 hover:bg-teal-700 text-white">
-              Sign Up
-            </Button>
-          </div>
+              <Button onClick={handleSignUp} className="w-full bg-teal-600 hover:bg-teal-700 text-white">
+                Register as a Law Firm
+              </Button>
+            </div>
           </form>
 
           <div className="mt-6">
