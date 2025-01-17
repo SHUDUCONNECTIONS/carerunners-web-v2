@@ -255,15 +255,15 @@ export default function AttorneyDocumentPickup() {
       if (distanceInKm <= 2) {
         price = 60; // Fixed price for urgent deliveries under 2km
       } else {
-        price = 60 + (distanceInKm - 2) * 7.5; // Base price + additional distance charge
+        price = 60 + (distanceInKm - 2) * 12; // Base price + additional distance charge
       }
     }
     // For standard deliveries
     else {
       if (distanceInKm <= 2) {
-        price = 28; // Fixed price for standard deliveries under 2km
+        price = 60; // Fixed price for standard deliveries under 2km
       } else {
-        price = 28 + (distanceInKm - 2) * 6; // Base price + additional distance charge
+        price = 60 + (distanceInKm - 2) * 10; // Base price + additional distance charge
       }
     }
 
