@@ -49,28 +49,57 @@ const mapContainerStyle = {
 
 const defaultCenter = {
   lat: -26.2041,
-  lng: .0473,
+  lng: 0.0473,
 };
 
 const calculatePrice = (distance, urgency) => {
   let price;
   const distanceInKm = parseFloat(distance);
 
-  if (urgency === "urgent" || urgency === "same_day") {
-    if (distanceInKm <= 2) {
-      price = 60;
+  // Get current day (0 = Sunday, 1 = Monday, 2 = Tuesday, ..., 5 = Friday, 6 = Saturday)
+  const currentDay = new Date().getDay();
+  const isMondayOrFriday = currentDay === 1 || currentDay === 5;
+
+  // Special pricing for Mondays and Fridays
+  if (isMondayOrFriday) {
+    if (urgency === "urgent" || urgency === "same_day") {
+      if (distanceInKm <= 2) {
+        price = 60;
+      } else {
+        price = 60 + (distanceInKm - 2) * 8.5;
+      }
     } else {
-      price = 60 + (distanceInKm - 2) * 8;
+      if (distanceInKm <= 2) {
+        price = 28;
+      } else {
+        price = 28 + (distanceInKm - 2) * 7.5;
+      }
     }
-  } else {
-    if (distanceInKm <= 2) {
-      price = 28;
+  }
+  // Regular pricing for other days (Tuesday, Wednesday, Thursday, Saturday, Sunday)
+  else {
+    if (urgency === "urgent" || urgency === "same_day") {
+      if (distanceInKm <= 2) {
+        price = 60; // Example regular urgent price
+      } else {
+        price = 60 + (distanceInKm - 2) * 7.0; // Example regular urgent rate
+      }
     } else {
-      price = 28 + (distanceInKm - 2) * 7;
+      if (distanceInKm <= 2) {
+        price = 28; // Example regular standard price
+      } else {
+        price = 28 + (distanceInKm - 2) * 6.0; // Example regular standard rate
+      }
     }
   }
 
   return price.toFixed(2);
+};
+
+// Helper function to check if today is Monday or Friday
+const isTodayMondayOrFriday = () => {
+  const currentDay = new Date().getDay();
+  return currentDay === 1 || currentDay === 5;
 };
 
 export default function AttorneyDocumentPickup() {
@@ -250,24 +279,50 @@ export default function AttorneyDocumentPickup() {
     let price;
     const distanceInKm = parseFloat(distance);
 
-    // For urgent deliveries
-    if (urgency === "urgent" || urgency === "same_day") {
-      if (distanceInKm <= 2) {
-        price = 60; // Fixed price for urgent deliveries under 2km
+    // Get current day (0 = Sunday, 1 = Monday, 2 = Tuesday, ..., 5 = Friday, 6 = Saturday)
+    const currentDay = new Date().getDay();
+    const isMondayOrFriday = currentDay === 1 || currentDay === 5;
+
+    // Special pricing for Mondays and Fridays
+    if (isMondayOrFriday) {
+      if (urgency === "urgent" || urgency === "same_day") {
+        if (distanceInKm <= 2) {
+          price = 60;
+        } else {
+          price = 60 + (distanceInKm - 2) * 8.5;
+        }
       } else {
-        price = 60 + (distanceInKm - 2) * 8; // Base price + additional distance charge
+        if (distanceInKm <= 2) {
+          price = 28;
+        } else {
+          price = 28 + (distanceInKm - 2) * 7.5;
+        }
       }
     }
-    // For standard deliveries
+    // Regular pricing for other days (Tuesday, Wednesday, Thursday, Saturday, Sunday)
     else {
-      if (distanceInKm <= 2) {
-        price = 28; // Fixed price for standard deliveries under 2km
+      if (urgency === "urgent" || urgency === "same_day") {
+        if (distanceInKm <= 2) {
+          price = 60; // Example regular urgent price
+        } else {
+          price = 60 + (distanceInKm - 2) * 7.0; // Example regular urgent rate
+        }
       } else {
-        price = 28 + (distanceInKm - 2) * 7; // Base price + additional distance charge
+        if (distanceInKm <= 2) {
+          price = 28; // Example regular standard price
+        } else {
+          price = 28 + (distanceInKm - 2) * 6.0; // Example regular standard rate
+        }
       }
     }
 
     return price.toFixed(2);
+  };
+
+  // Helper function to check if today is Monday or Friday
+  const isTodayMondayOrFriday = () => {
+    const currentDay = new Date().getDay();
+    return currentDay === 1 || currentDay === 5;
   };
 
   const onSubmit = async (data: FormData) => {
@@ -549,7 +604,9 @@ export default function AttorneyDocumentPickup() {
                           <SelectValue placeholder="Select request type" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="magistrate_court">Magistrate Court</SelectItem>
+                          <SelectItem value="magistrate_court">
+                            Magistrate Court
+                          </SelectItem>
                           <SelectItem value="high_court">High Court</SelectItem>
                           <SelectItem value="other">Other</SelectItem>
                         </SelectContent>
@@ -562,7 +619,7 @@ export default function AttorneyDocumentPickup() {
                     </p>
                   )}
                 </div>
-                
+
                 <GoogleMap
                   mapContainerStyle={mapContainerStyle}
                   center={pickupCoords || defaultCenter}
