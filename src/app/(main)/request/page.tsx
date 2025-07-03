@@ -49,7 +49,7 @@ const mapContainerStyle = {
 
 const defaultCenter = {
   lat: -26.2041,
-  lng: 28.0473,
+  lng: .0473,
 };
 
 const calculatePrice = (distance, urgency) => {
@@ -60,13 +60,13 @@ const calculatePrice = (distance, urgency) => {
     if (distanceInKm <= 2) {
       price = 60;
     } else {
-      price = 60 + (distanceInKm - 2) * 9;
+      price = 60 + (distanceInKm - 2) * 8;
     }
   } else {
     if (distanceInKm <= 2) {
       price = 28;
     } else {
-      price = 28 + (distanceInKm - 2) * 8;
+      price = 28 + (distanceInKm - 2) * 7;
     }
   }
 
@@ -255,15 +255,15 @@ export default function AttorneyDocumentPickup() {
       if (distanceInKm <= 2) {
         price = 60; // Fixed price for urgent deliveries under 2km
       } else {
-        price = 60 + (distanceInKm - 2) * 12; // Base price + additional distance charge
+        price = 60 + (distanceInKm - 2) * 8; // Base price + additional distance charge
       }
     }
     // For standard deliveries
     else {
       if (distanceInKm <= 2) {
-        price = 60; // Fixed price for standard deliveries under 2km
+        price = 28; // Fixed price for standard deliveries under 2km
       } else {
-        price = 60 + (distanceInKm - 2) * 10; // Base price + additional distance charge
+        price = 28 + (distanceInKm - 2) * 7; // Base price + additional distance charge
       }
     }
 
