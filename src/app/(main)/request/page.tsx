@@ -66,13 +66,13 @@ const calculatePrice = (distance, urgency) => {
       if (distanceInKm <= 2) {
         price = 60;
       } else {
-        price = 60 + (distanceInKm - 2) * 8.5;
+        price = 60 + (distanceInKm - 1) * 8.5;
       }
     } else {
       if (distanceInKm <= 2) {
         price = 28;
       } else {
-        price = 28 + (distanceInKm - 2) * 7.5;
+        price = 28 + (distanceInKm - 1) * 7.5;
       }
     }
   }
@@ -82,13 +82,13 @@ const calculatePrice = (distance, urgency) => {
       if (distanceInKm <= 2) {
         price = 60; // Example regular urgent price
       } else {
-        price = 60 + (distanceInKm - 2) * 8.0; // Example regular urgent rate
+        price = 60 + (distanceInKm - 1) * 8.0; // Example regular urgent rate
       }
     } else {
       if (distanceInKm <= 2) {
         price = 28; // Example regular standard price
       } else {
-        price = 28 + (distanceInKm - 2) * 7.0; // Example regular standard rate
+        price = 28 + (distanceInKm - 1) * 7.0; // Example regular standard rate
       }
     }
   }
