@@ -53,43 +53,38 @@ const defaultCenter = {
 };
 
 const calculatePrice = (distance, urgency) => {
-  let price;
   const distanceInKm = parseFloat(distance);
+  let price = 0;
 
-  // Get current day (0 = Sunday, 1 = Monday, 2 = Tuesday, ..., 5 = Friday, 6 = Saturday)
+  // Get current day (0 = Sunday, 1 = Monday, ..., 5 = Friday)
   const currentDay = new Date().getDay();
   const isMondayOrFriday = currentDay === 1 || currentDay === 5;
 
-  // Special pricing for Mondays and Fridays
-  if (isMondayOrFriday) {
-    if (urgency === "urgent" || urgency === "same_day") {
-      if (distanceInKm <= 1) {
-        price = 60;
-      } else {
-        price = 60 + (distanceInKm - 1) * 8.5;
-      }
+  // Base prices
+  const basePrice = 28; // for 1 km
+  const standardRateMonFri = 7.5;
+  const urgentBasePrice = 60;
+  const urgentRateMonFri = 8.5;
+  const standardRateOtherDays = 7.0;
+  const urgentRateOtherDays = 8.0;
+
+  if (urgency === "urgent" || urgency === "same_day") {
+    // URGENT deliveries
+    if (distanceInKm <= 1) {
+      price = urgentBasePrice;
+    } else if (isMondayOrFriday) {
+      price = urgentBasePrice + (distanceInKm - 1) * urgentRateMonFri;
     } else {
-      if (distanceInKm <= 1) {
-        price = 28;
-      } else {
-        price = 28 + (distanceInKm - 1) * 7.5;
-      }
+      price = urgentBasePrice + (distanceInKm - 1) * urgentRateOtherDays;
     }
-  }
-  // Regular pricing for other days (Tuesday, Wednesday, Thursday, Saturday, Sunday)
-  else {
-    if (urgency === "urgent" || urgency === "same_day") {
-      if (distanceInKm <= 1) {
-        price = 60; // Example regular urgent price
-      } else {
-        price = 60 + (distanceInKm - 1) * 8.0; // Example regular urgent rate
-      }
+  } else {
+    // NON-URGENT deliveries
+    if (distanceInKm <= 1) {
+      price = basePrice;
+    } else if (isMondayOrFriday) {
+      price = basePrice + (distanceInKm - 1) * standardRateMonFri;
     } else {
-      if (distanceInKm <= 1) {
-        price = 28; // Example regular standard price
-      } else {
-        price = 28 + (distanceInKm - 1) * 7.0; // Example regular standard rate
-      }
+      price = basePrice + (distanceInKm - 1) * standardRateOtherDays;
     }
   }
 
@@ -275,51 +270,45 @@ export default function AttorneyDocumentPickup() {
     return true;
   };
 
-  const calculatePrice = (distance, urgency) => {
-  let price;
+const calculatePrice = (distance, urgency) => {
   const distanceInKm = parseFloat(distance);
+  let price = 0;
 
-  // Get current day (0 = Sunday, 1 = Monday, 2 = Tuesday, ..., 5 = Friday, 6 = Saturday)
+  // Get current day (0 = Sunday, 1 = Monday, ..., 5 = Friday)
   const currentDay = new Date().getDay();
   const isMondayOrFriday = currentDay === 1 || currentDay === 5;
 
-  // Special pricing for Mondays and Fridays
-  if (isMondayOrFriday) {
-    if (urgency === "urgent" || urgency === "same_day") {
-      if (distanceInKm <= 1) {
-        price = 60;
-      } else {
-        price = 60 + (distanceInKm - 1) * 8.5;
-      }
+  // Base prices
+  const basePrice = 28; // for 1 km
+  const standardRateMonFri = 7.5;
+  const urgentBasePrice = 60;
+  const urgentRateMonFri = 8.5;
+  const standardRateOtherDays = 7.0;
+  const urgentRateOtherDays = 8.0;
+
+  if (urgency === "urgent" || urgency === "same_day") {
+    // URGENT deliveries
+    if (distanceInKm <= 1) {
+      price = urgentBasePrice;
+    } else if (isMondayOrFriday) {
+      price = urgentBasePrice + (distanceInKm - 1) * urgentRateMonFri;
     } else {
-      if (distanceInKm <= 1) {
-        price = 28;
-      } else {
-        price = 28 + (distanceInKm - 1) * 7.5;
-      }
+      price = urgentBasePrice + (distanceInKm - 1) * urgentRateOtherDays;
     }
-  }
-  // Regular pricing for other days (Tuesday, Wednesday, Thursday, Saturday, Sunday)
-  else {
-    if (urgency === "urgent" || urgency === "same_day") {
-      if (distanceInKm <= 1) {
-        price = 60; // Example regular urgent price
-      } else {
-        price = 60 + (distanceInKm - 1) * 8.0; // Example regular urgent rate
-      }
+  } else {
+    // NON-URGENT deliveries
+    if (distanceInKm <= 1) {
+      price = basePrice;
+    } else if (isMondayOrFriday) {
+      price = basePrice + (distanceInKm - 1) * standardRateMonFri;
     } else {
-      if (distanceInKm <= 1) {
-        price = 28; // Example regular standard price
-      } else {
-        price = 28 + (distanceInKm - 1) * 7.0; // Example regular standard rate
-      }
+      price = basePrice + (distanceInKm - 1) * standardRateOtherDays;
     }
   }
 
   return price.toFixed(2);
 };
-
-
+  
   // Helper function to check if today is Monday or Friday
   const isTodayMondayOrFriday = () => {
     const currentDay = new Date().getDay();
