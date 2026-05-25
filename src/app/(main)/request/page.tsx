@@ -63,10 +63,10 @@ const calculatePrice = (distance, urgency) => {
   // Base prices
   const basePrice = 32.0; // for 1 km
   const standardRateMonFri = 12.0;
-  const urgentBasePrice = 60;
-  const urgentRateMonFri = 8.5;
+  const urgentBasePrice = 32.0;
+  const urgentRateMonFri = 12.0;
   const standardRateOtherDays = 10.0;
-  const urgentRateOtherDays = 8.0;
+  const urgentRateOtherDays = 10.0;
 
   if (urgency === "urgent" || urgency === "same_day") {
     // URGENT deliveries
