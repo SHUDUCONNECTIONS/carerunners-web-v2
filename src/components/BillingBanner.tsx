@@ -25,7 +25,10 @@ export default function BillingBanner() {
         const snapshot = await getDocs(q);
 
         const thisMonthTotal = snapshot.docs
-          .filter((d) => d.data().pickupDate >= startOfMonth)
+          .filter((d) => {
+            const data = d.data();
+            return data.pickupDate >= startOfMonth && data.status === "completed";
+          })
           .reduce((sum, d) => sum + parseFloat(d.data().price || "0"), 0);
 
         setTotalOwed(thisMonthTotal);

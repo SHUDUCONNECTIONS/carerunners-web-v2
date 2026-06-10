@@ -5,11 +5,12 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { MapPin, Banknote, Clock, CheckCircle, XCircle, FileText, Calendar } from "lucide-react";
-import { db } from '@/utils/firebase'; 
-import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
-import { auth } from '@/utils/firebase'; 
+import { MapPin, Banknote, Clock, CheckCircle, XCircle, FileText, Calendar, Ban } from "lucide-react";
+import { db } from '@/utils/firebase';
+import { collection, getDocs, query, where, orderBy, doc, updateDoc } from 'firebase/firestore';
+import { auth } from '@/utils/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { useRouter } from "next/navigation";
 
@@ -21,6 +22,7 @@ type Trip = {
   status: string;
   payment_status: string;
   pickupDate: string;
+  pickupTime: string;
   documentDescription: string;
   requestType: string;
 };
@@ -32,20 +34,29 @@ type GroupedTrips = {
 const statusColors = {
   completed: "bg-green-100 text-green-800",
   "in-progress": "bg-yellow-100 text-yellow-800",
-  cancelled: "bg-red-100 text-red-800",
-  pending: "bg-red-100 text-red-800",
+  cancelled: "bg-gray-100 text-gray-500",
+  pending: "bg-orange-100 text-orange-800",
+  "waiting for driver": "bg-blue-100 text-blue-800",
 };
 
 const paymentStatusColors = {
   paid: "bg-green-100 text-green-800",
-  pending: "bg-yellow-100 text-yellow-800",
+  unpaid: "bg-orange-100 text-orange-800",
+  cancelled: "bg-gray-100 text-gray-500",
   failed: "bg-red-100 text-red-800",
+};
+
+const isCancellable = (trip: Trip): boolean => {
+  const cancellableStatuses = ['pending', 'waiting for driver'];
+  const today = new Date().toISOString().split('T')[0];
+  return cancellableStatuses.includes(trip.status) && trip.pickupDate >= today;
 };
 
 export default function UserTrips() {
   const [groupedTrips, setGroupedTrips] = useState<GroupedTrips>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
   const router = useRouter();
 
@@ -58,7 +69,6 @@ export default function UserTrips() {
         setLoading(false);
       }
     });
-
     return () => unsubscribe();
   }, []);
 
@@ -66,25 +76,20 @@ export default function UserTrips() {
     if (user) {
       const fetchTrips = async () => {
         try {
-          const tripsCollection = collection(db, 'pickupRequests');
           const q = query(
-            tripsCollection,
+            collection(db, 'pickupRequests'),
             where('userId', '==', user.uid),
             orderBy('createdAt', 'desc')
           );
           const querySnapshot = await getDocs(q);
-
           const fetchedTrips: Trip[] = querySnapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data() as Omit<Trip, 'id'>
           }));
 
-          // Group trips by date
           const grouped = fetchedTrips.reduce((acc, trip) => {
             const date = new Date(trip.pickupDate).toDateString();
-            if (!acc[date]) {
-              acc[date] = [];
-            }
+            if (!acc[date]) acc[date] = [];
             acc[date].push(trip);
             return acc;
           }, {} as GroupedTrips);
@@ -97,13 +102,41 @@ export default function UserTrips() {
           setLoading(false);
         }
       };
-
       fetchTrips();
     }
   }, [user]);
 
   const handleTripClick = (tripId: string) => {
     router.push(`/trips/tracking?tripId=${tripId}`);
+  };
+
+  const handleCancel = async (e: React.MouseEvent, tripId: string) => {
+    e.stopPropagation();
+    if (!confirm('Are you sure you want to cancel this trip?')) return;
+
+    setCancellingId(tripId);
+    try {
+      await updateDoc(doc(db, 'pickupRequests', tripId), {
+        status: 'cancelled',
+        payment_status: 'cancelled',
+      });
+
+      // Update local state so UI reflects immediately
+      setGroupedTrips(prev => {
+        const updated = { ...prev };
+        for (const date in updated) {
+          updated[date] = updated[date].map(t =>
+            t.id === tripId ? { ...t, status: 'cancelled', payment_status: 'cancelled' } : t
+          );
+        }
+        return updated;
+      });
+    } catch (err) {
+      console.error('Error cancelling trip:', err);
+      alert('Failed to cancel trip. Please try again.');
+    } finally {
+      setCancellingId(null);
+    }
   };
 
   if (loading) return <p>Loading trips...</p>;
@@ -125,7 +158,13 @@ export default function UserTrips() {
                 </h2>
                 <div className="space-y-6">
                   {trips.map((trip) => (
-                    <Card key={trip.id} className="overflow-hidden cursor-pointer hover:shadow-lg transition-shadow duration-200" onClick={() => handleTripClick(trip.id)}>
+                    <Card
+                      key={trip.id}
+                      className={`overflow-hidden transition-shadow duration-200 ${
+                        trip.status !== 'cancelled' ? 'cursor-pointer hover:shadow-lg' : 'opacity-60'
+                      }`}
+                      onClick={() => trip.status !== 'cancelled' && handleTripClick(trip.id)}
+                    >
                       <CardContent className="p-4">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
                           <div className="flex items-center mb-2 sm:mb-0">
@@ -134,15 +173,30 @@ export default function UserTrips() {
                               {trip.pickupTime || new Date(trip.pickupDate).toLocaleTimeString()}
                             </span>
                           </div>
-                          <div className="flex space-x-2">
-                            <Badge className={statusColors[trip.status || 'pending']}>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Badge className={statusColors[trip.status] || "bg-gray-100 text-gray-600"}>
                               {trip.status || 'pending'}
                             </Badge>
-                            <Badge className={paymentStatusColors[trip.payment_status || 'pending']}>
-                              {trip.payment_status || 'pending'}
-                            </Badge>
+                            {trip.payment_status !== 'cancelled' && (
+                              <Badge className={paymentStatusColors[trip.payment_status] || "bg-gray-100 text-gray-600"}>
+                                {trip.payment_status || 'unpaid'}
+                              </Badge>
+                            )}
+                            {isCancellable(trip) && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-red-600 border-red-300 hover:bg-red-50 h-6 text-xs px-2"
+                                onClick={(e) => handleCancel(e, trip.id)}
+                                disabled={cancellingId === trip.id}
+                              >
+                                <Ban className="h-3 w-3 mr-1" />
+                                {cancellingId === trip.id ? 'Cancelling...' : 'Cancel'}
+                              </Button>
+                            )}
                           </div>
                         </div>
+
                         <div className="space-y-4">
                           <div className="flex items-start justify-between">
                             <div className="flex items-center space-x-2">
@@ -178,12 +232,18 @@ export default function UserTrips() {
                             </div>
                           </div>
                         </div>
+
                         <div className="mt-4 flex justify-between items-center">
                           <div className="flex items-center">
                             <Banknote className="h-5 w-5 text-teal-600 mr-1" />
                             <span className="text-lg font-bold">R{trip.price}</span>
                           </div>
-                          {trip.payment_status === "paid" ? (
+                          {trip.status === 'cancelled' ? (
+                            <div className="flex items-center text-gray-400">
+                              <Ban className="h-5 w-5 mr-1" />
+                              <span>Cancelled</span>
+                            </div>
+                          ) : trip.payment_status === "paid" ? (
                             <div className="flex items-center text-green-600">
                               <CheckCircle className="h-5 w-5 mr-1" />
                               <span>Paid</span>
@@ -193,10 +253,15 @@ export default function UserTrips() {
                               <XCircle className="h-5 w-5 mr-1" />
                               <span>Payment Failed</span>
                             </div>
-                          ) : (
+                          ) : trip.status === 'completed' ? (
                             <div className="flex items-center text-gray-500">
                               <Clock className="h-5 w-5 mr-1" />
                               <span>Unpaid — <a href="/billing" className="underline text-teal-600">View Bill</a></span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center text-blue-500">
+                              <Clock className="h-5 w-5 mr-1" />
+                              <span>In progress</span>
                             </div>
                           )}
                         </div>

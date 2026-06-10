@@ -83,10 +83,13 @@ export default function BillingPage() {
           where("payment_status", "==", "unpaid")
         );
         const snapshot = await getDocs(q);
-        const trips: UnpaidTrip[] = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...(doc.data() as Omit<UnpaidTrip, "id">),
-        }));
+        // Only bill trips that were actually completed
+        const trips: UnpaidTrip[] = snapshot.docs
+          .filter((doc) => doc.data().status === "completed")
+          .map((doc) => ({
+            id: doc.id,
+            ...(doc.data() as Omit<UnpaidTrip, "id">),
+          }));
         setGroups(groupByMonth(trips));
       } catch (err) {
         console.error("Billing: error fetching unpaid trips", err);
