@@ -28,13 +28,13 @@ import Link from "next/link";
 import LoadingComponent from "@/components/loader";
 
 const menuItems = [
-  { icon: <Home className="mr-2 h-4 w-4" />, label: "HOME", link: '/dashboard' },
-  { icon: <User className="mr-2 h-4 w-4" />, label: "PROFILE", link: '/profile' },
-  { icon: <FileSpreadsheet className="mr-2 h-4 w-4" />, label: "RECORDS", link: '/records' },
-  { icon: <Truck className="mr-2 h-4 w-4" />, label: "REQUEST PICK-UP", link: '/request' },
-  { icon: <Car className="mr-2 h-4 w-4" />, label: "TRIPS", link: '/trips' },
-  { icon: <Receipt className="mr-2 h-4 w-4" />, label: "BILLING", link: '/billing' },
-  { icon: <Upload className="mr-2 h-4 w-4" />, label: "UPLOAD", link: '/upload' },
+  { icon: Home, label: "HOME", link: '/dashboard' },
+  { icon: User, label: "PROFILE", link: '/profile' },
+  { icon: FileSpreadsheet, label: "RECORDS", link: '/records' },
+  { icon: Truck, label: "REQUEST PICK-UP", link: '/request' },
+  { icon: Car, label: "TRIPS", link: '/trips' },
+  { icon: Receipt, label: "BILLING", link: '/billing' },
+  { icon: Upload, label: "UPLOAD", link: '/upload' },
 ];
 
 export default function ProtectedLayout({
@@ -81,27 +81,39 @@ export default function ProtectedLayout({
       <header className="sticky top-0 z-50 bg-teal-600 text-white shadow-md">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link href='/dashboard'>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-3">
               <img
                 src="/carerunnerlogo.png"
                 alt="Logo"
-                className="h-10 w-10 bg-white rounded-lg"
+                className="h-9 w-9 bg-white rounded-lg shrink-0"
               />
-              <h1 className="text-2xl font-bold">Carerunners</h1>
+              <h1 className="hidden lg:block text-xl font-bold">Carerunners</h1>
             </div>
           </Link>
-          <nav className="hidden md:flex space-x-4">
-            {menuItems.map((item, index) => (
-              <Link key={index} href={item.link}>
-                <Button variant="ghost" className="text-white hover:bg-teal-700">
-                  {item.icon}
-                  {item.label}
-                </Button>
-              </Link>
-            ))}
-            <Button variant="ghost" className="text-white hover:bg-teal-700" onClick={handleSignOut}>
-              <LogOut className="mr-2 h-4 w-4" />
-              SIGN OUT
+          <nav className="hidden md:flex items-center space-x-1">
+            {menuItems.map((item, index) => {
+              const Icon = item.icon;
+              return (
+                <Link key={index} href={item.link}>
+                  <Button
+                    variant="ghost"
+                    className="text-white hover:bg-teal-700 px-2 xl:px-3"
+                    title={item.label}
+                  >
+                    <Icon className="h-4 w-4 xl:mr-2 shrink-0" />
+                    <span className="hidden xl:inline text-xs font-medium">{item.label}</span>
+                  </Button>
+                </Link>
+              );
+            })}
+            <Button
+              variant="ghost"
+              className="text-white hover:bg-teal-700 px-2 xl:px-3"
+              onClick={handleSignOut}
+              title="SIGN OUT"
+            >
+              <LogOut className="h-4 w-4 xl:mr-2 shrink-0" />
+              <span className="hidden xl:inline text-xs font-medium">SIGN OUT</span>
             </Button>
           </nav>
           <div className="md:hidden">
@@ -115,14 +127,17 @@ export default function ProtectedLayout({
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>Menu</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {menuItems.map((item, index) => (
-                  <DropdownMenuItem key={index}>
-                    <Link href={item.link} className="flex items-center w-full">
-                      {item.icon}
-                      {item.label}
-                    </Link>
-                  </DropdownMenuItem>
-                ))}
+                {menuItems.map((item, index) => {
+                  const Icon = item.icon;
+                  return (
+                    <DropdownMenuItem key={index}>
+                      <Link href={item.link} className="flex items-center w-full">
+                        <Icon className="mr-2 h-4 w-4" />
+                        {item.label}
+                      </Link>
+                    </DropdownMenuItem>
+                  );
+                })}
                 <DropdownMenuItem onClick={handleSignOut}>
                   <LogOut className="mr-2 h-4 w-4" />
                   SIGN OUT
