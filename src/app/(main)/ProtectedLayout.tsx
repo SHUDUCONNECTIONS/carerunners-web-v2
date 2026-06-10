@@ -15,27 +15,25 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Home,
-  MessageSquare,
   Truck,
-  FileText,
   User,
   LogOut,
   Menu,
-  CreditCard,
   FileSpreadsheet,
   Car,
-  Upload
+  Upload,
+  Receipt,
 } from "lucide-react";
 import Link from "next/link";
 import LoadingComponent from "@/components/loader";
 
 const menuItems = [
   { icon: <Home className="mr-2 h-4 w-4" />, label: "HOME", link: '/dashboard' },
-  //{ icon: <CreditCard className="mr-2 h-4 w-4" />, label: "PAYMENT", link: '/payment' },
   { icon: <User className="mr-2 h-4 w-4" />, label: "PROFILE", link: '/profile' },
   { icon: <FileSpreadsheet className="mr-2 h-4 w-4" />, label: "RECORDS", link: '/records' },
   { icon: <Truck className="mr-2 h-4 w-4" />, label: "REQUEST PICK-UP", link: '/request' },
   { icon: <Car className="mr-2 h-4 w-4" />, label: "TRIPS", link: '/trips' },
+  { icon: <Receipt className="mr-2 h-4 w-4" />, label: "BILLING", link: '/billing' },
   { icon: <Upload className="mr-2 h-4 w-4" />, label: "UPLOAD", link: '/upload' },
 ];
 

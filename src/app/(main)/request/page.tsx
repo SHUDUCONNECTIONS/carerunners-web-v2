@@ -52,50 +52,6 @@ const defaultCenter = {
   lng: 0.0473,
 };
 
-const calculatePrice = (distance, urgency) => {
-  const distanceInKm = parseFloat(distance);
-  let price = 0;
-
-  // Get current day (0 = Sunday, 1 = Monday, ..., 5 = Friday)
-  const currentDay = new Date().getDay();
-  const isMondayOrFriday = currentDay === 1 || currentDay === 5;
-
-  // Base prices
-  const basePrice = 32.0; // for 1 km
-  const standardRateMonFri = 12.0;
-  const urgentBasePrice = 32.0;
-  const urgentRateMonFri = 12.0;
-  const standardRateOtherDays = 10.0;
-  const urgentRateOtherDays = 10.0;
-
-  if (urgency === "urgent" || urgency === "same_day") {
-    // URGENT deliveries
-    if (distanceInKm <= 1) {
-      price = urgentBasePrice;
-    } else if (isMondayOrFriday) {
-      price = urgentBasePrice + (distanceInKm - 1) * urgentRateMonFri;
-    } else {
-      price = urgentBasePrice + (distanceInKm - 1) * urgentRateOtherDays;
-    }
-  } else {
-    // NON-URGENT deliveries
-    if (distanceInKm <= 1) {
-      price = basePrice;
-    } else if (isMondayOrFriday) {
-      price = basePrice + (distanceInKm - 1) * standardRateMonFri;
-    } else {
-      price = basePrice + (distanceInKm - 1) * standardRateOtherDays;
-    }
-  }
-
-  return price.toFixed(2);
-};
-
-// Helper function to check if today is Monday or Friday
-const isTodayMondayOrFriday = () => {
-  const currentDay = new Date().getDay();
-  return currentDay === 1 || currentDay === 5;
-};
 
 export default function AttorneyDocumentPickup() {
   const [pickupCoords, setPickupCoords] = useState(defaultCenter);
@@ -203,38 +159,6 @@ export default function AttorneyDocumentPickup() {
             const userData = userDoc.data();
             const firmData = firmDoc.data();
 
-            setValue(
-              "attorneyName",
-              `${userData.firstName} ${userData.lastName}`
-            );
-            setValue("firmName", firmData.companyName);
-            setValue("barNumber", userData.barNumber || "");
-            setValue("pickupLocation", firmData.address || "");
-          }
-        } catch (error) {
-          console.error("Error fetching user or firm data:", error);
-        } finally {
-          setLoading(false);
-        }
-      } else {
-        console.error("No authenticated user found.");
-        setLoading(false);
-      }
-    });
-
-    return () => unsubscribe();
-  }, [setValue]);
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        try {
-          const userDoc = await getDoc(doc(db, "users", user.uid));
-          const firmDoc = await getDoc(doc(db, "firms", user.uid));
-
-          if (userDoc.exists() && firmDoc.exists()) {
-            const userData = userDoc.data();
-            const firmData = firmDoc.data();
-
             // Update form values
             reset({
               ...defaultValues,
@@ -309,12 +233,6 @@ const calculatePrice = (distance, urgency) => {
   return price.toFixed(2);
 };
   
-  // Helper function to check if today is Monday or Friday
-  const isTodayMondayOrFriday = () => {
-    const currentDay = new Date().getDay();
-    return currentDay === 1 || currentDay === 5;
-  };
-
   const onSubmit = async (data: FormData) => {
     const user = auth.currentUser;
     if (user) {
@@ -337,33 +255,16 @@ const calculatePrice = (distance, urgency) => {
           distance: distance,
           price: calculatedPrice,
           status: "pending",
+          payment_status: "unpaid",
           createdAt: new Date(),
         });
 
-        // Redirect to payment page
-        router.push(
-          `/payment?requestId=${pickupRequestRef.id}&amount=${calculatedPrice}`
-        );
+        router.push("/trips");
       } catch (error) {
         console.error("Error saving pickup request:", error);
       }
     }
   };
-  const handleDirectionsResponse = (response) => {
-    if (response.status === "OK") {
-      setDirections(response);
-      const route = response.routes[0];
-      const distanceInKm = route.legs[0].distance.value / 1000;
-      setDistance(distanceInKm.toFixed(2));
-
-      // Calculate price using the current urgency state
-      const calculatedPrice = calculatePrice(distanceInKm, urgency);
-      setPrice(calculatedPrice);
-    } else {
-      console.error(`Error fetching directions ${response}`);
-    }
-  };
-
   const InputField = ({
     icon,
     label,

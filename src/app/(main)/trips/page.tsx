@@ -194,9 +194,9 @@ export default function UserTrips() {
                               <span>Payment Failed</span>
                             </div>
                           ) : (
-                            <div className="flex items-center text-yellow-600">
+                            <div className="flex items-center text-gray-500">
                               <Clock className="h-5 w-5 mr-1" />
-                              <span>Payment Pending</span>
+                              <span>Unpaid — <a href="/billing" className="underline text-teal-600">View Bill</a></span>
                             </div>
                           )}
                         </div>

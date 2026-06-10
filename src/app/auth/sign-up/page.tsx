@@ -72,9 +72,15 @@ export default function UserRegistrationPage() {
         const firmId = await createUserAndFirm(user.uid)
 
         router.push(`/firm-registration?firmId=${firmId}`)
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error during signup:", error)
-        setErrors({ submit: "An error occurred during signup. Please try again." })
+        const messages: Record<string, string> = {
+          "auth/email-already-in-use": "An account with this email already exists. Please log in instead.",
+          "auth/invalid-email": "The email address is not valid.",
+          "auth/weak-password": "Password is too weak. Please use at least 8 characters.",
+          "auth/network-request-failed": "Network error. Please check your connection and try again.",
+        }
+        setErrors({ submit: messages[error?.code] ?? "An error occurred during signup. Please try again." })
       } finally {
         setLoading(false)
       }
@@ -91,9 +97,14 @@ export default function UserRegistrationPage() {
       const firmId = await createUserAndFirm(user.uid)
 
       router.push(`/firm-registration?firmId=${firmId}`)
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error during Google signup:", error)
-      setErrors({ submit: "An error occurred during Google signup. Please try again." })
+      const messages: Record<string, string> = {
+        "auth/account-exists-with-different-credential": "An account already exists with this email. Try logging in instead.",
+        "auth/popup-closed-by-user": "Sign-in popup was closed. Please try again.",
+        "auth/network-request-failed": "Network error. Please check your connection and try again.",
+      }
+      setErrors({ submit: messages[error?.code] ?? "An error occurred during Google signup. Please try again." })
     } finally {
       setLoading(false)
     }

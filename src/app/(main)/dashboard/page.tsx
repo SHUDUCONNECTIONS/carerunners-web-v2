@@ -1,4 +1,5 @@
 import React from "react"
+import BillingBanner from "@/components/BillingBanner"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -56,6 +57,7 @@ export default function Dashboard() {
     <div >
 
       <main className="flex-grow container mx-auto px-4 py-8">
+        <BillingBanner />
         <div className="mb-8">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />

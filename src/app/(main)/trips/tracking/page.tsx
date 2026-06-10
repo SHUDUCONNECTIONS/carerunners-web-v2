@@ -12,6 +12,7 @@ import {
   Clock,
   CheckCircle,
   XCircle,
+  Circle,
   Package,
   Truck,
   User,
@@ -404,8 +405,8 @@ export default function TripDetailsPage() {
                                   className="text-sm text-gray-500"
                                 >
                                   {location.status === "completed"
-                                    ? "✓ "
-                                    : "○ "}
+                                    ? <CheckCircle className="inline h-3.5 w-3.5 text-green-500 mr-1" />
+                                    : <Circle className="inline h-3.5 w-3.5 text-gray-400 mr-1" />}
                                   {location.address}
                                   {location.completedAt &&
                                     ` - ${location.completedAt}`}
