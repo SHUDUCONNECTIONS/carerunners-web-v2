@@ -40,7 +40,7 @@ async function sendSingleEmail(email: string, amount: number, date: string, bran
     await resend.emails.send({
       from: 'Carerunners <no-reply@carerunners.app>',
       to: [email],
-      subject: 'Payment Succesful',
+      subject: 'Payment Successful',
       html: `
         <p>Dear Customer,</p>
         <p>Thank you for your payment. Here is the proof of your recent transaction.</p>
