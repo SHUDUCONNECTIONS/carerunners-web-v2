@@ -87,7 +87,7 @@ export default function ProtectedLayout({
                 alt="Logo"
                 className="h-9 w-9 bg-white rounded-lg shrink-0"
               />
-              <h1 className="hidden lg:block text-xl font-bold">Carerunners</h1>
+              <h1 className="text-xl font-bold">Carerunners</h1>
             </div>
           </Link>
           <nav className="hidden md:flex items-center space-x-1">
@@ -97,23 +97,21 @@ export default function ProtectedLayout({
                 <Link key={index} href={item.link}>
                   <Button
                     variant="ghost"
-                    className="text-white hover:bg-teal-700 px-2 xl:px-3"
-                    title={item.label}
+                    className="text-white hover:bg-teal-700 px-2 py-1 h-auto text-xs"
                   >
-                    <Icon className="h-4 w-4 xl:mr-2 shrink-0" />
-                    <span className="hidden xl:inline text-xs font-medium">{item.label}</span>
+                    <Icon className="mr-1 h-3.5 w-3.5 shrink-0" />
+                    {item.label}
                   </Button>
                 </Link>
               );
             })}
             <Button
               variant="ghost"
-              className="text-white hover:bg-teal-700 px-2 xl:px-3"
+              className="text-white hover:bg-teal-700 px-2 py-1 h-auto text-xs"
               onClick={handleSignOut}
-              title="SIGN OUT"
             >
-              <LogOut className="h-4 w-4 xl:mr-2 shrink-0" />
-              <span className="hidden xl:inline text-xs font-medium">SIGN OUT</span>
+              <LogOut className="mr-1 h-3.5 w-3.5 shrink-0" />
+              SIGN OUT
             </Button>
           </nav>
           <div className="md:hidden">
