@@ -42,7 +42,7 @@ export default function SyncPage() {
       )
 
       if (snapshot.empty) {
-        setResult({ synced: 0, skipped: 0 })
+        setResult({ synced: 0, pastDate: 0, errors: 0 })
         return
       }
 
