@@ -14,7 +14,7 @@ export default function SyncPage() {
   const [password, setPassword] = useState("")
   const [unlocked, setUnlocked] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState<{ synced: number; skipped: number } | null>(null)
+  const [result, setResult] = useState<{ synced: number; pastDate: number; errors: number } | null>(null)
   const [error, setError] = useState("")
 
   const handleUnlock = (e: React.FormEvent) => {
@@ -47,14 +47,14 @@ export default function SyncPage() {
       }
 
       let synced = 0
-      let skipped = 0
+      let pastDate = 0
+      let errors = 0
 
       for (const docSnap of snapshot.docs) {
         try {
           const data = docSnap.data()
-          // Only sync trips with a future or today pickup date
           if (data.pickupDate && data.pickupDate < today) {
-            skipped++
+            pastDate++
             continue
           }
           await set(ref(rtdb, `trips/${docSnap.id}`), {
@@ -63,11 +63,11 @@ export default function SyncPage() {
           })
           synced++
         } catch {
-          skipped++
+          errors++
         }
       }
 
-      setResult({ synced, skipped })
+      setResult({ synced, pastDate, errors })
     } catch (err: any) {
       setError(err.message || "Sync failed. Please try again.")
     } finally {
@@ -109,7 +109,7 @@ export default function SyncPage() {
               <Button
                 className="w-full bg-teal-600 hover:bg-teal-700 text-white"
                 onClick={handleSync}
-                disabled={loading || result?.synced !== undefined}
+                disabled={loading || result !== null}
               >
                 {loading ? (
                   <>
@@ -129,8 +129,9 @@ export default function SyncPage() {
                   <div className="text-sm text-green-700">
                     <p className="font-medium">Sync complete</p>
                     <p>{result.synced} trip{result.synced !== 1 ? "s" : ""} synced to driver app.</p>
-                    {result.skipped > 0 && <p>{result.skipped} skipped due to errors.</p>}
-                    {result.synced === 0 && <p>No pending trips with future dates found.</p>}
+                    {result.pastDate > 0 && <p>{result.pastDate} skipped (past pickup date).</p>}
+                    {result.errors > 0 && <p className="text-red-600">{result.errors} failed to write — check that NEXT_PUBLIC_DATABASE_URL is set in Vercel.</p>}
+                    {result.synced === 0 && result.errors === 0 && <p>All pending trips have already passed — new requests will sync automatically.</p>}
                   </div>
                 </div>
               )}
