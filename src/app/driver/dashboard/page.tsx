@@ -71,6 +71,7 @@ interface Trip {
   receiverName: string
   receiverNumber: string
   driverId?: string
+  createdAt?: any
 }
 
 const statusColors: Record<string, string> = {
