@@ -37,8 +37,7 @@ export default function SyncPage() {
       const snapshot = await getDocs(
         query(
           collection(db, "pickupRequests"),
-          where("status", "==", "pending"),
-          where("pickupDate", ">=", today)
+          where("status", "==", "pending")
         )
       )
 
@@ -53,6 +52,11 @@ export default function SyncPage() {
       for (const docSnap of snapshot.docs) {
         try {
           const data = docSnap.data()
+          // Only sync trips with a future or today pickup date
+          if (data.pickupDate && data.pickupDate < today) {
+            skipped++
+            continue
+          }
           await set(ref(rtdb, `trips/${docSnap.id}`), {
             ...data,
             createdAt: data.createdAt?.toMillis?.() ?? Date.now(),

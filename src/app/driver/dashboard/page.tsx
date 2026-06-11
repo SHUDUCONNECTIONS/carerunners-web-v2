@@ -35,7 +35,6 @@ import {
   doc,
   getDoc,
   updateDoc,
-  orderBy,
 } from "firebase/firestore"
 import { onAuthStateChanged, signOut } from "firebase/auth"
 import { useRouter } from "next/navigation"
@@ -119,14 +118,22 @@ export default function DriverDashboard() {
         if (driverData.isApproved) {
           // Real-time listener for available (pending) trips
           unsubscribeAvailable = onSnapshot(
-            query(collection(db, "pickupRequests"), where("status", "==", "pending"), orderBy("createdAt", "desc")),
-            (snap) => setAvailableTrips(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Trip)))
+            query(collection(db, "pickupRequests"), where("status", "==", "pending")),
+            (snap) => {
+              const trips = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Trip))
+              trips.sort((a, b) => (b.createdAt as any) - (a.createdAt as any))
+              setAvailableTrips(trips)
+            }
           )
 
           // Real-time listener for this driver's trips
           unsubscribeMyTrips = onSnapshot(
-            query(collection(db, "pickupRequests"), where("driverId", "==", user.uid), orderBy("createdAt", "desc")),
-            (snap) => setMyTrips(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Trip)))
+            query(collection(db, "pickupRequests"), where("driverId", "==", user.uid)),
+            (snap) => {
+              const trips = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Trip))
+              trips.sort((a, b) => (b.createdAt as any) - (a.createdAt as any))
+              setMyTrips(trips)
+            }
           )
         }
       } catch (error) {
