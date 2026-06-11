@@ -57,7 +57,7 @@ export default function SyncPage() {
             pastDate++
             continue
           }
-          await set(ref(rtdb, `trips/${docSnap.id}`), {
+          await set(ref(rtdb, `requests/${docSnap.id}`), {
             ...data,
             createdAt: data.createdAt?.toMillis?.() ?? Date.now(),
           })

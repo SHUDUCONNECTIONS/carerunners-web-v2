@@ -224,7 +224,7 @@ const calculatePrice = (distance) => {
         await setDoc(doc(db, "pickupRequests", requestId), requestData);
 
         // Write to Realtime Database (driver mobile app)
-        await set(ref(rtdb, `trips/${requestId}`), {
+        await set(ref(rtdb, `requests/${requestId}`), {
           ...requestData,
           createdAt: Date.now(),
         });
