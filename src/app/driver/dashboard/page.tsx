@@ -24,10 +24,8 @@ import {
   CheckCircle,
   Truck,
   ClipboardList,
-  Home,
   Menu,
 } from "lucide-react"
-import Link from "next/link"
 import { auth, db } from "@/utils/firebase"
 import {
   collection,
