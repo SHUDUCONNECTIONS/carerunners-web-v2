@@ -4,17 +4,23 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { CheckCircle, AlertCircle, RefreshCw, Lock } from "lucide-react"
-import { db, rtdb } from "@/utils/firebase"
-import { collection, getDocs, query, where } from "firebase/firestore"
-import { ref, set } from "firebase/database"
+import { db } from "@/utils/firebase"
+import { collection, getDocs, doc, updateDoc } from "firebase/firestore"
 
 const SYNC_PASSWORD = "shudu-sync-2024"
+
+const calculatePrice = (distance: number) => {
+  const basePrice = 32
+  const ratePerKm = 10
+  const price = distance <= 1 ? basePrice : basePrice + (distance - 1) * ratePerKm
+  return price.toFixed(2)
+}
 
 export default function SyncPage() {
   const [password, setPassword] = useState("")
   const [unlocked, setUnlocked] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState<{ synced: number; pastDate: number; errors: number } | null>(null)
+  const [result, setResult] = useState<{ fixed: number; skipped: number; errors: number } | null>(null)
   const [error, setError] = useState("")
 
   const handleUnlock = (e: React.FormEvent) => {
@@ -32,44 +38,44 @@ export default function SyncPage() {
     setResult(null)
 
     try {
-      const today = new Date().toISOString().split("T")[0]
-
-      const snapshot = await getDocs(
-        query(
-          collection(db, "pickupRequests"),
-          where("status", "==", "pending")
-        )
-      )
+      const snapshot = await getDocs(collection(db, "pickupRequests"))
 
       if (snapshot.empty) {
-        setResult({ synced: 0, pastDate: 0, errors: 0 })
+        setResult({ fixed: 0, skipped: 0, errors: 0 })
         return
       }
 
-      let synced = 0
-      let pastDate = 0
+      let fixed = 0
+      let skipped = 0
       let errors = 0
 
       for (const docSnap of snapshot.docs) {
         try {
           const data = docSnap.data()
-          if (data.pickupDate && data.pickupDate < today) {
-            pastDate++
+          const price = data.price
+
+          if (!isNaN(Number(price)) && price !== null && price !== undefined) {
+            skipped++
             continue
           }
-          await set(ref(rtdb, `requests/${docSnap.id}`), {
-            ...data,
-            createdAt: data.createdAt?.toMillis?.() ?? Date.now(),
-          })
-          synced++
+
+          const distance = parseFloat(data.distance)
+          if (isNaN(distance)) {
+            skipped++
+            continue
+          }
+
+          const correctedPrice = calculatePrice(distance)
+          await updateDoc(doc(db, "pickupRequests", docSnap.id), { price: correctedPrice })
+          fixed++
         } catch {
           errors++
         }
       }
 
-      setResult({ synced, pastDate, errors })
+      setResult({ fixed, skipped, errors })
     } catch (err: any) {
-      setError(err.message || "Sync failed. Please try again.")
+      setError(err.message || "Fix failed. Please try again.")
     } finally {
       setLoading(false)
     }
@@ -79,7 +85,7 @@ export default function SyncPage() {
     <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="bg-teal-600 text-white">
-          <CardTitle className="text-xl font-bold text-center">Sync Trips to Driver App</CardTitle>
+          <CardTitle className="text-xl font-bold text-center">Fix Trip Prices</CardTitle>
         </CardHeader>
         <CardContent className="mt-6 space-y-4">
           {!unlocked ? (
@@ -103,7 +109,7 @@ export default function SyncPage() {
           ) : (
             <>
               <p className="text-gray-600 text-sm text-center">
-                This will copy all pending trips with future pickup dates from Firestore to the Realtime Database so the driver app can see them. Run once only.
+                Scans all trip requests and recalculates prices for any that show NaN. Uses the stored distance with the current rate (R32 base + R10/km).
               </p>
 
               <Button
@@ -114,12 +120,12 @@ export default function SyncPage() {
                 {loading ? (
                   <>
                     <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    Syncing...
+                    Fixing...
                   </>
                 ) : result !== null ? (
                   "Done"
                 ) : (
-                  "Run Sync"
+                  "Fix Prices"
                 )}
               </Button>
 
@@ -127,11 +133,10 @@ export default function SyncPage() {
                 <div className="flex items-start space-x-2 bg-green-50 border border-green-200 rounded p-3">
                   <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
                   <div className="text-sm text-green-700">
-                    <p className="font-medium">Sync complete</p>
-                    <p>{result.synced} trip{result.synced !== 1 ? "s" : ""} synced to driver app.</p>
-                    {result.pastDate > 0 && <p>{result.pastDate} skipped (past pickup date).</p>}
-                    {result.errors > 0 && <p className="text-red-600">{result.errors} failed to write — check that NEXT_PUBLIC_DATABASE_URL is set in Vercel.</p>}
-                    {result.synced === 0 && result.errors === 0 && <p>All pending trips have already passed — new requests will sync automatically.</p>}
+                    <p className="font-medium">Complete</p>
+                    <p>{result.fixed} trip{result.fixed !== 1 ? "s" : ""} fixed.</p>
+                    {result.skipped > 0 && <p>{result.skipped} already had valid prices.</p>}
+                    {result.errors > 0 && <p className="text-red-600">{result.errors} failed.</p>}
                   </div>
                 </div>
               )}

@@ -93,6 +93,7 @@ export default function DriverDashboard() {
   const [driver, setDriver] = useState<Driver | null>(null)
   const [availableTrips, setAvailableTrips] = useState<Trip[]>([])
   const [myTrips, setMyTrips] = useState<Trip[]>([])
+  const [pastTrips, setPastTrips] = useState<Trip[]>([])
   const [loading, setLoading] = useState(true)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const router = useRouter()
@@ -117,23 +118,33 @@ export default function DriverDashboard() {
         setDriver(driverData)
 
         if (driverData.isApproved) {
-          // Real-time listener for available (pending) trips
+          const today = new Date().toISOString().split("T")[0]
+
+          // Available: pending trips with today or future pickup date
           unsubscribeAvailable = onSnapshot(
             query(collection(db, "pickupRequests"), where("status", "==", "pending")),
             (snap) => {
               const trips = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Trip))
-              trips.sort((a, b) => (b.createdAt as any) - (a.createdAt as any))
-              setAvailableTrips(trips)
+              const future = trips.filter((t) => !t.pickupDate || t.pickupDate >= today)
+              future.sort((a, b) => (b.createdAt as any) - (a.createdAt as any))
+              setAvailableTrips(future)
             }
           )
 
-          // Real-time listener for this driver's trips
+          // My trips: split into active and past
           unsubscribeMyTrips = onSnapshot(
             query(collection(db, "pickupRequests"), where("driverId", "==", user.uid)),
             (snap) => {
               const trips = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Trip))
               trips.sort((a, b) => (b.createdAt as any) - (a.createdAt as any))
-              setMyTrips(trips)
+              const active = trips.filter(
+                (t) => t.status !== "completed" && t.status !== "cancelled" && (!t.pickupDate || t.pickupDate >= today)
+              )
+              const past = trips.filter(
+                (t) => t.status === "completed" || t.status === "cancelled" || (t.pickupDate && t.pickupDate < today)
+              )
+              setMyTrips(active)
+              setPastTrips(past)
             }
           )
         }
@@ -268,10 +279,13 @@ export default function DriverDashboard() {
           <Tabs defaultValue="available">
             <TabsList className="w-full">
               <TabsTrigger value="available" className="flex-1">
-                Available Trips ({availableTrips.length})
+                Available ({availableTrips.length})
               </TabsTrigger>
               <TabsTrigger value="my-trips" className="flex-1">
                 My Trips ({myTrips.length})
+              </TabsTrigger>
+              <TabsTrigger value="past" className="flex-1">
+                Past ({pastTrips.length})
               </TabsTrigger>
             </TabsList>
 
@@ -328,7 +342,34 @@ export default function DriverDashboard() {
                       ) : trip.status === "completed" ? (
                         <div className="flex items-center justify-center text-green-600 mt-3 font-medium">
                           <CheckCircle className="h-5 w-5 mr-2" />
-                          Completed · Your payout: R{(trip.price * 0.7).toFixed(2)}
+                          Completed · Your payout: {isNaN(Number(trip.price)) ? "R—" : `R${(Number(trip.price) * 0.7).toFixed(2)}`}
+                        </div>
+                      ) : null
+                    }
+                  />
+                ))
+              )}
+            </TabsContent>
+
+            <TabsContent value="past" className="space-y-4 mt-4">
+              {pastTrips.length === 0 ? (
+                <Card>
+                  <CardContent className="pt-8 pb-8 text-center text-gray-500">
+                    <ClipboardList className="h-10 w-10 mx-auto mb-2 text-gray-300" />
+                    No past trips yet.
+                  </CardContent>
+                </Card>
+              ) : (
+                pastTrips.map((trip) => (
+                  <TripCard
+                    key={trip.id}
+                    trip={trip}
+                    showStatus
+                    action={
+                      trip.status === "completed" ? (
+                        <div className="flex items-center justify-center text-green-600 mt-3 font-medium">
+                          <CheckCircle className="h-5 w-5 mr-2" />
+                          Completed · Your payout: {isNaN(Number(trip.price)) ? "R—" : `R${(Number(trip.price) * 0.7).toFixed(2)}`}
                         </div>
                       ) : null
                     }
@@ -373,7 +414,7 @@ function TripCard({ trip, action, showStatus }: { trip: Trip; action?: React.Rea
             )}
             <div className="flex items-center font-bold text-teal-700">
               <Banknote className="h-4 w-4 mr-1" />
-              R{trip.price}
+              {isNaN(Number(trip.price)) ? "R—" : `R${trip.price}`}
             </div>
           </div>
         </div>

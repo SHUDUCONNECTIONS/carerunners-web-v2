@@ -220,11 +220,8 @@ const calculatePrice = (distance) => {
           createdAt: new Date(),
         };
 
-        // Write to Firestore (web portal)
         await setDoc(doc(db, "pickupRequests", requestId), requestData);
-
-        // Write to Realtime Database (driver mobile app)
-        await set(ref(rtdb, `requests/${requestId}`), {
+        await set(ref(rtdb, `trips/${requestId}`), {
           ...requestData,
           createdAt: Date.now(),
         });
@@ -626,8 +623,9 @@ const calculatePrice = (distance) => {
               <Button
                 type="submit"
                 className="w-full bg-teal-600 hover:bg-teal-700 text-white"
+                disabled={!distance || !price}
               >
-                Submit Request
+                {!distance ? "Calculating distance..." : "Submit Request"}
               </Button>
             </form>
           </CardContent>
