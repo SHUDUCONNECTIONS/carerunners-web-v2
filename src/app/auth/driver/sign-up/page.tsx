@@ -28,10 +28,11 @@ import {
   ChevronLeft,
   Upload,
 } from "lucide-react";
-import { auth, db, storage } from "@/utils/firebase"; // Adjust this import path if necessary
+import { auth, db, storage, rtdb } from "@/utils/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref as dbRef, set } from "firebase/database";
 import { useRouter } from "next/navigation";
 
 
@@ -164,9 +165,9 @@ export default function DriverSignUpStepper() {
 
 
   const uploadFile = async (file: File, path: string) => {
-    const storageRef = ref(storage, path);
-    await uploadBytes(storageRef, file);
-    return await getDownloadURL(storageRef);
+    const fileRef = storageRef(storage, path);
+    await uploadBytes(fileRef, file);
+    return await getDownloadURL(fileRef);
   };
 
 
@@ -214,8 +215,7 @@ export default function DriverSignUpStepper() {
           : null;
 
 
-        // Create driver document in Firestore
-        await setDoc(doc(db, "drivers", user.uid), {
+        const driverData = {
           firstName: formData.firstName,
           lastName: formData.lastName,
           email: formData.email,
@@ -233,7 +233,18 @@ export default function DriverSignUpStepper() {
           identificationDocUrl: idDocUrl,
           proofOfResidenceDocUrl: residenceDocUrl,
           isApproved: false,
+        };
+
+        // Write to Firestore (web portal)
+        await setDoc(doc(db, "drivers", user.uid), {
+          ...driverData,
           createdAt: new Date(),
+        });
+
+        // Write to Realtime Database (driver mobile app)
+        await set(dbRef(rtdb, `drivers/${user.uid}`), {
+          ...driverData,
+          createdAt: Date.now(),
         });
 
 
@@ -1022,6 +1033,18 @@ export default function DriverSignUpStepper() {
               {errors.submit}
             </div>
           )}
+
+          <div className="mt-6 text-center border-t pt-4">
+            <p className="text-sm text-gray-600">Already have an account?</p>
+            <Button
+              type="button"
+              variant="link"
+              className="text-teal-600 font-medium"
+              onClick={() => router.push("/auth/driver/login")}
+            >
+              Sign in to Driver Portal
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

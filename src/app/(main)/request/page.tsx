@@ -34,8 +34,9 @@ import {
   Autocomplete,
   Marker,
 } from "@react-google-maps/api";
-import { db, auth } from "@/utils/firebase";
+import { db, auth, rtdb } from "@/utils/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
+import { ref, set } from "firebase/database";
 import { onAuthStateChanged } from "firebase/auth";
 import LoadingComponent from "@/components/loader";
 
@@ -59,7 +60,6 @@ export default function AttorneyDocumentPickup() {
   const [distance, setDistance] = useState(null);
   const [price, setPrice] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [urgency, setUrgency] = useState("standard");
   const router = useRouter();
   const today = new Date().toISOString().split("T")[0];
   const [pickupAutocomplete, setPickupAutocomplete] = useState(null);
@@ -108,14 +108,14 @@ export default function AttorneyDocumentPickup() {
         );
         if (calculatedDistance !== null) {
           setDistance(calculatedDistance.toFixed(2));
-          const calculatedPrice = calculatePrice(calculatedDistance, urgency);
+          const calculatedPrice = calculatePrice(calculatedDistance);
           setPrice(calculatedPrice);
         }
       }
     };
 
     updateDistance();
-  }, [pickupCoords, dropoffCoords, calculateDistance, urgency]);
+  }, [pickupCoords, dropoffCoords, calculateDistance]);
 
   // Form setup and validation
   const defaultValues = {
@@ -126,7 +126,6 @@ export default function AttorneyDocumentPickup() {
     dropoffLocation: "",
     pickupDate: today,
     pickupTime: "",
-    urgency: "standard",
     specialInstructions: "",
     senderName: "",
     senderNumber: "",
@@ -194,42 +193,11 @@ export default function AttorneyDocumentPickup() {
     return true;
   };
 
-const calculatePrice = (distance, urgency) => {
+const calculatePrice = (distance) => {
   const distanceInKm = parseFloat(distance);
-  let price = 0;
-
-  // Get current day (0 = Sunday, 1 = Monday, ..., 5 = Friday)
-  const currentDay = new Date().getDay();
-  const isMondayOrFriday = currentDay === 1 || currentDay === 5;
-
-  // Base prices
-  const basePrice = 28; // for 1 km
-  const standardRateMonFri = 7.5;
-  const urgentBasePrice = 60;
-  const urgentRateMonFri = 8.5;
-  const standardRateOtherDays = 7.0;
-  const urgentRateOtherDays = 8.0;
-
-  if (urgency === "urgent" || urgency === "same_day") {
-    // URGENT deliveries
-    if (distanceInKm <= 1) {
-      price = urgentBasePrice;
-    } else if (isMondayOrFriday) {
-      price = urgentBasePrice + (distanceInKm - 1) * urgentRateMonFri;
-    } else {
-      price = urgentBasePrice + (distanceInKm - 1) * urgentRateOtherDays;
-    }
-  } else {
-    // NON-URGENT deliveries
-    if (distanceInKm <= 1) {
-      price = basePrice;
-    } else if (isMondayOrFriday) {
-      price = basePrice + (distanceInKm - 1) * standardRateMonFri;
-    } else {
-      price = basePrice + (distanceInKm - 1) * standardRateOtherDays;
-    }
-  }
-
+  const basePrice = 32;
+  const ratePerKm = 10;
+  const price = distanceInKm <= 1 ? basePrice : basePrice + (distanceInKm - 1) * ratePerKm;
   return price.toFixed(2);
 };
   
@@ -237,19 +205,12 @@ const calculatePrice = (distance, urgency) => {
     const user = auth.currentUser;
     if (user) {
       try {
-        const calculatedPrice = calculatePrice(
-          parseFloat(distance),
-          data.urgency
-        );
+        const calculatedPrice = calculatePrice(parseFloat(distance));
         setPrice(calculatedPrice);
 
         // Save pickup request data
-        const pickupRequestRef = doc(
-          db,
-          "pickupRequests",
-          `${user.uid}_${Date.now()}`
-        );
-        await setDoc(pickupRequestRef, {
+        const requestId = `${user.uid}_${Date.now()}`;
+        const requestData = {
           ...data,
           userId: user.uid,
           distance: distance,
@@ -257,6 +218,15 @@ const calculatePrice = (distance, urgency) => {
           status: "pending",
           payment_status: "unpaid",
           createdAt: new Date(),
+        };
+
+        // Write to Firestore (web portal)
+        await setDoc(doc(db, "pickupRequests", requestId), requestData);
+
+        // Write to Realtime Database (driver mobile app)
+        await set(ref(rtdb, `trips/${requestId}`), {
+          ...requestData,
+          createdAt: Date.now(),
         });
 
         router.push("/trips");
@@ -616,73 +586,6 @@ const calculatePrice = (distance, urgency) => {
                 {errors.documentDescription && (
                   <p className="text-red-500 text-sm mt-1">
                     {errors.documentDescription.message}
-                  </p>
-                )}
-              </div>
-
-              <div className="mb-4">
-                <Label
-                  htmlFor="urgency"
-                  className="flex items-center space-x-2 mb-1"
-                >
-                  <Clock className="h-5 w-5 text-gray-500" />
-                  <span>Urgency</span>
-                </Label>
-                <Controller
-                  name="urgency"
-                  control={control}
-                  rules={{ required: "Urgency level is required" }}
-                  render={({ field }) => (
-                    <Select
-                      onValueChange={(value) => {
-                        field.onChange(value);
-                        setUrgency(value);
-                        if (distance) {
-                          const updatedPrice = calculatePrice(
-                            parseFloat(distance),
-                            value
-                          );
-                          setPrice(updatedPrice);
-                        }
-                      }}
-                      defaultValue={field.value}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select urgency level" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="standard">
-                          <div className="flex justify-between w-full items-center">
-                            <span className="mr-8">Standard</span>
-                            {distance && (
-                              <span className="text-gray-500 ml-auto">
-                                R
-                                {calculatePrice(
-                                  parseFloat(distance),
-                                  "standard"
-                                )}
-                              </span>
-                            )}
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="urgent">
-                          <div className="flex justify-between w-full items-center">
-                            <span className="mr-8">Urgent</span>
-                            {distance && (
-                              <span className="text-gray-500 ml-auto">
-                                R
-                                {calculatePrice(parseFloat(distance), "urgent")}
-                              </span>
-                            )}
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-                {errors.urgency && (
-                  <p className="text-red-500 text-sm mt-1">
-                    {errors.urgency.message}
                   </p>
                 )}
               </div>

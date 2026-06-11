@@ -1,12 +1,29 @@
 "use client"
 
-import React from "react"
+import React, { useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { CheckCircle, Mail, Clock, ArrowRight } from "lucide-react"
+import { auth, db } from "@/utils/firebase"
+import { onAuthStateChanged } from "firebase/auth"
+import { doc, getDoc } from "firebase/firestore"
+import { useRouter } from "next/navigation"
 
 export default function DriverSignUpConfirmation() {
-  // Function to handle redirect
+  const router = useRouter()
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const driverDoc = await getDoc(doc(db, "drivers", user.uid))
+        if (driverDoc.exists() && driverDoc.data().isApproved) {
+          router.push("/driver/dashboard")
+        }
+      }
+    })
+    return () => unsubscribe()
+  }, [router])
+
   const redirectToHomepage = () => {
     window.location.href = "https://carerunners.co.za/driver.html";
   };
