@@ -1,7 +1,6 @@
 "use client"
 
 import React, { useEffect, useState } from "react"
-import BillingBanner from "@/components/BillingBanner"
 import { Button } from "@/components/ui/button"
 import {
   Package,
@@ -11,6 +10,9 @@ import {
   Users,
   User,
   AlertCircle,
+  Wallet,
+  Clock,
+  CalendarCheck,
 } from "lucide-react"
 import Link from "next/link"
 import { auth, db } from "@/utils/firebase"
@@ -42,11 +44,16 @@ function getGreeting(): string {
   return "Good evening"
 }
 
+function formatCurrency(amount: number): string {
+  return `R${amount.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
   const [outstandingAmount, setOutstandingAmount] = useState<number | null>(null)
   const [unpaidCount, setUnpaidCount] = useState(0)
+  const [tripsThisMonth, setTripsThisMonth] = useState(0)
   const [firstName, setFirstName] = useState<string | null>(null)
 
   useEffect(() => {
@@ -83,6 +90,27 @@ export default function Dashboard() {
         setUnpaidCount(completedUnpaid.length)
       } catch (err) {
         console.error("Dashboard: failed to fetch outstanding balance", err)
+      }
+
+      // Fetch trip count for the current month
+      try {
+        const startOfMonth = new Date(
+          new Date().getFullYear(),
+          new Date().getMonth(),
+          1
+        )
+          .toISOString()
+          .split("T")[0]
+
+        const monthQ = query(
+          collection(db, "pickupRequests"),
+          where("userId", "==", user.uid),
+          where("pickupDate", ">=", startOfMonth)
+        )
+        const monthSnapshot = await getDocs(monthQ)
+        setTripsThisMonth(monthSnapshot.size)
+      } catch (err) {
+        console.error("Dashboard: failed to fetch monthly trip count", err)
       }
     })
     return () => unsubscribe()
@@ -133,9 +161,6 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       <main className="container mx-auto px-4 py-8 max-w-6xl">
-        {/* Billing banner (keep as-is) */}
-        <BillingBanner />
-
         {/* ── Greeting section ─────────────────────────────────────────── */}
         <div className="mb-8 mt-2">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
@@ -147,20 +172,60 @@ export default function Dashboard() {
           </p>
         </div>
 
+        {/* ── Quick stats row ──────────────────────────────────────────── */}
+        <div className="mb-8 grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
+            <div className="w-11 h-11 rounded-xl bg-teal-50 flex items-center justify-center shrink-0">
+              <Wallet className="h-5 w-5 text-teal-600" aria-hidden="true" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500">Outstanding Balance</p>
+              <p className="text-xl font-bold text-gray-900">
+                {formatCurrency(outstandingAmount ?? 0)}
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
+            <div className="w-11 h-11 rounded-xl bg-teal-50 flex items-center justify-center shrink-0">
+              <Clock className="h-5 w-5 text-teal-600" aria-hidden="true" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500">Awaiting Payment</p>
+              <p className="text-xl font-bold text-gray-900">
+                {unpaidCount} trip{unpaidCount !== 1 ? "s" : ""}
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
+            <div className="w-11 h-11 rounded-xl bg-teal-50 flex items-center justify-center shrink-0">
+              <CalendarCheck className="h-5 w-5 text-teal-600" aria-hidden="true" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500">Trips This Month</p>
+              <p className="text-xl font-bold text-gray-900">{tripsThisMonth}</p>
+            </div>
+          </div>
+        </div>
+
         {/* ── Outstanding balance alert ─────────────────────────────────── */}
         {hasOutstanding && (
-          <div className="mb-8 rounded-xl border border-amber-200 bg-amber-50 border-l-4 border-l-teal-600 shadow-sm">
+          <div
+            role="alert"
+            className="mb-8 rounded-xl border border-amber-200 bg-amber-50 border-l-4 border-l-teal-600 shadow-sm"
+          >
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 px-5 py-5">
               <div className="flex items-start gap-4">
                 <div className="flex-shrink-0 mt-0.5">
-                  <AlertCircle className="h-6 w-6 text-amber-600" />
+                  <AlertCircle className="h-6 w-6 text-amber-600" aria-hidden="true" />
                 </div>
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 mb-0.5">
                     Outstanding Balance
                   </p>
                   <p className="text-3xl font-extrabold text-amber-800 leading-none">
-                    R{outstandingAmount!.toFixed(2)}
+                    {formatCurrency(outstandingAmount!)}
                   </p>
                   <p className="text-sm text-amber-700 mt-1.5">
                     You have{" "}
@@ -170,8 +235,8 @@ export default function Dashboard() {
                   </p>
                 </div>
               </div>
-              <Link href="/billing" className="shrink-0">
-                <Button className="bg-amber-600 hover:bg-amber-700 text-white px-6 font-semibold shadow-sm">
+              <Link href="/billing" className="shrink-0 w-full sm:w-auto">
+                <Button className="w-full sm:w-auto bg-amber-600 hover:bg-amber-700 text-white px-6 py-2.5 font-semibold shadow-sm focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2">
                   Pay Now
                 </Button>
               </Link>
@@ -182,12 +247,16 @@ export default function Dashboard() {
         {/* ── Action cards grid ─────────────────────────────────────────── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {dashboardItems.map((item, index) => (
-            <Link key={index} href={item.link} className="group block">
+            <Link
+              key={index}
+              href={item.link}
+              className="group block rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+            >
               <div
                 className="
                   h-full bg-white rounded-2xl border border-gray-100 shadow-sm
                   p-6 flex flex-col gap-4
-                  hover:-translate-y-0.5 hover:shadow-md transition-all duration-200
+                  hover:-translate-y-0.5 hover:shadow-md hover:border-teal-100 transition-all duration-200
                 "
               >
                 {/* Icon box */}
