@@ -1,9 +1,7 @@
 "use client"
 import React, { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   DropdownMenu,
@@ -16,7 +14,6 @@ import {
 import {
   MapPin,
   Clock,
-  Banknote,
   Car,
   User,
   LogOut,
@@ -25,8 +22,9 @@ import {
   Truck,
   ClipboardList,
   Menu,
+  Circle,
 } from "lucide-react"
-import { auth, db } from "@/utils/firebase"
+import { auth, db, rtdb } from "@/utils/firebase"
 import {
   collection,
   onSnapshot,
@@ -36,6 +34,7 @@ import {
   getDoc,
   updateDoc,
 } from "firebase/firestore"
+import { ref, set, remove } from "firebase/database"
 import { onAuthStateChanged, signOut } from "firebase/auth"
 import { useRouter } from "next/navigation"
 import LoadingComponent from "@/components/loader"
@@ -74,19 +73,29 @@ interface Trip {
   createdAt?: any
 }
 
-const statusColors: Record<string, string> = {
-  pending: "bg-orange-100 text-orange-800",
-  accepted: "bg-blue-100 text-blue-800",
-  "picked-up": "bg-purple-100 text-purple-800",
-  "in-progress": "bg-yellow-100 text-yellow-800",
-  completed: "bg-green-100 text-green-800",
-  cancelled: "bg-gray-100 text-gray-500",
+// Left accent strip color per status
+const statusAccent: Record<string, string> = {
+  pending: "border-orange-400",
+  accepted: "border-blue-500",
+  "picked-up": "border-purple-500",
+  "in-progress": "border-yellow-400",
+  completed: "border-green-500",
+  cancelled: "border-gray-300",
+}
+
+// Badge styling per status
+const statusBadge: Record<string, string> = {
+  pending: "bg-orange-100 text-orange-700 border border-orange-200",
+  accepted: "bg-blue-100 text-blue-700 border border-blue-200",
+  "picked-up": "bg-purple-100 text-purple-700 border border-purple-200",
+  "in-progress": "bg-yellow-100 text-yellow-700 border border-yellow-200",
+  completed: "bg-green-100 text-green-700 border border-green-200",
+  cancelled: "bg-gray-100 text-gray-500 border border-gray-200",
 }
 
 const nextStatus: Record<string, { label: string; value: string }> = {
-  accepted: { label: "Mark as Picked Up", value: "picked-up" },
-  "picked-up": { label: "Mark as In Transit", value: "in-progress" },
-  "in-progress": { label: "Mark as Completed", value: "completed" },
+  accepted: { label: "Mark as Collected", value: "in-progress" },
+  "in-progress": { label: "Mark as Delivered", value: "completed" },
 }
 
 export default function DriverDashboard() {
@@ -97,6 +106,36 @@ export default function DriverDashboard() {
   const [loading, setLoading] = useState(true)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const router = useRouter()
+
+  // Broadcast live location to RTDB while driver has an active trip
+  useEffect(() => {
+    const user = auth.currentUser
+    if (!user) return
+    const hasActiveTrip = myTrips.length > 0
+    if (!hasActiveTrip) {
+      remove(ref(rtdb, `driverLocations/${user.uid}`))
+      return
+    }
+
+    if (!navigator.geolocation) return
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        set(ref(rtdb, `driverLocations/${user.uid}`), {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          updatedAt: Date.now(),
+        })
+      },
+      (err) => console.warn("Geolocation error:", err),
+      { enableHighAccuracy: true, maximumAge: 5000 }
+    )
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId)
+      remove(ref(rtdb, `driverLocations/${user.uid}`))
+    }
+  }, [myTrips])
 
   useEffect(() => {
     let unsubscribeAvailable: (() => void) | null = null
@@ -196,37 +235,54 @@ export default function DriverDashboard() {
   if (loading) return <LoadingComponent />
   if (!driver) return null
 
+  const initials =
+    (driver.firstName?.[0] ?? "").toUpperCase() +
+    (driver.lastName?.[0] ?? "").toUpperCase()
+
   return (
-    <div className="min-h-screen flex flex-col bg-gray-100">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-teal-600 text-white shadow-md">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <img src="/carerunnerlogo.png" alt="Logo" className="h-9 w-9 bg-white rounded-lg shrink-0" />
-            <h1 className="text-xl font-bold">Carerunners</h1>
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      {/* ── Sticky Header ── */}
+      <header className="sticky top-0 z-50 bg-teal-600 text-white shadow-lg">
+        <div className="container mx-auto px-5 py-5 flex items-center justify-between max-w-3xl">
+          <div className="flex items-center gap-3">
+            <img
+              src="/carerunnerlogo.png"
+              alt="Logo"
+              className="h-10 w-10 bg-white rounded-xl shrink-0 object-contain p-0.5"
+            />
+            <span className="text-xl font-bold tracking-tight">Carerunners</span>
           </div>
-          <nav className="hidden md:flex items-center space-x-1">
-            <span className="text-teal-100 text-sm px-3">
+
+          {/* Desktop nav */}
+          <nav className="hidden md:flex items-center gap-3">
+            <span className="text-teal-100 text-sm font-medium">
               {driver.firstName} {driver.lastName}
             </span>
-            <Button variant="ghost" className="text-white hover:bg-teal-700 px-2 py-1 h-auto text-xs" onClick={handleSignOut}>
-              <LogOut className="mr-1 h-3.5 w-3.5 shrink-0" />
-              SIGN OUT
-            </Button>
+            <button
+              onClick={handleSignOut}
+              className="flex items-center gap-1.5 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 transition-colors rounded-lg px-3 py-2"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              Sign Out
+            </button>
           </nav>
+
+          {/* Mobile menu */}
           <div className="md:hidden">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="text-white">
+                <button className="text-white p-1.5 rounded-lg hover:bg-teal-700 transition-colors">
                   <Menu className="h-6 w-6" />
-                </Button>
+                </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>{driver.firstName} {driver.lastName}</DropdownMenuLabel>
+                <DropdownMenuLabel>
+                  {driver.firstName} {driver.lastName}
+                </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleSignOut}>
                   <LogOut className="mr-2 h-4 w-4" />
-                  SIGN OUT
+                  Sign Out
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -234,96 +290,151 @@ export default function DriverDashboard() {
         </div>
       </header>
 
-      <main className="flex-grow container mx-auto px-4 py-8 mt-4 max-w-3xl">
-        {/* Profile Card */}
-        <Card className="mb-6">
-          <CardHeader className="bg-teal-600 text-white">
-            <CardTitle className="text-xl font-bold">Driver Dashboard</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="bg-teal-100 rounded-full p-3">
-                  <User className="h-7 w-7 text-teal-600" />
-                </div>
-                <div>
-                  <p className="font-semibold text-lg">{driver.firstName} {driver.lastName}</p>
-                  <p className="text-gray-500 text-sm flex items-center">
-                    <Car className="h-4 w-4 mr-1" />
-                    {driver.vehicleMake} {driver.vehicleModel} ({driver.vehicleYear}) · {driver.numberPlate}
-                  </p>
-                </div>
-              </div>
-              <Badge className={driver.isApproved ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-800"}>
-                {driver.isApproved ? "Approved" : "Pending Approval"}
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
+      <main className="flex-grow container mx-auto px-4 py-6 max-w-3xl space-y-5">
+        {/* ── Driver Profile Card ── */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 relative overflow-hidden">
+          {/* subtle top-right decorative gradient blob */}
+          <div className="absolute -top-6 -right-6 w-28 h-28 rounded-full bg-teal-50 opacity-60 pointer-events-none" />
 
-        {/* Pending approval */}
-        {!driver.isApproved && (
-          <Card>
-            <CardContent className="pt-8 pb-8 text-center space-y-3">
-              <Clock className="h-12 w-12 text-orange-400 mx-auto" />
-              <h2 className="text-xl font-semibold text-gray-700">Application Under Review</h2>
-              <p className="text-gray-500 max-w-sm mx-auto">
-                Your application is being reviewed by the Care Runners team. You will be notified by email within 3–5 business days.
+          {/* Approval badge – top-right */}
+          <div className="absolute top-4 right-4">
+            {driver.isApproved ? (
+              <span className="inline-flex items-center gap-1 text-xs font-semibold bg-green-100 text-green-700 border border-green-200 rounded-full px-3 py-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-green-500 inline-block" />
+                Approved
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-xs font-semibold bg-orange-100 text-orange-700 border border-orange-200 rounded-full px-3 py-1">
+                <Clock className="h-3 w-3" />
+                Pending
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-4">
+            {/* Avatar with initials */}
+            <div className="h-14 w-14 rounded-full bg-teal-600 flex items-center justify-center shrink-0 shadow-md">
+              <span className="text-white text-lg font-bold tracking-wide">{initials}</span>
+            </div>
+
+            <div className="min-w-0">
+              <p className="font-semibold text-gray-900 text-lg leading-tight">
+                {driver.firstName} {driver.lastName}
               </p>
-            </CardContent>
-          </Card>
+              <p className="text-gray-500 text-sm mt-0.5">{driver.email}</p>
+
+              {/* Vehicle info chips */}
+              <div className="flex flex-wrap gap-2 mt-2.5">
+                <span className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-600 rounded-full px-2.5 py-1 font-medium">
+                  <Car className="h-3 w-3 text-teal-600" />
+                  {driver.vehicleYear} {driver.vehicleMake} {driver.vehicleModel}
+                </span>
+                <span className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-600 rounded-full px-2.5 py-1 font-medium">
+                  {driver.numberPlate}
+                </span>
+                {driver.vehicleColor && (
+                  <span className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-600 rounded-full px-2.5 py-1 font-medium">
+                    {driver.vehicleColor}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Pending Approval State ── */}
+        {!driver.isApproved && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 flex flex-col items-center text-center gap-3">
+            <div className="h-16 w-16 rounded-full bg-orange-50 flex items-center justify-center">
+              <Clock className="h-8 w-8 text-orange-400" />
+            </div>
+            <h2 className="text-lg font-semibold text-gray-800">Application Under Review</h2>
+            <p className="text-gray-500 text-sm max-w-xs leading-relaxed">
+              Your application is being reviewed by the Care Runners team. You will be notified by email within 3–5 business days.
+            </p>
+          </div>
         )}
 
-        {/* Trips for approved drivers */}
+        {/* ── Trips Tabs (approved drivers only) ── */}
         {driver.isApproved && (
           <Tabs defaultValue="available">
-            <TabsList className="w-full">
-              <TabsTrigger value="available" className="flex-1">
-                Available ({availableTrips.length})
+            {/* Pill-style tab list */}
+            <TabsList className="w-full bg-gray-100 rounded-xl p-1 h-auto gap-1">
+              <TabsTrigger
+                value="available"
+                className="flex-1 rounded-lg text-sm font-medium py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-teal-700 text-gray-500 transition-all"
+              >
+                <span className="flex items-center justify-center gap-1.5">
+                  {/* Pulsing green dot for live updates */}
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                  </span>
+                  Available
+                  {availableTrips.length > 0 && (
+                    <span className="ml-1 bg-teal-600 text-white text-xs rounded-full px-1.5 py-0.5 font-semibold leading-none">
+                      {availableTrips.length}
+                    </span>
+                  )}
+                </span>
               </TabsTrigger>
-              <TabsTrigger value="my-trips" className="flex-1">
-                My Trips ({myTrips.length})
+
+              <TabsTrigger
+                value="my-trips"
+                className="flex-1 rounded-lg text-sm font-medium py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-teal-700 text-gray-500 transition-all"
+              >
+                <span className="flex items-center justify-center gap-1.5">
+                  My Trips
+                  {myTrips.length > 0 && (
+                    <span className="ml-1 bg-teal-600 text-white text-xs rounded-full px-1.5 py-0.5 font-semibold leading-none">
+                      {myTrips.length}
+                    </span>
+                  )}
+                </span>
               </TabsTrigger>
-              <TabsTrigger value="past" className="flex-1">
-                Past ({pastTrips.length})
+
+              <TabsTrigger
+                value="past"
+                className="flex-1 rounded-lg text-sm font-medium py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-teal-700 text-gray-500 transition-all"
+              >
+                <span className="flex items-center justify-center gap-1.5">
+                  Past
+                  {pastTrips.length > 0 && (
+                    <span className="ml-1 bg-gray-400 text-white text-xs rounded-full px-1.5 py-0.5 font-semibold leading-none">
+                      {pastTrips.length}
+                    </span>
+                  )}
+                </span>
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="available" className="space-y-4 mt-4">
+            {/* ── Available Trips ── */}
+            <TabsContent value="available" className="space-y-3 mt-4">
               {availableTrips.length === 0 ? (
-                <Card>
-                  <CardContent className="pt-8 pb-8 text-center text-gray-500">
-                    <ClipboardList className="h-10 w-10 mx-auto mb-2 text-gray-300" />
-                    No available trips at the moment.
-                  </CardContent>
-                </Card>
+                <EmptyState icon={<ClipboardList className="h-10 w-10 text-gray-300" />} message="No available trips at the moment." />
               ) : (
                 availableTrips.map((trip) => (
                   <TripCard
                     key={trip.id}
                     trip={trip}
                     action={
-                      <Button
-                        className="bg-teal-600 hover:bg-teal-700 text-white w-full mt-3"
+                      <button
+                        className="w-full mt-4 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white font-semibold text-sm rounded-xl py-3 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                         onClick={() => handleAcceptTrip(trip.id)}
                         disabled={updatingId === trip.id}
                       >
-                        {updatingId === trip.id ? "Accepting..." : "Accept Trip"}
-                      </Button>
+                        {updatingId === trip.id ? "Accepting…" : "Accept Trip"}
+                      </button>
                     }
                   />
                 ))
               )}
             </TabsContent>
 
-            <TabsContent value="my-trips" className="space-y-4 mt-4">
+            {/* ── My Trips ── */}
+            <TabsContent value="my-trips" className="space-y-3 mt-4">
               {myTrips.length === 0 ? (
-                <Card>
-                  <CardContent className="pt-8 pb-8 text-center text-gray-500">
-                    <Truck className="h-10 w-10 mx-auto mb-2 text-gray-300" />
-                    You haven&apos;t accepted any trips yet.
-                  </CardContent>
-                </Card>
+                <EmptyState icon={<Truck className="h-10 w-10 text-gray-300" />} message="You haven't accepted any trips yet." />
               ) : (
                 myTrips.map((trip) => (
                   <TripCard
@@ -332,17 +443,18 @@ export default function DriverDashboard() {
                     showStatus
                     action={
                       nextStatus[trip.status] ? (
-                        <Button
-                          className="bg-teal-600 hover:bg-teal-700 text-white w-full mt-3"
+                        <button
+                          className="w-full mt-4 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white font-semibold text-sm rounded-xl py-3 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                           onClick={() => handleUpdateStatus(trip.id, nextStatus[trip.status].value)}
                           disabled={updatingId === trip.id}
                         >
-                          {updatingId === trip.id ? "Updating..." : nextStatus[trip.status].label}
-                        </Button>
+                          {updatingId === trip.id ? "Updating…" : nextStatus[trip.status].label}
+                        </button>
                       ) : trip.status === "completed" ? (
-                        <div className="flex items-center justify-center text-green-600 mt-3 font-medium">
-                          <CheckCircle className="h-5 w-5 mr-2" />
-                          Completed · Your payout: {isNaN(Number(trip.price)) ? "R—" : `R${(Number(trip.price) * 0.7).toFixed(2)}`}
+                        <div className="w-full mt-4 flex items-center justify-center gap-2 bg-green-50 border border-green-200 text-green-700 font-semibold text-sm rounded-xl py-3">
+                          <CheckCircle className="h-4 w-4" />
+                          Completed · Payout:{" "}
+                          {isNaN(Number(trip.price)) ? "R—" : `R${(Number(trip.price) * 0.7).toFixed(2)}`}
                         </div>
                       ) : null
                     }
@@ -351,14 +463,10 @@ export default function DriverDashboard() {
               )}
             </TabsContent>
 
-            <TabsContent value="past" className="space-y-4 mt-4">
+            {/* ── Past Trips ── */}
+            <TabsContent value="past" className="space-y-3 mt-4">
               {pastTrips.length === 0 ? (
-                <Card>
-                  <CardContent className="pt-8 pb-8 text-center text-gray-500">
-                    <ClipboardList className="h-10 w-10 mx-auto mb-2 text-gray-300" />
-                    No past trips yet.
-                  </CardContent>
-                </Card>
+                <EmptyState icon={<ClipboardList className="h-10 w-10 text-gray-300" />} message="No past trips yet." />
               ) : (
                 pastTrips.map((trip) => (
                   <TripCard
@@ -367,9 +475,10 @@ export default function DriverDashboard() {
                     showStatus
                     action={
                       trip.status === "completed" ? (
-                        <div className="flex items-center justify-center text-green-600 mt-3 font-medium">
-                          <CheckCircle className="h-5 w-5 mr-2" />
-                          Completed · Your payout: {isNaN(Number(trip.price)) ? "R—" : `R${(Number(trip.price) * 0.7).toFixed(2)}`}
+                        <div className="w-full mt-4 flex items-center justify-center gap-2 bg-green-50 border border-green-200 text-green-700 font-semibold text-sm rounded-xl py-3">
+                          <CheckCircle className="h-4 w-4" />
+                          Completed · Payout:{" "}
+                          {isNaN(Number(trip.price)) ? "R—" : `R${(Number(trip.price) * 0.7).toFixed(2)}`}
                         </div>
                       ) : null
                     }
@@ -381,7 +490,7 @@ export default function DriverDashboard() {
         )}
       </main>
 
-      {/* Footer */}
+      {/* ── Footer ── */}
       <footer className="bg-teal-600 text-white mt-auto">
         <div className="container mx-auto flex justify-center items-center h-12">
           <div className="flex items-center">
@@ -395,85 +504,131 @@ export default function DriverDashboard() {
   )
 }
 
-function TripCard({ trip, action, showStatus }: { trip: Trip; action?: React.ReactNode; showStatus?: boolean }) {
+// ── Empty State Helper ──────────────────────────────────────────────────────
+function EmptyState({ icon, message }: { icon: React.ReactNode; message: string }) {
   return (
-    <Card className="hover:shadow-md transition-shadow duration-200">
-      <CardContent className="pt-4 pb-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center space-x-2">
-            <Clock className="h-4 w-4 text-gray-500" />
-            <span className="text-sm text-gray-600">
-              {trip.pickupDate}{trip.pickupTime ? ` · ${trip.pickupTime}` : ""}
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center justify-center gap-3 py-14 px-6">
+      {icon}
+      <p className="text-gray-400 text-sm font-medium text-center">{message}</p>
+    </div>
+  )
+}
+
+// ── Trip Card ───────────────────────────────────────────────────────────────
+function TripCard({
+  trip,
+  action,
+  showStatus,
+}: {
+  trip: Trip
+  action?: React.ReactNode
+  showStatus?: boolean
+}) {
+  const accentClass = statusAccent[trip.status] ?? "border-gray-200"
+
+  const requestLabel = trip.requestType
+    ?.replace(/_/g, " ")
+    .replace(/\b\w/g, (l) => l.toUpperCase())
+
+  return (
+    <div
+      className={`bg-white rounded-2xl shadow-sm border border-gray-100 border-l-4 ${accentClass} overflow-hidden hover:shadow-md transition-shadow duration-200`}
+    >
+      <div className="p-5">
+        {/* ── Top row: date/time + price ── */}
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center gap-1.5 text-gray-500 text-sm">
+            <Clock className="h-3.5 w-3.5 shrink-0" />
+            <span>
+              {trip.pickupDate}
+              {trip.pickupTime ? ` · ${trip.pickupTime}` : ""}
             </span>
           </div>
-          <div className="flex items-center space-x-2">
-            {showStatus && (
-              <Badge className={statusColors[trip.status] || "bg-gray-100 text-gray-600"}>
-                {trip.status}
-              </Badge>
+          <div className="flex items-center gap-2">
+            {showStatus && trip.status && (
+              <span className={`text-xs font-semibold rounded-full px-2.5 py-1 ${statusBadge[trip.status] ?? "bg-gray-100 text-gray-600"}`}>
+                {trip.status.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
+              </span>
             )}
-            <div className="flex items-center font-bold text-teal-700">
-              <Banknote className="h-4 w-4 mr-1" />
+            {/* Price – prominent teal */}
+            <span className="text-teal-700 font-bold text-base">
               {isNaN(Number(trip.price)) ? "R—" : `R${trip.price}`}
+            </span>
+          </div>
+        </div>
+
+        {/* ── Route: pickup → dropoff with visual connector ── */}
+        <div className="flex gap-3 mb-4">
+          {/* Connector column */}
+          <div className="flex flex-col items-center pt-0.5 shrink-0">
+            <span className="h-2.5 w-2.5 rounded-full bg-teal-500 ring-2 ring-teal-100" />
+            <span className="flex-1 w-px bg-gray-200 my-1" style={{ minHeight: "20px" }} />
+            <span className="h-2.5 w-2.5 rounded-full bg-gray-400 ring-2 ring-gray-100" />
+          </div>
+          {/* Addresses */}
+          <div className="flex flex-col gap-3 flex-1 min-w-0">
+            <div>
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-0.5">Pickup</p>
+              <p className="text-gray-800 text-sm font-medium leading-snug">{trip.pickupLocation}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-0.5">Dropoff</p>
+              <p className="text-gray-800 text-sm font-medium leading-snug">{trip.dropoffLocation}</p>
             </div>
           </div>
         </div>
 
-        <Separator className="mb-3" />
-
-        <div className="space-y-2 text-sm">
-          <div className="flex items-start space-x-2">
-            <MapPin className="h-4 w-4 text-teal-600 mt-0.5 shrink-0" />
-            <div>
-              <span className="font-medium">Pickup: </span>
-              <span className="text-gray-600">{trip.pickupLocation}</span>
-            </div>
+        {/* ── Meta chips row ── */}
+        {(trip.distance || trip.requestType || trip.firmName) && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {trip.distance && (
+              <span className="inline-flex items-center gap-1 text-xs bg-gray-50 border border-gray-100 text-gray-500 rounded-full px-2.5 py-1">
+                <MapPin className="h-3 w-3 text-teal-500" />
+                {trip.distance} km
+              </span>
+            )}
+            {trip.requestType && (
+              <span className="inline-flex items-center gap-1 text-xs bg-gray-50 border border-gray-100 text-gray-500 rounded-full px-2.5 py-1">
+                <Package className="h-3 w-3 text-teal-500" />
+                {requestLabel}
+              </span>
+            )}
+            {trip.firmName && (
+              <span className="inline-flex items-center gap-1 text-xs bg-gray-50 border border-gray-100 text-gray-500 rounded-full px-2.5 py-1">
+                <User className="h-3 w-3 text-teal-500" />
+                {trip.firmName}
+              </span>
+            )}
           </div>
-          <div className="flex items-start space-x-2">
-            <MapPin className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" />
-            <div>
-              <span className="font-medium">Dropoff: </span>
-              <span className="text-gray-600">{trip.dropoffLocation}</span>
-            </div>
-          </div>
-          {trip.distance && (
-            <div className="flex items-center space-x-2 text-gray-500">
-              <Package className="h-4 w-4" />
-              <span>{trip.distance} km · {trip.requestType?.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}</span>
-            </div>
-          )}
-          {trip.firmName && (
-            <div className="flex items-center space-x-2 text-gray-500">
-              <User className="h-4 w-4" />
-              <span>{trip.firmName}</span>
-            </div>
-          )}
-        </div>
-
-        {(trip.senderName || trip.receiverName) && (
-          <>
-            <Separator className="my-3" />
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              {trip.senderName && (
-                <div className="bg-gray-50 rounded p-2">
-                  <p className="font-medium text-gray-700 mb-1">Sender</p>
-                  <p className="text-gray-600">{trip.senderName}</p>
-                  {trip.senderNumber && <p className="text-gray-500 text-xs">{trip.senderNumber}</p>}
-                </div>
-              )}
-              {trip.receiverName && (
-                <div className="bg-gray-50 rounded p-2">
-                  <p className="font-medium text-gray-700 mb-1">Receiver</p>
-                  <p className="text-gray-600">{trip.receiverName}</p>
-                  {trip.receiverNumber && <p className="text-gray-500 text-xs">{trip.receiverNumber}</p>}
-                </div>
-              )}
-            </div>
-          </>
         )}
 
+        {/* ── Sender / Receiver ── */}
+        {(trip.senderName || trip.receiverName) && (
+          <div className="grid grid-cols-2 gap-2 mb-1">
+            {trip.senderName && (
+              <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-1">Sender</p>
+                <p className="text-gray-800 text-sm font-medium leading-snug">{trip.senderName}</p>
+                {trip.senderNumber && (
+                  <p className="text-gray-400 text-xs mt-0.5">{trip.senderNumber}</p>
+                )}
+              </div>
+            )}
+            {trip.receiverName && (
+              <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-1">Receiver</p>
+                <p className="text-gray-800 text-sm font-medium leading-snug">{trip.receiverName}</p>
+                {trip.receiverNumber && (
+                  <p className="text-gray-400 text-xs mt-0.5">{trip.receiverNumber}</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Action button ── */}
         {action}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }

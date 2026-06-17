@@ -2,7 +2,6 @@
 
 import React, { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -110,192 +109,252 @@ export default function UserRegistrationPage() {
     }
   }
 
+  // Helper: input class with error state
+  const inputClass = (field: string) =>
+    `pl-10 py-3 w-full rounded-lg border text-sm transition-colors
+     focus:ring-2 focus:ring-teal-500 focus:border-teal-500
+     ${errors[field] ? 'border-red-400 bg-red-50' : 'border-gray-300'}`
+
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <Card className="w-full max-w-md">
-        <CardHeader className="bg-teal-600 text-white">
-          <CardTitle className="text-2xl font-bold text-center">Sign Up</CardTitle>
-        </CardHeader>
-        <CardContent className="mt-6">
-          <Button
-            onClick={handleGoogleSignUp}
-            className="w-full bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 mb-6"
-            disabled={loading}
-          >
-            <img
-              src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
-              alt="Google logo"
-              className="h-5 w-5 mr-2"
-            />
-            Sign up with Google
-          </Button>
+    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+      {/* Card wrapper */}
+      <div className="w-full max-w-4xl flex flex-col md:flex-row rounded-2xl shadow-2xl overflow-hidden">
 
-          <div className="relative mb-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300" />
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-gray-500">Or sign up with email</span>
-            </div>
-          </div>
+        {/* Left panel — teal brand panel */}
+        <div className="bg-teal-600 text-white flex flex-col items-center justify-center
+                        px-8 py-8 md:py-12 md:w-5/12 shrink-0">
+          <img
+            src="/carerunnerlogo.png"
+            alt="Carerunners Logo"
+            className="w-20 h-20 md:w-32 md:h-32 object-contain mb-3 md:mb-6"
+          />
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-center">
+            Carerunners
+          </h1>
+          <p className="mt-2 text-teal-100 text-sm md:text-base text-center leading-relaxed max-w-xs hidden md:block">
+            Register your firm and start managing care runner services — fast, secure, and built for your practice.
+          </p>
+          <p className="mt-1 text-teal-100 text-xs text-center md:hidden">
+            Firm Registration
+          </p>
+        </div>
 
-          <form onSubmit={handleSignUp} className="space-y-6">
-            <div>
-              <Label htmlFor="firstName" className="block text-sm font-medium text-gray-700">
-                First Name
-              </Label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <User className="h-5 w-5 text-gray-400" />
+        {/* Right panel — white form area */}
+        <div className="bg-white flex-1 flex flex-col justify-center px-8 py-10 md:px-12 md:py-14 overflow-y-auto">
+          <div className="max-w-sm w-full mx-auto">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-1">Create an account</h2>
+            <p className="text-sm text-gray-500 mb-8">
+              Register your law firm to get started.
+            </p>
+
+            {/* Google sign-up */}
+            <button
+              type="button"
+              onClick={handleGoogleSignUp}
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-3 bg-white border border-gray-300
+                         rounded-lg px-4 py-3 text-sm font-medium text-gray-700
+                         hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed
+                         shadow-sm mb-6"
+            >
+              <img
+                src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+                alt="Google logo"
+                className="h-5 w-5"
+              />
+              Continue with Google
+            </button>
+
+            {/* Divider */}
+            <div className="relative mb-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-200" />
+              </div>
+              <div className="relative flex justify-center text-xs">
+                <span className="px-3 bg-white text-gray-400 uppercase tracking-wide">or sign up with email</span>
+              </div>
+            </div>
+
+            {/* Registration form */}
+            <form onSubmit={handleSignUp} className="space-y-4">
+              {/* First & Last name row */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1.5">
+                    First Name
+                  </Label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <User className="h-4 w-4 text-gray-400" />
+                    </div>
+                    <Input
+                      id="firstName"
+                      name="firstName"
+                      type="text"
+                      required
+                      className={inputClass("firstName")}
+                      placeholder="Jane"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                    />
+                  </div>
+                  {errors.firstName && (
+                    <p className="mt-1 text-xs text-red-600">{errors.firstName}</p>
+                  )}
                 </div>
-                <Input
-                  id="firstName"
-                  name="firstName"
-                  type="text"
-                  required
-                  className={`pl-10 block w-full ${errors.firstName ? 'border-red-500' : ''}`}
-                  placeholder="First Name"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                />
-              </div>
-              {errors.firstName && <p className="mt-1 text-sm text-red-600">{errors.firstName}</p>}
-            </div>
 
-            <div>
-              <Label htmlFor="lastName" className="block text-sm font-medium text-gray-700">
-                Last Name
-              </Label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <User className="h-5 w-5 text-gray-400" />
+                <div>
+                  <Label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Last Name
+                  </Label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <User className="h-4 w-4 text-gray-400" />
+                    </div>
+                    <Input
+                      id="lastName"
+                      name="lastName"
+                      type="text"
+                      required
+                      className={inputClass("lastName")}
+                      placeholder="Smith"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                    />
+                  </div>
+                  {errors.lastName && (
+                    <p className="mt-1 text-xs text-red-600">{errors.lastName}</p>
+                  )}
                 </div>
-                <Input
-                  id="lastName"
-                  name="lastName"
-                  type="text"
-                  required
-                  className={`pl-10 block w-full ${errors.lastName ? 'border-red-500' : ''}`}
-                  placeholder="Last Name"
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                />
               </div>
-              {errors.lastName && <p className="mt-1 text-sm text-red-600">{errors.lastName}</p>}
-            </div>
 
-            <div>
-              <Label htmlFor="contact" className="block text-sm font-medium text-gray-700">
-                Contact Number
-              </Label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Phone className="h-5 w-5 text-gray-400" />
+              <div>
+                <Label htmlFor="contact" className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Contact Number
+                </Label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Phone className="h-4 w-4 text-gray-400" />
+                  </div>
+                  <Input
+                    id="contact"
+                    name="contact"
+                    type="tel"
+                    required
+                    className={inputClass("contact")}
+                    placeholder="10-digit number"
+                    value={contact}
+                    onChange={(e) => setContact(e.target.value)}
+                  />
                 </div>
-                <Input
-                  id="contact"
-                  name="contact"
-                  type="tel"
-                  required
-                  className={`pl-10 block w-full ${errors.contact ? 'border-red-500' : ''}`}
-                  placeholder="Contact Number"
-                  value={contact}
-                  onChange={(e) => setContact(e.target.value)}
-                />
+                {errors.contact && (
+                  <p className="mt-1 text-xs text-red-600">{errors.contact}</p>
+                )}
               </div>
-              {errors.contact && <p className="mt-1 text-sm text-red-600">{errors.contact}</p>}
-            </div>
 
-            <div>
-              <Label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email
-              </Label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-gray-400" />
+              <div>
+                <Label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Email Address
+                </Label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Mail className="h-4 w-4 text-gray-400" />
+                  </div>
+                  <Input
+                    id="email"
+                    name="email"
+                    type="email"
+                    required
+                    className={inputClass("email")}
+                    placeholder="you@yourfirm.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
                 </div>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  required
-                  className={`pl-10 block w-full ${errors.email ? 'border-red-500' : ''}`}
-                  placeholder="Email Address"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
+                {errors.email && (
+                  <p className="mt-1 text-xs text-red-600">{errors.email}</p>
+                )}
               </div>
-              {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email}</p>}
-            </div>
 
-            <div>
-              <Label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password
-              </Label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
+              <div>
+                <Label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Password
+                </Label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Lock className="h-4 w-4 text-gray-400" />
+                  </div>
+                  <Input
+                    id="password"
+                    name="password"
+                    type="password"
+                    required
+                    className={inputClass("password")}
+                    placeholder="Min. 8 characters"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
                 </div>
-                <Input
-                  id="password"
-                  name="password"
-                  type="password"
-                  required
-                  className={`pl-10 block w-full ${errors.password ? 'border-red-500' : ''}`}
-                  placeholder="Password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
+                {errors.password && (
+                  <p className="mt-1 text-xs text-red-600">{errors.password}</p>
+                )}
               </div>
-              {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password}</p>}
-            </div>
 
-            <div>
-              <Label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-                Confirm Password
-              </Label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
+              <div>
+                <Label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Confirm Password
+                </Label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Lock className="h-4 w-4 text-gray-400" />
+                  </div>
+                  <Input
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type="password"
+                    required
+                    className={inputClass("confirmPassword")}
+                    placeholder="Re-enter password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                  />
                 </div>
-                <Input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type="password"
-                  required
-                  className={`pl-10 block w-full ${errors.confirmPassword ? 'border-red-500' : ''}`}
-                  placeholder="Confirm Password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                />
+                {errors.confirmPassword && (
+                  <p className="mt-1 text-xs text-red-600">{errors.confirmPassword}</p>
+                )}
               </div>
-              {errors.confirmPassword && <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>}
-            </div>
 
-            {errors.submit && (
-              <div className="text-red-600 text-sm flex items-center">
-                <AlertCircle className="h-4 w-4 mr-2" />
-                {errors.submit}
-              </div>
-            )}
+              {/* Submit-level error */}
+              {errors.submit && (
+                <div className="flex items-start gap-2 text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
+                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                  <span>{errors.submit}</span>
+                </div>
+              )}
 
-            <div>
-              <Button type="submit" className="w-full bg-teal-600 hover:bg-teal-700 text-white" disabled={loading}>
-                {loading ? "Signing Up..." : "Sign Up with Email"}
+              <Button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-teal-600 hover:bg-teal-700 text-white font-medium py-3 rounded-lg
+                           transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm mt-2"
+              >
+                {loading ? "Creating account…" : "Create Account"}
               </Button>
-            </div>
-          </form>
+            </form>
 
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
+            {/* Login link */}
+            <p className="mt-6 text-center text-sm text-gray-500">
               Already have an account?{" "}
-              <a href="/auth/login" className="font-medium text-teal-600 hover:text-teal-500">
+              <a
+                href="/auth/login"
+                className="font-medium text-teal-600 hover:text-teal-500 transition-colors"
+              >
                 Sign in
               </a>
             </p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   )
 }

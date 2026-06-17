@@ -2,21 +2,18 @@
 
 import React, { useState, useEffect } from "react";
 import { doc, getDoc } from "firebase/firestore";
-import { db } from "@/utils/firebase";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { db, rtdb } from "@/utils/firebase";
+import { ref, onValue, off } from "firebase/database";
+import { GoogleMap, LoadScript, Marker } from "@react-google-maps/api";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import {
   MapPin,
   Banknote,
   Clock,
   CheckCircle,
   XCircle,
-  Circle,
-  Package,
   Truck,
   User,
-  Home,
   Car,
   FileText,
   Phone,
@@ -68,35 +65,24 @@ interface Trip {
 }
 
 const deliverySteps = [
-  { icon: Clock, label: "Waiting for pickup", time: "Scheduled pickup time" },
-  { icon: User, label: "Driver accepted", time: "Driver is on the way" },
-  { icon: Package, label: "Picked up", time: "Package is with the driver" },
-  { icon: Truck, label: "In transit", time: "Packages are being delivered" },
-  { icon: MapPin, label: "Out for delivery", time: "Almost there!" },
-  {
-    icon: Home,
-    label: "All destinations reached",
-    time: "Deliveries complete",
-  },
-  {
-    icon: CheckCircle,
-    label: "All packages delivered",
-    time: "Trip completed",
-  },
+  { icon: Clock, label: "Awaiting driver", time: "Scheduled pickup time" },
+  { icon: User, label: "Driver on the way", time: "Driver has accepted your request" },
+  { icon: Truck, label: "Documents collected", time: "Driver has picked up your documents" },
+  { icon: CheckCircle, label: "Delivered", time: "Trip completed" },
 ];
 
 const statusToStep = {
   pending: 0,
   accepted: 1,
   "picked-up": 2,
-  "in-progress": 3,
-  "out-for-delivery": 4,
-  arrived: 5,
-  completed: 6,
+  "in-progress": 2,
+  "out-for-delivery": 2,
+  arrived: 2,
+  completed: 3,
   cancelled: 0,
 };
 
-const statusColors = {
+const statusColors: Record<string, string> = {
   pending: "bg-blue-100 text-blue-800",
   accepted: "bg-purple-100 text-purple-800",
   "picked-up": "bg-indigo-100 text-indigo-800",
@@ -107,7 +93,7 @@ const statusColors = {
   cancelled: "bg-red-100 text-red-800",
 };
 
-const paymentStatusColors = {
+const paymentStatusColors: Record<string, string> = {
   paid: "bg-green-100 text-green-800",
   pending: "bg-yellow-100 text-yellow-800",
   failed: "bg-red-100 text-red-800",
@@ -121,6 +107,7 @@ export default function TripDetailsPage() {
   const [driverInfo, setDriverInfo] = useState<DriverInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [driverLocation, setDriverLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   const fetchTripDetails = async () => {
     if (!tripId) {
@@ -180,253 +167,301 @@ export default function TripDetailsPage() {
 
     const intervalId = setInterval(() => {
       fetchTripDetails();
-    }, 1000);
+    }, 5000);
 
     return () => clearInterval(intervalId);
   }, [tripId]);
 
+  // Listen to driver live location from RTDB
+  useEffect(() => {
+    if (!trip?.driverId) return;
+    const activeStatuses = ["accepted", "in-progress", "picked-up"];
+    if (!activeStatuses.includes(trip.status)) {
+      setDriverLocation(null);
+      return;
+    }
+
+    const locationRef = ref(rtdb, `driverLocations/${trip.driverId}`);
+    onValue(locationRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data?.lat && data?.lng) {
+        setDriverLocation({ lat: data.lat, lng: data.lng });
+      } else {
+        setDriverLocation(null);
+      }
+    });
+
+    return () => off(locationRef);
+  }, [trip?.driverId, trip?.status]);
+
   if (loading) return <LoadingComponent />;
-  if (error) return <p>Error: {error}</p>;
-  if (!trip) return <p>Trip not found</p>;
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="text-center">
+          <XCircle className="h-12 w-12 text-red-500 mx-auto mb-3" />
+          <p className="text-red-600 font-medium text-lg">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!trip) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="text-center">
+          <XCircle className="h-12 w-12 text-red-500 mx-auto mb-3" />
+          <p className="text-red-600 font-medium text-lg">Trip not found</p>
+        </div>
+      </div>
+    );
+  }
 
   const currentStep = statusToStep[trip.status] || 0;
 
-  // Rest of the component remains the same...
-
   return (
-    <div className="min-h-screen bg-gray-100 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-3xl mx-auto">
-        {/* Main Trip Details Card */}
-        <Card>
-          <CardHeader className="bg-teal-600 text-white">
-            <CardTitle className="text-2xl font-bold">Trip Details</CardTitle>
-          </CardHeader>
-          <CardContent className="mt-6">
-            <div className="space-y-6">
-              {/* Date and Status */}
-              <div className="flex justify-between items-center">
-                <div className="flex items-center">
-                  <Clock className="h-5 w-5 text-gray-500 mr-2" />
-                  <span className="text-sm text-gray-600">{trip.pickupDate}</span>
-                </div>
-                <div className="flex space-x-2">
-                  <Badge className={statusColors[trip.status]}>{trip.status}</Badge>
-                  <Badge className={paymentStatusColors[trip.payment_status]}>
-                    {trip.payment_status || "unpaid"}
-                  </Badge>
-                </div>
-              </div>
+    <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6">
+      <div className="max-w-2xl mx-auto">
 
-              {/* Locations */}
-              <div className="space-y-4">
-                <div className="flex items-start">
-                  <MapPin className="h-5 w-5 text-teal-600 mr-2 mt-1" />
-                  <div>
-                    <span className="font-medium">Pickup:</span>
-                    <p className="ml-2">{trip.pickupLocation}</p>
-                  </div>
-                </div>
-
-                <Separator />
-
-                {/* Safe access to dropoffLocations with null check */}
-                {(trip.dropoffLocations || []).map((location, index) => (
-                  <div key={index} className="bg-gray-200 p-4 rounded-lg">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center space-x-2">
-                        <MapPin className="h-5 w-5 text-teal-600" />
-                        <span className="font-semibold">Dropoff {index + 1}:</span>
-                      </div>
-                      <span>{location.address}</span>
-                    </div>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center space-x-2">
-                        <FileText className="h-5 w-5 text-teal-600" />
-                        <span className="font-semibold">Document Type:</span>
-                      </div>
-                      <span>{location.documentType}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <FileText className="h-5 w-5 text-teal-600" />
-                        <span className="font-semibold">Description:</span>
-                      </div>
-                      <span>{location.documentDescription}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Price */}
-              <div className="flex justify-between items-center">
-                <div className="flex items-center">
-                  <Banknote className="h-5 w-5 text-teal-600 mr-1" />
-                  <span className="text-lg font-bold">R{trip.price}</span>
-                </div>
-                {trip.payment_status === "paid" ? (
-                  <div className="flex items-center text-green-600">
-                    <CheckCircle className="h-5 w-5 mr-1" />
-                    <span>Paid</span>
-                  </div>
-                ) : trip.payment_status === "failed" ? (
-                  <div className="flex items-center text-red-600">
-                    <XCircle className="h-5 w-5 mr-1" />
-                    <span>Payment Failed</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center text-yellow-600">
-                    <Clock className="h-5 w-5 mr-1" />
-                    <span>Payment Pending</span>
-                  </div>
-                )}
-              </div>
+        {/* Trip Header Card */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4">
+          {/* Status + Payment badges */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span
+                className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold capitalize ${statusColors[trip.status] || "bg-gray-100 text-gray-700"}`}
+              >
+                {trip.status.replace(/-/g, " ")}
+              </span>
+              <span
+                className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold capitalize ${paymentStatusColors[trip.payment_status] || "bg-gray-100 text-gray-700"}`}
+              >
+                <CreditCard className="h-3 w-3 mr-1" />
+                {trip.payment_status || "unpaid"}
+              </span>
             </div>
-          </CardContent>
-        </Card>
+            <span className="text-2xl font-bold text-teal-700">R{trip.price}</span>
+          </div>
 
+          {/* Pickup date */}
+          <div className="flex items-center gap-1.5 mb-5">
+            <Clock className="h-4 w-4 text-gray-400" />
+            <span className="text-sm text-gray-500">{trip.pickupDate}</span>
+          </div>
 
-        {/* Driver Information Card - Unchanged */}
-        {driverInfo && (
-          <Card className="mt-6">
-            <CardHeader>
-              <CardTitle className="text-xl font-bold">Your Driver</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center space-x-4">
-                <div className="relative w-16 h-16 rounded-full overflow-hidden bg-gray-200">
-                  {driverInfo.profilePicture ? (
-                    <Image
-                      src={driverInfo.profilePicture}
-                      alt="Driver"
-                      layout="fill"
-                      objectFit="cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <User className="w-8 h-8 text-gray-500" />
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold">
-                    {driverInfo.firstName} {driverInfo.lastName}
-                  </h3>
-                  <div className="space-y-2 mt-2">
-                    <div className="flex items-center">
-                      <Car className="w-4 h-4 mr-2 text-gray-500" />
-                      <span className="text-sm text-gray-600">
-                        {driverInfo.vehicleColor} {driverInfo.vehicleModel} (
-                        {driverInfo.vehicleYear})
-                      </span>
-                    </div>
-                    <div className="flex items-center">
-                      <CreditCard className="w-4 h-4 mr-2 text-gray-500" />
-                      <span className="text-sm text-gray-600">
-                        Number Plate: {driverInfo.numberPlate}
-                      </span>
-                    </div>
-                    <div className="flex items-center">
-                      <Phone className="w-4 h-4 mr-2 text-gray-500" />
-                      <span className="text-sm text-gray-600">
-                        Phone: {driverInfo.phone}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-
-        {/* Delivery Tracking Card */}
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>Delivery Tracking</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="mb-8">
-              <div className="h-2 bg-teal-200 rounded-full">
-                <motion.div
-                  className="h-full bg-teal-600 rounded-full"
-                  initial={{ width: "0%" }}
-                  animate={{
-                    width: `${
-                      (currentStep / (deliverySteps.length - 1)) * 100
-                    }%`,
-                  }}
-                  transition={{ duration: 0.5, ease: "easeInOut" }}
-                />
-              </div>
+          {/* Route connector */}
+          <div className="flex gap-3">
+            {/* Vertical connector */}
+            <div className="flex flex-col items-center pt-1">
+              <span className="w-3 h-3 rounded-full bg-teal-600 flex-shrink-0" />
+              <span className="w-0.5 flex-1 bg-gray-200 my-1" />
+              <span className="w-3 h-3 rounded-full bg-gray-400 flex-shrink-0" />
             </div>
-            <div className="space-y-6">
-              {deliverySteps.map((step, index) => (
-                <div key={index} className="flex items-center">
-                  <div className="flex-shrink-0 mr-4">
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: index <= currentStep ? 1 : 0 }}
-                      transition={{ duration: 0.3, delay: index * 0.1 }}
-                      className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        index < currentStep
-                          ? "bg-teal-600 text-white"
-                          : index === currentStep
-                          ? "bg-teal-500 text-white"
-                          : "bg-gray-200 text-gray-400"
-                      }`}
-                    >
-                      <step.icon size={20} />
-                    </motion.div>
-                  </div>
-                  <div className="flex-grow">
-                    <AnimatePresence>
-                      {index <= currentStep && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -20 }}
-                          transition={{ duration: 0.3 }}
-                        >
-                          <p
-                            className={`font-semibold ${
-                              index === currentStep
-                                ? "text-teal-600"
-                                : "text-gray-700"
-                            }`}
-                          >
-                            {step.label}
-                          </p>
-                          <p className="text-sm text-gray-500">{step.time}</p>
-                          {index === 4 && trip.dropoffLocations.length > 0 && (
-                            <div className="mt-2 space-y-1">
-                              {trip.dropoffLocations.map((location, dIndex) => (
-                                <p
-                                  key={dIndex}
-                                  className="text-sm text-gray-500"
-                                >
-                                  {location.status === "completed"
-                                    ? <CheckCircle className="inline h-3.5 w-3.5 text-green-500 mr-1" />
-                                    : <Circle className="inline h-3.5 w-3.5 text-gray-400 mr-1" />}
-                                  {location.address}
-                                  {location.completedAt &&
-                                    ` - ${location.completedAt}`}
-                                </p>
-                              ))}
-                            </div>
-                          )}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+
+            {/* Addresses */}
+            <div className="flex flex-col gap-3 flex-1 min-w-0">
+              {/* Pickup */}
+              <div>
+                <p className="text-xs font-semibold text-teal-600 uppercase tracking-wide mb-0.5">Pickup</p>
+                <p className="text-sm text-gray-800 leading-snug">{trip.pickupLocation}</p>
+              </div>
+
+              {/* Dropoff locations */}
+              {(trip.dropoffLocations || []).map((location, index) => (
+                <div key={index}>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-0.5">
+                    Dropoff {trip.dropoffLocations.length > 1 ? index + 1 : ""}
+                  </p>
+                  <p className="text-sm text-gray-800 leading-snug mb-1">{location.address}</p>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {location.documentType && (
+                      <span className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                        <FileText className="h-3 w-3" />
+                        {location.documentType}
+                      </span>
+                    )}
+                    {location.documentDescription && (
+                      <span className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                        {location.documentDescription}
+                      </span>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+
+        {/* Driver Info Card */}
+        {driverInfo && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-4">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Your Driver</p>
+            <div className="flex items-center gap-4">
+              {/* Avatar */}
+              <div className="relative w-14 h-14 rounded-full overflow-hidden bg-teal-50 border-2 border-teal-100 flex-shrink-0">
+                {driverInfo.profilePicture ? (
+                  <Image
+                    src={driverInfo.profilePicture}
+                    alt="Driver"
+                    layout="fill"
+                    objectFit="cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-teal-100">
+                    <span className="text-teal-700 font-bold text-lg">
+                      {driverInfo.firstName?.[0] ?? ""}{driverInfo.lastName?.[0] ?? ""}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Details */}
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-semibold text-gray-900 mb-2">
+                  {driverInfo.firstName} {driverInfo.lastName}
+                </h3>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  <span className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-700 px-2.5 py-1 rounded-full">
+                    <Car className="h-3 w-3" />
+                    {driverInfo.vehicleColor} {driverInfo.vehicleModel} ({driverInfo.vehicleYear})
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-700 px-2.5 py-1 rounded-full">
+                    <CreditCard className="h-3 w-3" />
+                    {driverInfo.numberPlate}
+                  </span>
+                </div>
+                <a
+                  href={`tel:${driverInfo.phone}`}
+                  className="inline-flex items-center gap-1.5 text-sm text-teal-600 font-medium hover:text-teal-700 transition-colors"
+                >
+                  <Phone className="h-4 w-4" />
+                  {driverInfo.phone}
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Live Map Card */}
+        {driverLocation && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 mb-4 overflow-hidden">
+            <div className="px-5 py-4 flex items-center gap-2">
+              <span className="relative flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500" />
+              </span>
+              <span className="text-sm font-semibold text-gray-800">Live Location</span>
+            </div>
+            <div className="rounded-b-2xl overflow-hidden">
+              <LoadScript googleMapsApiKey="AIzaSyAuzjtvfjuDgxVfuCmpeeoOyOy53eadqcc">
+                <GoogleMap
+                  mapContainerStyle={{ width: "100%", height: "280px" }}
+                  center={driverLocation}
+                  zoom={15}
+                >
+                  <Marker
+                    position={driverLocation}
+                    title="Driver"
+                    icon={{
+                      url: "https://maps.google.com/mapfiles/ms/icons/blue-dot.png",
+                    }}
+                  />
+                </GoogleMap>
+              </LoadScript>
+            </div>
+          </div>
+        )}
+
+        {/* Delivery Tracking Card */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-5">Delivery Progress</p>
+
+          {/* Progress bar */}
+          <div className="mb-7">
+            <div className="h-2 bg-teal-100 rounded-full overflow-hidden">
+              <motion.div
+                className="h-full bg-teal-600 rounded-full"
+                initial={{ width: "0%" }}
+                animate={{
+                  width: `${(currentStep / (deliverySteps.length - 1)) * 100}%`,
+                }}
+                transition={{ duration: 0.5, ease: "easeInOut" }}
+              />
+            </div>
+          </div>
+
+          {/* Steps */}
+          <div className="space-y-5">
+            {deliverySteps.map((step, index) => {
+              const isCompleted = index < currentStep;
+              const isCurrent = index === currentStep;
+              const isFuture = index > currentStep;
+
+              return (
+                <div key={index} className="flex items-start gap-4">
+                  {/* Step icon circle */}
+                  <div className="flex-shrink-0 mt-0.5">
+                    {isCompleted && (
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ duration: 0.3, delay: index * 0.05 }}
+                        className="w-9 h-9 rounded-full bg-teal-600 flex items-center justify-center"
+                      >
+                        <step.icon size={18} className="text-white" />
+                      </motion.div>
+                    )}
+                    {isCurrent && (
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ duration: 0.3, delay: index * 0.05 }}
+                        className="w-9 h-9 rounded-full ring-2 ring-teal-400 ring-offset-2 bg-teal-500 flex items-center justify-center animate-pulse"
+                      >
+                        <step.icon size={18} className="text-white" />
+                      </motion.div>
+                    )}
+                    {isFuture && (
+                      <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center">
+                        <step.icon size={18} className="text-gray-400" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Step text */}
+                  <div className="flex-1 min-w-0">
+                    <AnimatePresence>
+                      {(isCompleted || isCurrent) ? (
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          transition={{ duration: 0.3 }}
+                        >
+                          <p
+                            className={`text-sm font-semibold ${
+                              isCurrent ? "text-teal-600" : "text-gray-800"
+                            }`}
+                          >
+                            {step.label}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-0.5">{step.time}</p>
+                        </motion.div>
+                      ) : (
+                        <div>
+                          <p className="text-sm font-medium text-gray-400">{step.label}</p>
+                        </div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
       </div>
     </div>
   );
 }
-
-
-

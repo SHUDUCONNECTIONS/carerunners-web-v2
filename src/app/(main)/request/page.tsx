@@ -53,7 +53,6 @@ const defaultCenter = {
   lng: 0.0473,
 };
 
-
 export default function AttorneyDocumentPickup() {
   const [pickupCoords, setPickupCoords] = useState(defaultCenter);
   const [dropoffCoords, setDropoffCoords] = useState(null);
@@ -193,14 +192,14 @@ export default function AttorneyDocumentPickup() {
     return true;
   };
 
-const calculatePrice = (distance) => {
-  const distanceInKm = parseFloat(distance);
-  const basePrice = 32;
-  const ratePerKm = 10;
-  const price = distanceInKm <= 1 ? basePrice : basePrice + (distanceInKm - 1) * ratePerKm;
-  return price.toFixed(2);
-};
-  
+  const calculatePrice = (distance) => {
+    const distanceInKm = parseFloat(distance);
+    const basePrice = 32;
+    const ratePerKm = 10;
+    const price = distanceInKm <= 1 ? basePrice : basePrice + (distanceInKm - 1) * ratePerKm;
+    return price.toFixed(2);
+  };
+
   const onSubmit = async (data: FormData) => {
     const user = auth.currentUser;
     if (user) {
@@ -232,127 +231,198 @@ const calculatePrice = (distance) => {
       }
     }
   };
-  const InputField = ({
-    icon,
-    label,
-    name,
-    type = "text",
-    required = true,
-    pattern = undefined,
-    placeholder = "",
-  }) => (
-    <div className="mb-4">
-      <Label htmlFor={name} className="flex items-center space-x-2 mb-1">
-        {icon}
-        <span>{label}</span>
-      </Label>
-      <Controller
-        name={name}
-        control={control}
-        rules={{
-          required: required ? `${label} is required` : false,
-          pattern,
-        }}
-        render={({ field }) => (
-          <Input
-            type={type}
-            id={name}
-            placeholder={placeholder}
-            {...field}
-            className={`w-full ${errors[name] ? "border-red-500" : ""}`}
-          />
-        )}
-      />
-      {errors[name] && (
-        <p className="text-red-500 text-sm mt-1">{errors[name].message}</p>
-      )}
-    </div>
-  );
 
   if (loading) {
     return <LoadingComponent />;
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <main className="container mx-auto px-4 py-8">
-        <Card>
-          <CardHeader className="bg-teal-600 text-white">
-            <CardTitle className="text-2xl font-bold">
-              Request Document Pick-up
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="mt-6">
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-              <InputField
-                icon={<User className="h-5 w-5 text-gray-500" />}
-                label="Attorney Name"
-                name="attorneyName"
-                placeholder="Enter attorney name"
-              />
-              <InputField
-                icon={<Briefcase className="h-5 w-5 text-gray-500" />}
-                label="Firm Name"
-                name="firmName"
-                placeholder="Enter firm name"
-              />
+    <div className="min-h-screen bg-gray-50">
+      <main className="container mx-auto px-4 py-8 max-w-2xl">
 
-              <>
-                <div className="flex space-x-4">
-                  <div className="flex-1">
-                    <InputField
-                      icon={<User className="h-5 w-5 text-gray-500" />}
-                      label="Sender's Name"
-                      name="senderName"
+        {/* Page header */}
+        <div className="mb-7">
+          <h1 className="text-2xl font-bold text-gray-900">Request Document Pick-up</h1>
+          <p className="text-sm text-gray-500 mt-1">Fill in the details below to schedule a courier pickup.</p>
+        </div>
+
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+
+          {/* ── Section: Trip Details ── */}
+          <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <h2 className="text-sm font-semibold uppercase tracking-widest text-gray-400 mb-4">
+              Trip Details
+            </h2>
+            <div className="h-px bg-gray-100 mb-5" />
+
+            <div className="space-y-4">
+              {/* Attorney Name */}
+              <div>
+                <Label htmlFor="attorneyName" className="text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
+                  <User className="h-4 w-4 text-gray-400" />
+                  Attorney Name
+                </Label>
+                <Controller
+                  name="attorneyName"
+                  control={control}
+                  rules={{ required: "Attorney Name is required" }}
+                  render={({ field }) => (
+                    <Input
+                      id="attorneyName"
+                      placeholder="Enter attorney name"
+                      {...field}
+                      className={`h-11 rounded-xl border-gray-200 focus:ring-teal-500 focus:border-teal-500 ${errors.attorneyName ? "border-red-400" : ""}`}
+                    />
+                  )}
+                />
+                {errors.attorneyName && (
+                  <p className="text-xs text-red-500 mt-1">{errors.attorneyName.message}</p>
+                )}
+              </div>
+
+              {/* Firm Name */}
+              <div>
+                <Label htmlFor="firmName" className="text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
+                  <Briefcase className="h-4 w-4 text-gray-400" />
+                  Firm Name
+                </Label>
+                <Controller
+                  name="firmName"
+                  control={control}
+                  rules={{ required: "Firm Name is required" }}
+                  render={({ field }) => (
+                    <Input
+                      id="firmName"
+                      placeholder="Enter firm name"
+                      {...field}
+                      className={`h-11 rounded-xl border-gray-200 focus:ring-teal-500 focus:border-teal-500 ${errors.firmName ? "border-red-400" : ""}`}
+                    />
+                  )}
+                />
+                {errors.firmName && (
+                  <p className="text-xs text-red-500 mt-1">{errors.firmName.message}</p>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* ── Section: Sender & Receiver ── */}
+          <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <h2 className="text-sm font-semibold uppercase tracking-widest text-gray-400 mb-4">
+              Sender &amp; Receiver
+            </h2>
+            <div className="h-px bg-gray-100 mb-5" />
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Sender Name */}
+              <div>
+                <Label htmlFor="senderName" className="text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
+                  <User className="h-4 w-4 text-gray-400" />
+                  Sender&apos;s Name
+                </Label>
+                <Controller
+                  name="senderName"
+                  control={control}
+                  rules={{ required: "Sender's Name is required" }}
+                  render={({ field }) => (
+                    <Input
+                      id="senderName"
                       placeholder="Enter sender's name"
-                      required={true}
+                      {...field}
+                      className={`h-11 rounded-xl border-gray-200 focus:ring-teal-500 focus:border-teal-500 ${errors.senderName ? "border-red-400" : ""}`}
                     />
-                  </div>
-                  <div className="flex-1">
-                    <InputField
-                      icon={<Phone className="h-5 w-5 text-gray-500" />}
-                      label="Sender's Number"
-                      name="senderNumber"
-                      placeholder="Enter sender's phone number"
-                      required={true}
-                      type="tel"
-                    />
-                  </div>
-                </div>
-                <div className="flex space-x-4 mt-4">
-                  <div className="flex-1">
-                    <InputField
-                      icon={<User className="h-5 w-5 text-gray-500" />}
-                      label="Receiver's Name"
-                      name="receiverName"
-                      placeholder="Enter receiver's name"
-                      required={false}
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <InputField
-                      icon={<Phone className="h-5 w-5 text-gray-500" />}
-                      label="Receiver's Number"
-                      name="receiverNumber"
-                      placeholder="Enter receiver's phone number"
-                      type="tel"
-                      required={false}
-                    />
-                  </div>
-                </div>
-              </>
+                  )}
+                />
+                {errors.senderName && (
+                  <p className="text-xs text-red-500 mt-1">{errors.senderName.message}</p>
+                )}
+              </div>
 
-              <LoadScript
-                googleMapsApiKey="AIzaSyAuzjtvfjuDgxVfuCmpeeoOyOy53eadqcc"
-                libraries={["places"]}
-              >
-                <div className="mb-4">
-                  <Label
-                    htmlFor="pickupLocation"
-                    className="flex items-center space-x-2 mb-1"
-                  >
-                    <MapPin className="h-5 w-5 text-gray-500" />
-                    <span>Pickup Location</span>
+              {/* Sender Number */}
+              <div>
+                <Label htmlFor="senderNumber" className="text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
+                  <Phone className="h-4 w-4 text-gray-400" />
+                  Sender&apos;s Number
+                </Label>
+                <Controller
+                  name="senderNumber"
+                  control={control}
+                  rules={{ required: "Sender's Number is required" }}
+                  render={({ field }) => (
+                    <Input
+                      id="senderNumber"
+                      type="tel"
+                      placeholder="Enter sender's phone"
+                      {...field}
+                      className={`h-11 rounded-xl border-gray-200 focus:ring-teal-500 focus:border-teal-500 ${errors.senderNumber ? "border-red-400" : ""}`}
+                    />
+                  )}
+                />
+                {errors.senderNumber && (
+                  <p className="text-xs text-red-500 mt-1">{errors.senderNumber.message}</p>
+                )}
+              </div>
+
+              {/* Receiver Name */}
+              <div>
+                <Label htmlFor="receiverName" className="text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
+                  <User className="h-4 w-4 text-gray-400" />
+                  Receiver&apos;s Name
+                </Label>
+                <Controller
+                  name="receiverName"
+                  control={control}
+                  render={({ field }) => (
+                    <Input
+                      id="receiverName"
+                      placeholder="Enter receiver's name"
+                      {...field}
+                      className="h-11 rounded-xl border-gray-200 focus:ring-teal-500 focus:border-teal-500"
+                    />
+                  )}
+                />
+              </div>
+
+              {/* Receiver Number */}
+              <div>
+                <Label htmlFor="receiverNumber" className="text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
+                  <Phone className="h-4 w-4 text-gray-400" />
+                  Receiver&apos;s Number
+                </Label>
+                <Controller
+                  name="receiverNumber"
+                  control={control}
+                  render={({ field }) => (
+                    <Input
+                      id="receiverNumber"
+                      type="tel"
+                      placeholder="Enter receiver's phone"
+                      {...field}
+                      className="h-11 rounded-xl border-gray-200 focus:ring-teal-500 focus:border-teal-500"
+                    />
+                  )}
+                />
+              </div>
+            </div>
+          </section>
+
+          {/* ── Section: Locations (contains LoadScript + Map) ── */}
+          <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <h2 className="text-sm font-semibold uppercase tracking-widest text-gray-400 mb-4">
+              Locations
+            </h2>
+            <div className="h-px bg-gray-100 mb-5" />
+
+            <LoadScript
+              googleMapsApiKey="AIzaSyAuzjtvfjuDgxVfuCmpeeoOyOy53eadqcc"
+              libraries={["places"]}
+            >
+              <div className="space-y-4">
+                {/* Pickup Location */}
+                <div>
+                  <Label htmlFor="pickupLocation" className="text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
+                    <MapPin className="h-4 w-4 text-teal-500" />
+                    Pickup Location
                   </Label>
                   <Controller
                     name="pickupLocation"
@@ -385,22 +455,22 @@ const calculatePrice = (distance) => {
                           id="pickupLocation"
                           value={field.value}
                           onChange={(e) => field.onChange(e.target.value)}
-                          className={`w-full ${
-                            errors.pickupLocation ? "border-red-500" : ""
-                          }`}
+                          placeholder="Search pickup address…"
+                          className={`h-11 rounded-xl border-gray-200 focus:ring-teal-500 focus:border-teal-500 ${errors.pickupLocation ? "border-red-400" : ""}`}
                         />
                       </Autocomplete>
                     )}
                   />
+                  {errors.pickupLocation && (
+                    <p className="text-xs text-red-500 mt-1">{errors.pickupLocation.message}</p>
+                  )}
                 </div>
 
-                <div className="mb-4">
-                  <Label
-                    htmlFor="dropoffLocation"
-                    className="flex items-center space-x-2 mb-1"
-                  >
-                    <MapPin className="h-5 w-5 text-gray-500" />
-                    <span>Dropoff Location</span>
+                {/* Dropoff Location */}
+                <div>
+                  <Label htmlFor="dropoffLocation" className="text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
+                    <MapPin className="h-4 w-4 text-gray-400" />
+                    Dropoff Location
                   </Label>
                   <Controller
                     name="dropoffLocation"
@@ -433,203 +503,226 @@ const calculatePrice = (distance) => {
                           id="dropoffLocation"
                           value={field.value}
                           onChange={(e) => field.onChange(e.target.value)}
-                          className={`w-full ${
-                            errors.dropoffLocation ? "border-red-500" : ""
-                          }`}
+                          placeholder="Search dropoff address…"
+                          className={`h-11 rounded-xl border-gray-200 focus:ring-teal-500 focus:border-teal-500 ${errors.dropoffLocation ? "border-red-400" : ""}`}
                         />
                       </Autocomplete>
                     )}
                   />
-                </div>
-                <div className="mb-4">
-                  <Label
-                    htmlFor="requestType"
-                    className="flex items-center space-x-2 mb-1"
-                  >
-                    <FileText className="h-5 w-5 text-gray-500" />
-                    <span>Request Type</span>
-                  </Label>
-                  <Controller
-                    name="requestType"
-                    control={control}
-                    rules={{ required: "Request type is required" }}
-                    render={({ field }) => (
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select request type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="magistrate_court">
-                            Magistrate Court
-                          </SelectItem>
-                          <SelectItem value="high_court">High Court</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                  {errors.requestType && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {errors.requestType.message}
-                    </p>
+                  {errors.dropoffLocation && (
+                    <p className="text-xs text-red-500 mt-1">{errors.dropoffLocation.message}</p>
                   )}
                 </div>
 
-                <GoogleMap
-                  mapContainerStyle={mapContainerStyle}
-                  center={pickupCoords || defaultCenter}
-                  zoom={10}
-                >
-                  {pickupCoords && <Marker position={pickupCoords} />}
-                  {dropoffCoords && <Marker position={dropoffCoords} />}
-                </GoogleMap>
-              </LoadScript>
-
-              {distance && price && (
-                <div className="mt-4 p-4 bg-blue-100 rounded-md">
-                  <p>Estimated Distance: {distance} km</p>
-                  <p>Estimated Price: R{price}</p>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="mb-4">
-                  <Label
-                    htmlFor="pickupDate"
-                    className="flex items-center space-x-2 mb-1"
+                {/* Google Map */}
+                <div className="rounded-xl overflow-hidden mt-2">
+                  <GoogleMap
+                    mapContainerStyle={mapContainerStyle}
+                    center={pickupCoords || defaultCenter}
+                    zoom={10}
                   >
-                    <CalendarIcon className="h-5 w-5 text-gray-500" />
-                    <span>Pickup Date</span>
-                  </Label>
-                  <Controller
-                    name="pickupDate"
-                    control={control}
-                    rules={{ required: "Pickup date is required" }}
-                    render={({ field }) => (
-                      <Input
-                        type="date"
-                        id="pickupDate"
-                        min={today}
-                        {...field}
-                        className={`w-full ${
-                          errors.pickupDate ? "border-red-500" : ""
-                        }`}
-                      />
-                    )}
-                  />
-                  {errors.pickupDate && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {errors.pickupDate.message}
-                    </p>
-                  )}
+                    {pickupCoords && <Marker position={pickupCoords} />}
+                    {dropoffCoords && <Marker position={dropoffCoords} />}
+                  </GoogleMap>
                 </div>
 
-                <div className="mb-4">
-                  <Label
-                    htmlFor="pickupTime"
-                    className="flex items-center space-x-2 mb-1"
-                  >
-                    <Clock className="h-5 w-5 text-gray-500" />
-                    <span>Pickup Time</span>
-                  </Label>
-                  <Controller
-                    name="pickupTime"
-                    control={control}
-                    rules={{
-                      required: "Pickup time is required",
-                      validate: (value) =>
-                        validateTime(value, getValues("pickupDate")),
-                    }}
-                    render={({ field }) => (
-                      <Input
-                        type="time"
-                        id="pickupTime"
-                        {...field}
-                        className={`w-full ${
-                          errors.pickupTime ? "border-red-500" : ""
-                        }`}
-                      />
-                    )}
-                  />
-                  {errors.pickupTime && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {errors.pickupTime.message}
-                    </p>
+                {/* Distance & Price result card */}
+                {distance && price && (
+                  <div className="flex items-center gap-6 mt-1 p-4 bg-teal-50 border border-teal-200 rounded-xl">
+                    <div className="flex-1 text-center">
+                      <p className="text-xs font-medium text-teal-600 uppercase tracking-wide mb-0.5">Distance</p>
+                      <p className="text-2xl font-bold text-teal-700">{distance} <span className="text-base font-semibold">km</span></p>
+                    </div>
+                    <div className="w-px h-10 bg-teal-200" />
+                    <div className="flex-1 text-center">
+                      <p className="text-xs font-medium text-teal-600 uppercase tracking-wide mb-0.5">Estimated Price</p>
+                      <p className="text-2xl font-bold text-teal-700">R<span>{price}</span></p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </LoadScript>
+          </section>
+
+          {/* ── Section: Schedule ── */}
+          <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <h2 className="text-sm font-semibold uppercase tracking-widest text-gray-400 mb-4">
+              Schedule
+            </h2>
+            <div className="h-px bg-gray-100 mb-5" />
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Pickup Date */}
+              <div>
+                <Label htmlFor="pickupDate" className="text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
+                  <CalendarIcon className="h-4 w-4 text-gray-400" />
+                  Pickup Date
+                </Label>
+                <Controller
+                  name="pickupDate"
+                  control={control}
+                  rules={{ required: "Pickup date is required" }}
+                  render={({ field }) => (
+                    <Input
+                      type="date"
+                      id="pickupDate"
+                      min={today}
+                      {...field}
+                      className={`h-11 rounded-xl border-gray-200 focus:ring-teal-500 focus:border-teal-500 ${errors.pickupDate ? "border-red-400" : ""}`}
+                    />
                   )}
-                </div>
+                />
+                {errors.pickupDate && (
+                  <p className="text-xs text-red-500 mt-1">{errors.pickupDate.message}</p>
+                )}
               </div>
 
-              <div className="mb-4">
-                <Label
-                  htmlFor="documentDescription"
-                  className="flex items-center space-x-2 mb-1"
-                >
-                  <FileText className="h-5 w-5 text-gray-500" />
-                  <span>Document Description</span>
+              {/* Pickup Time */}
+              <div>
+                <Label htmlFor="pickupTime" className="text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-gray-400" />
+                  Pickup Time
+                </Label>
+                <Controller
+                  name="pickupTime"
+                  control={control}
+                  rules={{
+                    required: "Pickup time is required",
+                    validate: (value) =>
+                      validateTime(value, getValues("pickupDate")),
+                  }}
+                  render={({ field }) => (
+                    <Input
+                      type="time"
+                      id="pickupTime"
+                      {...field}
+                      className={`h-11 rounded-xl border-gray-200 focus:ring-teal-500 focus:border-teal-500 ${errors.pickupTime ? "border-red-400" : ""}`}
+                    />
+                  )}
+                />
+                {errors.pickupTime && (
+                  <p className="text-xs text-red-500 mt-1">{errors.pickupTime.message}</p>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* ── Section: Document Info ── */}
+          <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <h2 className="text-sm font-semibold uppercase tracking-widest text-gray-400 mb-4">
+              Document Info
+            </h2>
+            <div className="h-px bg-gray-100 mb-5" />
+
+            <div className="space-y-4">
+              {/* Request Type */}
+              <div>
+                <Label htmlFor="requestType" className="text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-gray-400" />
+                  Request Type
+                </Label>
+                <Controller
+                  name="requestType"
+                  control={control}
+                  rules={{ required: "Request type is required" }}
+                  render={({ field }) => (
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <SelectTrigger className="h-11 rounded-xl border-gray-200 focus:ring-teal-500 focus:border-teal-500 w-full">
+                        <SelectValue placeholder="Select request type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="magistrate_court">Magistrate Court</SelectItem>
+                        <SelectItem value="high_court">High Court</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                {errors.requestType && (
+                  <p className="text-xs text-red-500 mt-1">{errors.requestType.message}</p>
+                )}
+              </div>
+
+              {/* Document Description */}
+              <div>
+                <Label htmlFor="documentDescription" className="text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-gray-400" />
+                  Document Description
                 </Label>
                 <Textarea
                   id="documentDescription"
                   {...register("documentDescription", {
                     required: "Document description is required",
                   })}
-                  className={`w-full ${
-                    errors.documentDescription ? "border-red-500" : ""
-                  }`}
+                  placeholder="Describe the document(s) being transported…"
+                  className={`rounded-xl border-gray-200 focus:ring-teal-500 focus:border-teal-500 resize-none ${errors.documentDescription ? "border-red-400" : ""}`}
                   rows={3}
                 />
                 {errors.documentDescription && (
-                  <p className="text-red-500 text-sm mt-1">
-                    {errors.documentDescription.message}
-                  </p>
+                  <p className="text-xs text-red-500 mt-1">{errors.documentDescription.message}</p>
                 )}
               </div>
 
-              <div className="mb-4">
-                <Label
-                  htmlFor="specialInstructions"
-                  className="flex items-center space-x-2 mb-1"
-                >
-                  <Truck className="h-5 w-5 text-gray-500" />
-                  <span>Special Instructions</span>
+              {/* Special Instructions */}
+              <div>
+                <Label htmlFor="specialInstructions" className="text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
+                  <Truck className="h-4 w-4 text-gray-400" />
+                  Special Instructions
+                  <span className="ml-auto text-xs font-normal text-gray-400">Optional</span>
                 </Label>
                 <Textarea
                   id="specialInstructions"
                   {...register("specialInstructions")}
-                  className="w-full"
+                  placeholder="Any special handling or delivery notes…"
+                  className="rounded-xl border-gray-200 focus:ring-teal-500 focus:border-teal-500 resize-none"
                   rows={3}
                 />
               </div>
+            </div>
+          </section>
 
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="agreeToTerms"
-                  {...register("agreeToTerms", {
-                    required: "You must agree to the terms and conditions",
-                  })}
-                />
-                <Label htmlFor="agreeToTerms">
-                  I agree to the terms and conditions
+          {/* ── Section: Terms ── */}
+          <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <h2 className="text-sm font-semibold uppercase tracking-widest text-gray-400 mb-4">
+              Terms
+            </h2>
+            <div className="h-px bg-gray-100 mb-5" />
+
+            <div className="flex items-start gap-3">
+              <Checkbox
+                id="agreeToTerms"
+                {...register("agreeToTerms", {
+                  required: "You must agree to the terms and conditions",
+                })}
+                className="mt-0.5 data-[state=checked]:bg-teal-600 data-[state=checked]:border-teal-600"
+              />
+              <div>
+                <Label htmlFor="agreeToTerms" className="text-sm font-medium text-gray-700 cursor-pointer">
+                  I agree to the{" "}
+                  <span className="text-teal-600 underline underline-offset-2">terms and conditions</span>
                 </Label>
+                {errors.agreeToTerms && (
+                  <p className="text-xs text-red-500 mt-1">{errors.agreeToTerms.message}</p>
+                )}
               </div>
-              {errors.agreeToTerms && (
-                <p className="text-red-500 text-sm mt-1">
-                  {errors.agreeToTerms.message}
-                </p>
-              )}
+            </div>
+          </section>
 
-              <Button
-                type="submit"
-                className="w-full bg-teal-600 hover:bg-teal-700 text-white"
-                disabled={!distance || !price}
-              >
-                {!distance ? "Calculating distance..." : "Submit Request"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+          {/* ── Submit Button (sticky on mobile) ── */}
+          <div className="sticky bottom-4 z-10">
+            <Button
+              type="submit"
+              className="w-full py-3.5 rounded-xl bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white font-semibold text-base shadow-lg shadow-teal-600/20 transition-all"
+              disabled={!distance || !price}
+            >
+              {!distance ? "Calculating distance…" : "Submit Request"}
+            </Button>
+          </div>
+
+        </form>
       </main>
     </div>
   );
