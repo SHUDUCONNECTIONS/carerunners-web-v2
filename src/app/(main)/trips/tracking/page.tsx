@@ -99,6 +99,11 @@ const paymentStatusColors: Record<string, string> = {
   failed: "bg-red-100 text-red-800",
 };
 
+function formatCurrency(amount: number): string {
+  const value = Number(amount) || 0;
+  return `R${value.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 export default function TripDetailsPage() {
   const searchParams = useSearchParams();
   const tripId = searchParams.get("tripId");
@@ -199,8 +204,8 @@ export default function TripDetailsPage() {
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-        <div className="text-center">
-          <XCircle className="h-12 w-12 text-red-500 mx-auto mb-3" />
+        <div role="alert" className="text-center">
+          <XCircle className="h-12 w-12 text-red-500 mx-auto mb-3" aria-hidden="true" />
           <p className="text-red-600 font-medium text-lg">{error}</p>
         </div>
       </div>
@@ -210,8 +215,8 @@ export default function TripDetailsPage() {
   if (!trip) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-        <div className="text-center">
-          <XCircle className="h-12 w-12 text-red-500 mx-auto mb-3" />
+        <div role="alert" className="text-center">
+          <XCircle className="h-12 w-12 text-red-500 mx-auto mb-3" aria-hidden="true" />
           <p className="text-red-600 font-medium text-lg">Trip not found</p>
         </div>
       </div>
@@ -237,16 +242,16 @@ export default function TripDetailsPage() {
               <span
                 className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold capitalize ${paymentStatusColors[trip.payment_status] || "bg-gray-100 text-gray-700"}`}
               >
-                <CreditCard className="h-3 w-3 mr-1" />
+                <CreditCard className="h-3 w-3 mr-1" aria-hidden="true" />
                 {trip.payment_status || "unpaid"}
               </span>
             </div>
-            <span className="text-2xl font-bold text-teal-700">R{trip.price}</span>
+            <span className="text-2xl font-bold text-teal-700">{formatCurrency(trip.price)}</span>
           </div>
 
           {/* Pickup date */}
           <div className="flex items-center gap-1.5 mb-5">
-            <Clock className="h-4 w-4 text-gray-400" />
+            <Clock className="h-4 w-4 text-gray-400" aria-hidden="true" />
             <span className="text-sm text-gray-500">{trip.pickupDate}</span>
           </div>
 
@@ -277,7 +282,7 @@ export default function TripDetailsPage() {
                   <div className="flex flex-wrap gap-2 mt-1">
                     {location.documentType && (
                       <span className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                        <FileText className="h-3 w-3" />
+                        <FileText className="h-3 w-3" aria-hidden="true" />
                         {location.documentType}
                       </span>
                     )}
@@ -323,19 +328,19 @@ export default function TripDetailsPage() {
                 </h3>
                 <div className="flex flex-wrap gap-2 mb-2">
                   <span className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-700 px-2.5 py-1 rounded-full">
-                    <Car className="h-3 w-3" />
+                    <Car className="h-3 w-3" aria-hidden="true" />
                     {driverInfo.vehicleColor} {driverInfo.vehicleModel} ({driverInfo.vehicleYear})
                   </span>
                   <span className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-700 px-2.5 py-1 rounded-full">
-                    <CreditCard className="h-3 w-3" />
+                    <CreditCard className="h-3 w-3" aria-hidden="true" />
                     {driverInfo.numberPlate}
                   </span>
                 </div>
                 <a
                   href={`tel:${driverInfo.phone}`}
-                  className="inline-flex items-center gap-1.5 text-sm text-teal-600 font-medium hover:text-teal-700 transition-colors"
+                  className="inline-flex items-center gap-1.5 text-sm text-teal-600 font-medium hover:text-teal-700 transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
                 >
-                  <Phone className="h-4 w-4" />
+                  <Phone className="h-4 w-4" aria-hidden="true" />
                   {driverInfo.phone}
                 </a>
               </div>
@@ -409,7 +414,7 @@ export default function TripDetailsPage() {
                         transition={{ duration: 0.3, delay: index * 0.05 }}
                         className="w-9 h-9 rounded-full bg-teal-600 flex items-center justify-center"
                       >
-                        <step.icon size={18} className="text-white" />
+                        <step.icon size={18} className="text-white" aria-hidden="true" />
                       </motion.div>
                     )}
                     {isCurrent && (
@@ -419,12 +424,12 @@ export default function TripDetailsPage() {
                         transition={{ duration: 0.3, delay: index * 0.05 }}
                         className="w-9 h-9 rounded-full ring-2 ring-teal-400 ring-offset-2 bg-teal-500 flex items-center justify-center animate-pulse"
                       >
-                        <step.icon size={18} className="text-white" />
+                        <step.icon size={18} className="text-white" aria-hidden="true" />
                       </motion.div>
                     )}
                     {isFuture && (
                       <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center">
-                        <step.icon size={18} className="text-gray-400" />
+                        <step.icon size={18} className="text-gray-400" aria-hidden="true" />
                       </div>
                     )}
                   </div>

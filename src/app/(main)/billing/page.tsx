@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Calendar, MapPin } from "lucide-react";
+import { Calendar, MapPin, Wallet, ListChecks, CalendarClock } from "lucide-react";
 import LoadingComponent from "@/components/loader";
 
 type UnpaidTrip = {
@@ -59,6 +59,11 @@ function groupByMonth(trips: UnpaidTrip[]): MonthGroup[] {
       );
       return { key, label, trips, total };
     });
+}
+
+function formatCurrency(amount: number): string {
+  const value = Number(amount) || 0;
+  return `R${value.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export default function BillingPage() {
@@ -150,6 +155,41 @@ export default function BillingPage() {
     <div className="min-h-screen bg-gray-100 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto space-y-6">
 
+        {/* ── Quick stats row ──────────────────────────────────────────── */}
+        {groups.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
+              <div className="w-11 h-11 rounded-xl bg-teal-50 flex items-center justify-center shrink-0">
+                <Wallet className="h-5 w-5 text-teal-600" aria-hidden="true" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500">Total Outstanding</p>
+                <p className="text-xl font-bold text-gray-900">{formatCurrency(grandTotal)}</p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
+              <div className="w-11 h-11 rounded-xl bg-teal-50 flex items-center justify-center shrink-0">
+                <ListChecks className="h-5 w-5 text-teal-600" aria-hidden="true" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500">Unpaid Trips</p>
+                <p className="text-xl font-bold text-gray-900">{totalTrips}</p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
+              <div className="w-11 h-11 rounded-xl bg-teal-50 flex items-center justify-center shrink-0">
+                <CalendarClock className="h-5 w-5 text-teal-600" aria-hidden="true" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500">Months Pending</p>
+                <p className="text-xl font-bold text-gray-900">{groups.length}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Header summary */}
         <Card>
           <CardHeader className="bg-teal-600 text-white">
@@ -160,7 +200,7 @@ export default function BillingPage() {
               <div className="py-10 text-center">
                 <p className="text-gray-500 text-lg">No outstanding balance — you're all caught up!</p>
                 <Button
-                  className="mt-6 bg-teal-600 hover:bg-teal-700 text-white"
+                  className="mt-6 w-full sm:w-auto bg-teal-600 hover:bg-teal-700 text-white focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
                   onClick={() => router.push("/dashboard")}
                 >
                   Back to Dashboard
@@ -169,7 +209,7 @@ export default function BillingPage() {
             ) : (
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-2xl font-bold text-teal-700">R{grandTotal.toFixed(2)}</p>
+                  <p className="text-2xl font-bold text-teal-700">{formatCurrency(grandTotal)}</p>
                   <p className="text-sm text-gray-500 mt-1">
                     {totalTrips} unpaid trip{totalTrips !== 1 ? "s" : ""} across{" "}
                     {groups.length} month{groups.length !== 1 ? "s" : ""}
@@ -189,10 +229,10 @@ export default function BillingPage() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg font-bold flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-teal-600" />
+                  <Calendar className="h-5 w-5 text-teal-600" aria-hidden="true" />
                   {group.label}
                 </CardTitle>
-                <span className="text-lg font-bold text-teal-700">R{group.total.toFixed(2)}</span>
+                <span className="text-lg font-bold text-teal-700">{formatCurrency(group.total)}</span>
               </div>
             </CardHeader>
             <CardContent>
@@ -214,18 +254,18 @@ export default function BillingPage() {
                         <td className="py-3 pr-4 whitespace-nowrap">{trip.pickupDate}</td>
                         <td className="py-3 pr-4 max-w-[200px]">
                           <div className="flex items-start gap-1">
-                            <MapPin className="h-3.5 w-3.5 text-teal-600 mt-0.5 shrink-0" />
+                            <MapPin className="h-3.5 w-3.5 text-teal-600 mt-0.5 shrink-0" aria-hidden="true" />
                             <span className="truncate">{trip.pickupLocation}</span>
                           </div>
                           <div className="flex items-start gap-1 mt-1 text-gray-400">
-                            <MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                            <MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0" aria-hidden="true" />
                             <span className="truncate">{trip.dropoffLocation}</span>
                           </div>
                         </td>
                         <td className="py-3 pr-4 whitespace-nowrap">{trip.distance} km</td>
                         <td className="py-3 pr-4 capitalize">{trip.urgency}</td>
                         <td className="py-3 text-right font-medium">
-                          R{parseFloat(trip.price).toFixed(2)}
+                          {formatCurrency(parseFloat(trip.price))}
                         </td>
                       </tr>
                     ))}
@@ -236,7 +276,7 @@ export default function BillingPage() {
                         Subtotal
                       </td>
                       <td className="pt-3 text-right font-bold text-teal-700">
-                        R{group.total.toFixed(2)}
+                        {formatCurrency(group.total)}
                       </td>
                     </tr>
                   </tfoot>
@@ -248,7 +288,7 @@ export default function BillingPage() {
               {/* Payment widget or action buttons */}
               {payingGroupKey === group.key && checkoutId ? (
                 <div>
-                  <h3 className="text-base font-semibold mb-4">Complete Payment — R{group.total.toFixed(2)}</h3>
+                  <h3 className="text-base font-semibold mb-4">Complete Payment — {formatCurrency(group.total)}</h3>
                   <form
                     action={shopperResultUrl}
                     className="paymentWidgets"
@@ -256,26 +296,26 @@ export default function BillingPage() {
                   />
                   <Button
                     variant="outline"
-                    className="mt-4 w-full"
+                    className="mt-4 w-full focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
                     onClick={cancelPayment}
                   >
                     Cancel
                   </Button>
                 </div>
               ) : (
-                <div className="flex gap-3">
+                <div className="flex flex-col sm:flex-row gap-3">
                   <Button
-                    className="flex-1 bg-teal-600 hover:bg-teal-700 text-white"
+                    className="flex-1 w-full sm:w-auto bg-teal-600 hover:bg-teal-700 text-white focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
                     onClick={() => handlePayNow(group)}
                     disabled={preparingPayment || payingGroupKey !== null}
                   >
                     {preparingPayment && payingGroupKey === null
                       ? "Preparing..."
-                      : `Pay R${group.total.toFixed(2)} Now`}
+                      : `Pay ${formatCurrency(group.total)} Now`}
                   </Button>
                   <Button
                     variant="outline"
-                    className="flex-1"
+                    className="flex-1 w-full sm:w-auto focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
                     onClick={() => router.push("/dashboard")}
                   >
                     Pay Later

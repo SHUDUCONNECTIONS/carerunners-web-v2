@@ -5,7 +5,7 @@
 import React, { useEffect, useState } from 'react';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Banknote, Clock, CheckCircle, XCircle, FileText, Calendar, Ban, Car } from "lucide-react";
+import { MapPin, Banknote, Clock, CheckCircle, XCircle, FileText, Calendar, Ban, Car, ListChecks, Loader2 } from "lucide-react";
 import { db } from '@/utils/firebase';
 import { collection, getDocs, query, where, orderBy, doc, updateDoc } from 'firebase/firestore';
 import { auth } from '@/utils/firebase';
@@ -61,6 +61,11 @@ const isCancellable = (trip: Trip): boolean => {
   return cancellableStatuses.includes(trip.status) && trip.pickupDate >= today;
 };
 
+function formatCurrency(amount: number): string {
+  const value = Number(amount) || 0;
+  return `R${value.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 // ─── Loading skeleton ─────────────────────────────────────────────────────────
 function TripSkeleton() {
   return (
@@ -82,7 +87,7 @@ function EmptyState({ onRequest }: { onRequest: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center">
       <div className="bg-teal-50 rounded-full p-6 mb-5">
-        <Car className="h-12 w-12 text-teal-500" />
+        <Car className="h-12 w-12 text-teal-500" aria-hidden="true" />
       </div>
       <h2 className="text-xl font-semibold text-gray-800 mb-2">No trips yet</h2>
       <p className="text-gray-500 mb-6 max-w-xs">
@@ -90,7 +95,7 @@ function EmptyState({ onRequest }: { onRequest: () => void }) {
       </p>
       <Button
         onClick={onRequest}
-        className="bg-teal-600 hover:bg-teal-700 text-white px-6 py-2.5 rounded-lg font-medium"
+        className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 text-white px-6 py-2.5 rounded-lg font-medium focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
       >
         Request your first pickup
       </Button>
@@ -206,12 +211,12 @@ export default function UserTrips() {
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-        <div className="text-center">
-          <XCircle className="h-10 w-10 text-red-400 mx-auto mb-3" />
+        <div role="alert" className="text-center">
+          <XCircle className="h-10 w-10 text-red-400 mx-auto mb-3" aria-hidden="true" />
           <p className="text-gray-700 font-medium">{error}</p>
           <Button
             variant="outline"
-            className="mt-4"
+            className="mt-4 w-full sm:w-auto focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
             onClick={() => window.location.reload()}
           >
             Try again
@@ -222,6 +227,12 @@ export default function UserTrips() {
   }
 
   const hasTrips = Object.keys(groupedTrips).length > 0;
+  const allTrips = Object.values(groupedTrips).flat();
+  const totalTrips = allTrips.length;
+  const completedTrips = allTrips.filter((t) => t.status === 'completed').length;
+  const inProgressTrips = allTrips.filter((t) =>
+    ['pending', 'waiting for driver', 'in-progress'].includes(t.status)
+  ).length;
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4 sm:px-6 lg:px-8">
@@ -232,6 +243,41 @@ export default function UserTrips() {
           <h1 className="text-2xl font-bold text-gray-900">Your Trips</h1>
           <p className="text-sm text-gray-500 mt-1">All your past and upcoming pickup requests</p>
         </div>
+
+        {/* ── Quick stats row ──────────────────────────────────────────── */}
+        {hasTrips && (
+          <div className="mb-8 grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
+              <div className="w-11 h-11 rounded-xl bg-teal-50 flex items-center justify-center shrink-0">
+                <Car className="h-5 w-5 text-teal-600" aria-hidden="true" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500">Total Trips</p>
+                <p className="text-xl font-bold text-gray-900">{totalTrips}</p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
+              <div className="w-11 h-11 rounded-xl bg-teal-50 flex items-center justify-center shrink-0">
+                <ListChecks className="h-5 w-5 text-teal-600" aria-hidden="true" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500">Completed</p>
+                <p className="text-xl font-bold text-gray-900">{completedTrips}</p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
+              <div className="w-11 h-11 rounded-xl bg-teal-50 flex items-center justify-center shrink-0">
+                <Loader2 className="h-5 w-5 text-teal-600" aria-hidden="true" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500">In Progress</p>
+                <p className="text-xl font-bold text-gray-900">{inProgressTrips}</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── Empty state ────────────────────────────────────────────────── */}
         {!hasTrips && (
@@ -246,7 +292,7 @@ export default function UserTrips() {
 
                 {/* Date group header */}
                 <div className="flex items-center gap-3 mb-4">
-                  <Calendar className="h-4 w-4 text-teal-600 flex-shrink-0" />
+                  <Calendar className="h-4 w-4 text-teal-600 flex-shrink-0" aria-hidden="true" />
                   <span className="text-xs uppercase tracking-widest text-gray-400 font-semibold">
                     {date}
                   </span>
@@ -274,11 +320,11 @@ export default function UserTrips() {
                           {/* ── Card header: time + price ──────────────────── */}
                           <div className="flex items-start justify-between mb-4">
                             <div className="flex items-center gap-1.5 text-gray-500 text-sm">
-                              <Clock className="h-4 w-4" />
+                              <Clock className="h-4 w-4" aria-hidden="true" />
                               <span>{trip.pickupTime || new Date(trip.pickupDate).toLocaleTimeString()}</span>
                             </div>
                             <span className="text-xl font-bold text-teal-600">
-                              R{trip.price}
+                              {formatCurrency(trip.price)}
                             </span>
                           </div>
 
@@ -309,7 +355,7 @@ export default function UserTrips() {
                             <div className="bg-gray-50 rounded-lg px-3 py-2.5 mb-4 space-y-1.5">
                               {trip.requestType && (
                                 <div className="flex items-center gap-2 text-sm text-gray-600">
-                                  <FileText className="h-3.5 w-3.5 text-teal-500 flex-shrink-0" />
+                                  <FileText className="h-3.5 w-3.5 text-teal-500 flex-shrink-0" aria-hidden="true" />
                                   <span className="font-medium text-gray-700">
                                     {trip.requestType.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
                                   </span>
@@ -344,11 +390,11 @@ export default function UserTrips() {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="h-8 text-xs px-3 text-red-600 border-red-300 hover:bg-red-50 hover:border-red-400"
+                                  className="h-8 text-xs px-3 text-red-600 border-red-300 hover:bg-red-50 hover:border-red-400 focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
                                   onClick={(e) => handleCancel(e, trip.id)}
                                   disabled={cancellingId === trip.id}
                                 >
-                                  <Ban className="h-3.5 w-3.5 mr-1" />
+                                  <Ban className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
                                   {cancellingId === trip.id ? 'Cancelling…' : 'Cancel'}
                                 </Button>
                               )}
@@ -356,35 +402,35 @@ export default function UserTrips() {
                               {/* Payment action / status indicator */}
                               {trip.status === 'cancelled' ? (
                                 <span className="flex items-center gap-1 text-xs text-gray-400">
-                                  <Ban className="h-3.5 w-3.5" />
+                                  <Ban className="h-3.5 w-3.5" aria-hidden="true" />
                                   Cancelled
                                 </span>
                               ) : trip.payment_status === 'paid' ? (
                                 <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
-                                  <CheckCircle className="h-3.5 w-3.5" />
+                                  <CheckCircle className="h-3.5 w-3.5" aria-hidden="true" />
                                   Paid
                                 </span>
                               ) : trip.payment_status === 'failed' ? (
                                 <Button
                                   size="sm"
-                                  className="h-8 text-xs px-3 bg-teal-600 hover:bg-teal-700 text-white"
+                                  className="h-8 text-xs px-3 bg-teal-600 hover:bg-teal-700 text-white focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
                                   onClick={(e) => { e.stopPropagation(); router.push('/billing'); }}
                                 >
-                                  <Banknote className="h-3.5 w-3.5 mr-1" />
+                                  <Banknote className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
                                   Retry Payment
                                 </Button>
                               ) : trip.status === 'completed' ? (
                                 <Button
                                   size="sm"
-                                  className="h-8 text-xs px-3 bg-teal-600 hover:bg-teal-700 text-white"
+                                  className="h-8 text-xs px-3 bg-teal-600 hover:bg-teal-700 text-white focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
                                   onClick={(e) => { e.stopPropagation(); router.push('/billing'); }}
                                 >
-                                  <Banknote className="h-3.5 w-3.5 mr-1" />
+                                  <Banknote className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
                                   Pay Now
                                 </Button>
                               ) : (
                                 <span className="flex items-center gap-1 text-xs text-blue-500">
-                                  <Clock className="h-3.5 w-3.5" />
+                                  <Clock className="h-3.5 w-3.5" aria-hidden="true" />
                                   In progress
                                 </span>
                               )}

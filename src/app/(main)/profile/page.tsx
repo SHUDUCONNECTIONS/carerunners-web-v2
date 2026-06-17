@@ -199,12 +199,12 @@ export default function EditableProfilePage() {
               </TabsList>
               <TabsContent value="personal" className="mt-6">
                 <InputField
-                  icon={<User className="h-5 w-5 text-gray-500" />}
+                  icon={<User className="h-5 w-5 text-gray-500" aria-hidden="true" />}
                   label="Full Name"
                   name="fullName"
                 />
                 <InputField
-                  icon={<Mail className="h-5 w-5 text-gray-500" />}
+                  icon={<Mail className="h-5 w-5 text-gray-500" aria-hidden="true" />}
                   label="Email"
                   name="email"
                   type="email"
@@ -214,7 +214,7 @@ export default function EditableProfilePage() {
                   }}
                 />
                 <InputField
-                  icon={<Phone className="h-5 w-5 text-gray-500" />}
+                  icon={<Phone className="h-5 w-5 text-gray-500" aria-hidden="true" />}
                   label="Phone"
                   name="phone"
                   type="tel"
@@ -224,19 +224,19 @@ export default function EditableProfilePage() {
                   }}
                 />
                 <InputField
-                  icon={<Calendar className="h-5 w-5 text-gray-500" />}
+                  icon={<Calendar className="h-5 w-5 text-gray-500" aria-hidden="true" />}
                   label="Date of Birth"
                   name="dateOfBirth"
                   type="date"
                 />
                 <InputField
-                  icon={<Briefcase className="h-5 w-5 text-gray-500" />}
+                  icon={<Briefcase className="h-5 w-5 text-gray-500" aria-hidden="true" />}
                   label="Job Title"
                   name="jobTitle"
                 />
                 <div className="mb-4">
                   <Label htmlFor="bio" className="flex items-center space-x-2 mb-1">
-                    <FileText className="h-5 w-5 text-gray-500" />
+                    <FileText className="h-5 w-5 text-gray-500" aria-hidden="true" />
                     <span>Bio</span>
                   </Label>
                   <Textarea
@@ -252,12 +252,12 @@ export default function EditableProfilePage() {
               </TabsContent>
               <TabsContent value="company" className="mt-6">
                 <InputField
-                  icon={<Building2 className="h-5 w-5 text-gray-500" />}
+                  icon={<Building2 className="h-5 w-5 text-gray-500" aria-hidden="true" />}
                   label="Company Name"
                   name="companyName"
                 />
                 <InputField
-                  icon={<Mail className="h-5 w-5 text-gray-500" />}
+                  icon={<Mail className="h-5 w-5 text-gray-500" aria-hidden="true" />}
                   label="Company Email"
                   name="companyEmail"
                   type="email"
@@ -267,7 +267,7 @@ export default function EditableProfilePage() {
                   }}
                 />
                 <InputField
-                  icon={<Phone className="h-5 w-5 text-gray-500" />}
+                  icon={<Phone className="h-5 w-5 text-gray-500" aria-hidden="true" />}
                   label="Company Phone"
                   name="companyPhone"
                   type="tel"
@@ -277,13 +277,13 @@ export default function EditableProfilePage() {
                   }}
                 />
                 <InputField
-                  icon={<MapPin className="h-5 w-5 text-gray-500" />}
+                  icon={<MapPin className="h-5 w-5 text-gray-500" aria-hidden="true" />}
                   label="Company Address"
                   name="companyAddress"
                 />
                 <div className="mb-4">
                   <Label htmlFor="companyDescription" className="flex items-center space-x-2 mb-1">
-                    <FileText className="h-5 w-5 text-gray-500" />
+                    <FileText className="h-5 w-5 text-gray-500" aria-hidden="true" />
                     <span>Company Description</span>
                   </Label>
                   <Textarea
@@ -300,9 +300,9 @@ export default function EditableProfilePage() {
                 </div>
               </TabsContent>
             </Tabs>
-            <Button 
-              type="submit" 
-              className="w-full bg-teal-600 hover:bg-teal-700 text-white mt-6"
+            <Button
+              type="submit"
+              className="w-full bg-teal-600 hover:bg-teal-700 text-white mt-6 focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
               disabled={submitLoading}
             >
               {submitLoading ? 'Saving...' : 'Save Changes'}
