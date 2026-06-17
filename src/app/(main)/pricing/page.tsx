@@ -120,7 +120,7 @@ export default function PricingPage() {
         fetchUserFirmId(user.uid);
       } else {
         setLoading(false);
-        router.push("/login");
+        router.push("/auth/login");
       }
     });
 
@@ -430,6 +430,7 @@ export default function PricingPage() {
                         size="sm"
                         onClick={() => deleteUser(user.id)}
                         disabled={loading}
+                        aria-label={`Remove ${user.name}`}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -460,6 +461,7 @@ export default function PricingPage() {
                             size="sm"
                             onClick={() => deleteInvite(invite.id)}
                             disabled={loading}
+                            aria-label={`Revoke invite for ${invite.email}`}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>

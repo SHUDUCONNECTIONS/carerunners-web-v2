@@ -341,6 +341,7 @@ export default function DriverSignUpStepper() {
                     id="email"
                     name="email"
                     type="email"
+                    autoComplete="email"
                     required
                     className={`pl-10 block w-full ${
                       errors.email ? "border-red-500" : ""
@@ -391,6 +392,7 @@ export default function DriverSignUpStepper() {
                     id="password"
                     name="password"
                     type="password"
+                    autoComplete="new-password"
                     required
                     className={`pl-10 block w-full ${
                       errors.password ? "border-red-500" : ""
@@ -416,6 +418,7 @@ export default function DriverSignUpStepper() {
                     id="confirmPassword"
                     name="confirmPassword"
                     type="password"
+                    autoComplete="new-password"
                     required
                     className={`pl-10 block w-full ${
                       errors.confirmPassword ? "border-red-500" : ""
@@ -484,173 +487,6 @@ export default function DriverSignUpStepper() {
                     <SelectItem value="suv">SUV</SelectItem>
                     <SelectItem value="hatchback">Hatchback</SelectItem>
                     <SelectItem value="van">Van</SelectItem>
-                  </SelectContent>
-                </Select>
-                {errors.vehicleType && (
-                  <p className="mt-1 text-sm text-red-600">
-                    {errors.vehicleType}
-                  </p>
-                )}
-              </div>
-
-
-              <div>
-                <Label htmlFor="vehicleMake">Vehicle Make</Label>
-                <div className="mt-1 relative rounded-md shadow-sm">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Car className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <Input
-                    id="vehicleMake"
-                    name="vehicleMake"
-                    type="text"
-                    required
-                    className={`pl-10 block w-full ${
-                      errors.vehicleMake ? "border-red-500" : ""
-                    }`}
-                    placeholder="Vehicle Make"
-                    value={formData.vehicleMake}
-                    onChange={handleInputChange}
-                  />
-                </div>
-                {errors.vehicleMake && (
-                  <p className="mt-1 text-sm text-red-600">
-                    {errors.vehicleMake}
-                  </p>
-                )}
-              </div>
-
-
-              <div>
-                <Label htmlFor="vehicleModel">Vehicle Model</Label>
-                <div className="mt-1 relative rounded-md shadow-sm">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Car className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <Input
-                    id="vehicleModel"
-                    name="vehicleModel"
-                    type="text"
-                    required
-                    className={`pl-10 block w-full ${
-                      errors.vehicleModel ? "border-red-500" : ""
-                    }`}
-                    placeholder="Vehicle Model"
-                    value={formData.vehicleModel}
-                    onChange={handleInputChange}
-                  />
-                </div>
-                {errors.vehicleModel && (
-                  <p className="mt-1 text-sm text-red-600">
-                    {errors.vehicleModel}
-                  </p>
-                )}
-              </div>
-
-
-              <div>
-                <Label htmlFor="vehicleYear">Vehicle Year</Label>
-                <div className="mt-1 relative rounded-md shadow-sm">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Car className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <Input
-                    id="vehicleYear"
-                    name="vehicleYear"
-                    type="text"
-                    required
-                    className={`pl-10 block w-full ${
-                      errors.vehicleYear ? "border-red-500" : ""
-                    }`}
-                    placeholder="Vehicle Year"
-                    value={formData.vehicleYear}
-                    onChange={handleInputChange}
-                  />
-                </div>
-                {errors.vehicleYear && (
-                  <p className="mt-1 text-sm text-red-600">
-                    {errors.vehicleYear}
-                  </p>
-                )}
-              </div>
-              <div>
-                <Label htmlFor="numberPlate">Number Plate</Label>
-                <div className="mt-1 relative rounded-md shadow-sm">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Car className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <Input
-                    id="numberPlate"
-                    name="numberPlate"
-                    type="text"
-                    required
-                    className={`pl-10 block w-full ${
-                      errors.numberPlate ? "border-red-500" : ""
-                    }`}
-                    placeholder="Vehicle Number Plate"
-                    value={formData.numberPlate}
-                    onChange={handleInputChange}
-                  />
-                </div>
-                {errors.numberPlate && (
-                  <p className="mt-1 text-sm text-red-600">
-                    {errors.numberPlate}
-                  </p>
-                )}
-              </div>
-
-
-              <div>
-                <Label htmlFor="vehicleColor">Vehicle Color</Label>
-                <div className="mt-1 relative rounded-md shadow-sm">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Car className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <Input
-                    id="vehicleColor"
-                    name="vehicleColor"
-                    type="text"
-                    required
-                    className={`pl-10 block w-full ${
-                      errors.vehicleColor ? "border-red-500" : ""
-                    }`}
-                    placeholder="Vehicle Color"
-                    value={formData.vehicleColor}
-                    onChange={handleInputChange}
-                  />
-                </div>
-                {errors.vehicleColor && (
-                  <p className="mt-1 text-sm text-red-600">
-                    {errors.vehicleColor}
-                  </p>
-                )}
-              </div>
-            </div>
-          </>
-        );
-      case 1:
-        return (
-          <>
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-              <div className="sm:col-span-2">
-                <Label htmlFor="vehicleType">Vehicle Type</Label>
-                <Select
-                  onValueChange={(value) =>
-                    handleSelectChange("vehicleType", value)
-                  }
-                >
-                  <SelectTrigger
-                    className={`w-full mt-1 ${
-                      errors.vehicleType ? "border-red-500" : ""
-                    }`}
-                  >
-                    <SelectValue placeholder="Select vehicle type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="sedan">Sedan</SelectItem>
-                    <SelectItem value="suv">SUV</SelectItem>
-                    <SelectItem value="van">Van</SelectItem>
-                    <SelectItem value="truck">Truck</SelectItem>
                   </SelectContent>
                 </Select>
                 {errors.vehicleType && (

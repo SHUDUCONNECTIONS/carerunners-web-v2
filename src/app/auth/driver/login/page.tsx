@@ -40,6 +40,7 @@ export default function DriverLoginPage() {
 
       router.push("/driver/dashboard")
     } catch (error: any) {
+      console.error("Error during driver login:", error)
       switch (error.code) {
         case "auth/invalid-email":
           setError("Invalid email address format.")
@@ -98,7 +99,9 @@ export default function DriverLoginPage() {
                 </div>
                 <Input
                   id="email"
+                  name="email"
                   type="email"
+                  autoComplete="email"
                   className="pl-10 block w-full"
                   placeholder="Enter your email"
                   value={email}
@@ -115,7 +118,9 @@ export default function DriverLoginPage() {
                 </div>
                 <Input
                   id="password"
+                  name="password"
                   type="password"
+                  autoComplete="current-password"
                   className="pl-10 block w-full"
                   placeholder="Enter your password"
                   value={password}

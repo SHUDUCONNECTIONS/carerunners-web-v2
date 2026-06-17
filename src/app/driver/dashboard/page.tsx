@@ -98,6 +98,18 @@ const nextStatus: Record<string, { label: string; value: string }> = {
   "in-progress": { label: "Mark as Delivered", value: "completed" },
 }
 
+// createdAt comes back from Firestore as a Timestamp (with toMillis()), but can
+// also be a plain Date or epoch-millis number depending on how it was written.
+// Normalize to a millisecond number so sort comparisons behave correctly instead
+// of subtracting Timestamp objects directly (which yields NaN).
+function toMillis(value: any): number {
+  if (!value) return 0
+  if (typeof value === "number") return value
+  if (typeof value.toMillis === "function") return value.toMillis()
+  if (value instanceof Date) return value.getTime()
+  return 0
+}
+
 export default function DriverDashboard() {
   const [driver, setDriver] = useState<Driver | null>(null)
   const [availableTrips, setAvailableTrips] = useState<Trip[]>([])
@@ -165,7 +177,7 @@ export default function DriverDashboard() {
             (snap) => {
               const trips = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Trip))
               const future = trips.filter((t) => !t.pickupDate || t.pickupDate >= today)
-              future.sort((a, b) => (b.createdAt as any) - (a.createdAt as any))
+              future.sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt))
               setAvailableTrips(future)
             }
           )
@@ -175,7 +187,7 @@ export default function DriverDashboard() {
             query(collection(db, "pickupRequests"), where("driverId", "==", user.uid)),
             (snap) => {
               const trips = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Trip))
-              trips.sort((a, b) => (b.createdAt as any) - (a.createdAt as any))
+              trips.sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt))
               const active = trips.filter(
                 (t) => t.status !== "completed" && t.status !== "cancelled" && (!t.pickupDate || t.pickupDate >= today)
               )
@@ -271,7 +283,7 @@ export default function DriverDashboard() {
           <div className="md:hidden">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="text-white p-1.5 rounded-lg hover:bg-teal-700 transition-colors">
+                <button aria-label="Open menu" className="text-white p-1.5 rounded-lg hover:bg-teal-700 transition-colors">
                   <Menu className="h-6 w-6" />
                 </button>
               </DropdownMenuTrigger>

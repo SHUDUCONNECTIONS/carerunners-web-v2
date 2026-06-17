@@ -1,19 +1,19 @@
 "use client"
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, Clock, AlertTriangle } from "lucide-react";
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db, auth } from '@/utils/firebase';
 import LoadingComponent from '@/components/loader'
-import router from 'next/router';
 
 const INITIAL_DELAY = 2000; // 2 seconds
 
 export default function PaymentStatusPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [paymentData, setPaymentData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -34,7 +34,6 @@ export default function PaymentStatusPage() {
         paymentStatus: status,
         lastPaymentDate: new Date().toISOString()
       });
-      console.log('Firestore document successfully updated');
     } catch (error) {
       console.error('Error updating Firestore document: ', error);
     }
@@ -52,8 +51,7 @@ export default function PaymentStatusPage() {
         throw new Error(`HTTP error! status: ${res.status}`);
       }
 
-      const data = await res.json();
-      console.log('Plan confirmation email sent:', data);
+      await res.json();
     } catch (error) {
       console.error('Error sending plan confirmation email:', error);
     }
@@ -113,14 +111,10 @@ export default function PaymentStatusPage() {
         icon: <CheckCircle className="h-16 w-16 text-green-500" />,
         title: "Payment Successful",
         description: "Your plan payment has been processed successfully.",
-        button: (
-          <Button 
-            className="w-full bg-teal-600 hover:bg-teal-700 text-white" 
-            onClick={() => router.push('/dashboard')}
-          >
-            Go to Dashboard
-          </Button>
-        )};
+        buttonText: "Go to Dashboard",
+        buttonVariant: "default",
+        onButtonClick: () => router.push('/dashboard'),
+      };
     } else if (resultCode.startsWith("100.") || resultCode.startsWith("200.")) {
       return {
         icon: <Clock className="h-16 w-16 text-yellow-500" />,
@@ -205,9 +199,10 @@ export default function PaymentStatusPage() {
             </div>
             
             <div className="mt-8">
-              <Button 
-                className="w-full" 
+              <Button
+                className="w-full"
                 variant={statusContent.buttonVariant}
+                onClick={statusContent.onButtonClick}
               >
                 {statusContent.buttonText}
               </Button>

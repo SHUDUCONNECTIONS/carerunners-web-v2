@@ -5,10 +5,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { db, rtdb } from "@/utils/firebase";
 import { ref, onValue, off } from "firebase/database";
 import { GoogleMap, LoadScript, Marker } from "@react-google-maps/api";
-import { Badge } from "@/components/ui/badge";
 import {
-  MapPin,
-  Banknote,
   Clock,
   CheckCircle,
   XCircle,
@@ -29,7 +26,7 @@ interface DriverInfo {
   id: string;
   firstName: string;
   lastName: string;
-  phone: String;
+  phone: string;
   profilePicture?: string;
   vehicleModel: string;
   vehicleYear: string;

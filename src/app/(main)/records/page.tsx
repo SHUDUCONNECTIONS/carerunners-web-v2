@@ -48,10 +48,13 @@ export default function LawyerDocuments() {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser)
       setLoading(false)
+      if (!currentUser) {
+        router.push('/auth/login')
+      }
     })
 
     return () => unsubscribe()
-  }, [])
+  }, [router])
 
   useEffect(() => {
     const fetchDocuments = async () => {
@@ -130,7 +133,6 @@ export default function LawyerDocuments() {
   }
 
   if (!user) {
-    router.push('/login')
     return null
   }
 

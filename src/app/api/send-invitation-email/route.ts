@@ -17,7 +17,6 @@ export async function POST(request: NextRequest) {
     const result = await sendInvitationEmail(email, firmName, invitationLink);
 
     if (result.status === 'success') {
-      console.log(`Successfully sent invitation email to ${email}`);
       return NextResponse.json({ success: true });
     } else {
       console.error(`Failed to send invitation email to ${email}:`, result.error);

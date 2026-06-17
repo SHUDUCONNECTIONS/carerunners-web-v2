@@ -28,14 +28,14 @@ export default function UserRegistrationPage() {
     if (!firstName.trim()) newErrors.firstName = "First name is required"
     if (!lastName.trim()) newErrors.lastName = "Last name is required"
     if (!contact.trim()) newErrors.contact = "Contact number is required"
-    if (!/^\d{10}$/.test(contact)) newErrors.contact = "Contact number must be 10 digits"
+    else if (!/^\d{10}$/.test(contact)) newErrors.contact = "Contact number must be 10 digits"
   }
 
   const validateStep2 = (newErrors: { [key: string]: string }) => {
     if (!email.trim()) newErrors.email = "Email is required"
-    if (!/\S+@\S+\.\S+/.test(email)) newErrors.email = "Email is invalid"
+    else if (!/\S+@\S+\.\S+/.test(email)) newErrors.email = "Email is invalid"
     if (!password) newErrors.password = "Password is required"
-    if (password.length < 8) newErrors.password = "Password must be at least 8 characters"
+    else if (password.length < 8) newErrors.password = "Password must be at least 8 characters"
     if (password !== confirmPassword) newErrors.confirmPassword = "Passwords do not match"
   }
 
@@ -293,6 +293,7 @@ export default function UserRegistrationPage() {
                         id="email"
                         name="email"
                         type="email"
+                        autoComplete="email"
                         required
                         className={inputClass("email")}
                         placeholder="you@yourfirm.com"
@@ -317,6 +318,7 @@ export default function UserRegistrationPage() {
                         id="password"
                         name="password"
                         type="password"
+                        autoComplete="new-password"
                         required
                         className={inputClass("password")}
                         placeholder="Min. 8 characters"
@@ -341,6 +343,7 @@ export default function UserRegistrationPage() {
                         id="confirmPassword"
                         name="confirmPassword"
                         type="password"
+                        autoComplete="new-password"
                         required
                         className={inputClass("confirmPassword")}
                         placeholder="Re-enter password"

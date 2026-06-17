@@ -131,6 +131,7 @@ export default function PlanPaymentSummary() {
         setShopperResultUrl(`/pricing/payment/status?firmId=${firmId}&plan=${planName}`);
       } catch (error) {
         console.error("Error calling API:", error);
+        setError('Error preparing payment checkout');
       }
     };
 

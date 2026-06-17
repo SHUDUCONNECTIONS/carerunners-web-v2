@@ -25,6 +25,7 @@ type FormData = {
 function FirmRegistrationContent() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   const firmId = searchParams.get("firmId");
@@ -39,15 +40,20 @@ function FirmRegistrationContent() {
   useEffect(() => {
     const fetchFirmData = async () => {
       if (firmId) {
-        const firmDoc = await getDoc(doc(db, "firms", firmId));
-        if (firmDoc.exists()) {
-          const data = firmDoc.data();
-          setValue("companyName", data.companyName || "");
-          setValue("companyEmail", data.companyEmail || "");
-          setValue("address", data.address || "");
-          setValue("postalCode", data.postalCode || "");
-          setValue("telephone", data.telephone || "");
-          setValue("registrationNumber", data.registrationNumber || "");
+        try {
+          const firmDoc = await getDoc(doc(db, "firms", firmId));
+          if (firmDoc.exists()) {
+            const data = firmDoc.data();
+            setValue("companyName", data.companyName || "");
+            setValue("companyEmail", data.companyEmail || "");
+            setValue("address", data.address || "");
+            setValue("postalCode", data.postalCode || "");
+            setValue("telephone", data.telephone || "");
+            setValue("registrationNumber", data.registrationNumber || "");
+          }
+        } catch (error) {
+          console.error("Error fetching firm data:", error);
+          setSubmitError("Unable to load existing firm details. You can still fill out the form below.");
         }
       }
     };
@@ -57,9 +63,11 @@ function FirmRegistrationContent() {
   const onSubmit = async (data: FormData) => {
     if (!firmId) {
       console.error("No firmId provided");
+      setSubmitError("Missing firm reference. Please use the registration link from your sign-up email.");
       return;
     }
 
+    setSubmitError(null);
     try {
       setLoading(true);
       await updateDoc(doc(db, "firms", firmId), {
@@ -74,14 +82,13 @@ function FirmRegistrationContent() {
       }, 2000);
     } catch (error) {
       console.error("Error during firm registration:", error);
-      setLoading(false);
+      setSubmitError("Something went wrong while saving your firm details. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Suspense fallback={<LoadingComponent />}>
     <div className="min-h-screen flex items-center justify-center bg-white p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="bg-teal-600 text-white">
@@ -100,6 +107,11 @@ function FirmRegistrationContent() {
               <AlertDescription>
                 Company registration successful! Redirecting you to Login...
               </AlertDescription>
+            </Alert>
+          )}
+          {submitError && (
+            <Alert className="bg-red-100 border-red-500 text-red-700">
+              <AlertDescription>{submitError}</AlertDescription>
             </Alert>
           )}
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -236,7 +248,6 @@ function FirmRegistrationContent() {
         </CardContent>
       </Card>
     </div>
-    </Suspense>
   );
 }
 export default function FirmRegistrationComponent() {

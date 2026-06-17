@@ -21,19 +21,13 @@ export default function LoginPage() {
 
   const checkIsFirm = async (uid: string) => {
     try {
-      // console.log("Checking firm status for UID:", uid)
-
       // Query the firms collection where adminId matches the authentication UID
       const firmsRef = collection(db, 'firms')
       const q = query(firmsRef, where('adminId', '==', uid))
       const querySnapshot = await getDocs(q)
 
       // If we find any documents, this UID is an admin of a firm
-       const isFirmAdmin = !querySnapshot.empty
-
-      console.log("Is firm admin:", isFirmAdmin)
-      if (isFirmAdmin) {
-      }
+      const isFirmAdmin = !querySnapshot.empty
 
       return isFirmAdmin
     } catch (error) {
@@ -54,7 +48,6 @@ export default function LoginPage() {
 
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password)
-      // console.log("User UID:", userCredential.user.uid)
 
       // Check if the user's UID matches any firm's adminId
       const isFirm = await checkIsFirm(userCredential.user.uid)

@@ -17,7 +17,6 @@ export async function POST(request: NextRequest) {
     const result = await sendSingleEmail(email, amount, date, brand, customMessage);
 
     if (result.status === 'success') {
-      console.log(`Successfully sent email to ${email}`);
       return NextResponse.json({ success: true });
     } else {
       console.error(`Failed to send email to ${email}:`, result.error);

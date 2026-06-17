@@ -3,7 +3,6 @@
 "use client"
 
 import React, { useEffect, useState } from 'react';
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MapPin, Banknote, Clock, CheckCircle, XCircle, FileText, Calendar, Ban, Car, ListChecks, Loader2 } from "lucide-react";
 import { db } from '@/utils/firebase';

@@ -1,15 +1,7 @@
-// app/api/process-payment/route.ts
+// app/api/prepare-checkout/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import https from 'https';
 import querystring from 'querystring';
-function formatCurrency(value, locale = 'en-US', currency = 'ZAR') {
-    return new Intl.NumberFormat(locale, {
-      style: 'currency',
-      currency: currency,
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(value);
-  }
 
 export async function POST(req: NextRequest) {
   if (req.method !== 'POST') {
@@ -20,9 +12,14 @@ status: 405 });
   const ENTITY_ID = process.env.ENTITY_ID;
   const BEARER_TOKEN = process.env.BEARER_TOKEN;
 
-  const body = await req.json();
-  const { price } = body;
-
+  let price: unknown;
+  try {
+    const body = await req.json();
+    price = body?.price;
+  } catch (error) {
+    console.error('Error parsing checkout request body:', error);
+    return NextResponse.json({ message: 'Invalid request body' }, { status: 400 });
+  }
 
   if (!price) {
     return NextResponse.json({ message: 'Price is required' }, { status: 400 });
@@ -57,7 +54,11 @@ status: 405 });
         });
         response.on('end', () => {
           const jsonString = Buffer.concat(buf).toString('utf8');
-          resolve(JSON.parse(jsonString));
+          try {
+            resolve(JSON.parse(jsonString));
+          } catch (parseError) {
+            reject(parseError);
+          }
         });
       });
 

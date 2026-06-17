@@ -110,6 +110,7 @@ export default function TripSummary() {
         setShopperResultUrl(`/payment/status?requestId=${requestId}`);
       } catch (error) {
         console.error("Error calling API:", error);
+        setError('Error preparing payment checkout');
       }
     };
 

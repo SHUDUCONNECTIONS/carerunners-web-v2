@@ -35,6 +35,7 @@ export default function EditableProfilePage() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [currentStep, setCurrentStep] = useState(0);
   const {
@@ -76,7 +77,7 @@ export default function EditableProfilePage() {
             setValue("companyAddress", firmData.address);
             setValue("companyDescription", firmData.companyDescription || "");
           } else {
-            console.log("Document does not exist for user or firm.");
+            console.error("Document does not exist for user or firm.");
           }
         } catch (error) {
           console.error("Error fetching user or firm data:", error);
@@ -95,6 +96,7 @@ export default function EditableProfilePage() {
 
   const onSubmit = async (data: FormData) => {
     setSubmitLoading(true);
+    setSubmitError(false);
     try {
       const user = auth.currentUser;
       if (user) {
@@ -126,14 +128,15 @@ export default function EditableProfilePage() {
           setSubmitSuccess(true);
         } else {
           console.error("No firm found for this user");
-        
+          setSubmitError(true);
         }
       }
     } catch (error) {
       console.error("Error updating profile:", error);
+      setSubmitError(true);
     } finally {
       setSubmitLoading(false);
-      setTimeout(() => setSubmitSuccess(false), 3000); 
+      setTimeout(() => setSubmitSuccess(false), 3000);
     }
   };
 
@@ -190,6 +193,13 @@ export default function EditableProfilePage() {
             <Alert className="bg-green-100 border-green-500 text-green-700 mb-4">
               <AlertDescription>
                 Profile updated successfully!
+              </AlertDescription>
+            </Alert>
+          )}
+          {submitError && (
+            <Alert className="bg-red-100 border-red-500 text-red-700 mb-4">
+              <AlertDescription>
+                Something went wrong while updating your profile. Please try again.
               </AlertDescription>
             </Alert>
           )}

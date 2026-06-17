@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
     const data = await response.json();
     return NextResponse.json(data, { status: 200 });
   } catch (error) {
-    console.error('Errorss checking payment status:', error);
+    console.error('Error checking payment status:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

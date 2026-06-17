@@ -34,7 +34,6 @@ export default function PaymentStatusPage() {
         status: 'waiting for driver',
         payment_status: status
       });
-      console.log('Firestore document successfully updated');
     } catch (error) {
       console.error('Error updating Firestore document: ', error);
     }
@@ -52,8 +51,7 @@ export default function PaymentStatusPage() {
         throw new Error(`HTTP error! status: ${res.status}`);
       }
 
-      const data = await res.json();
-      console.log('Invoice email sent:', data);
+      await res.json();
     } catch (error) {
       console.error('Error sending invoice email:', error);
     }

@@ -17,7 +17,6 @@ export async function POST(request: NextRequest) {
     const result = await sendPlanConfirmationEmail(email, amount, date, brand, planName);
 
     if (result.status === 'success') {
-      console.log(`Successfully sent plan confirmation email to ${email}`);
       return NextResponse.json({ success: true });
     } else {
       console.error(`Failed to send plan confirmation email to ${email}:`, result.error);
