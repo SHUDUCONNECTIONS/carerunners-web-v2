@@ -2,11 +2,9 @@
 
 import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Building2, Mail, MapPin, Phone, User, Briefcase, Calendar, FileText } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -15,6 +13,7 @@ import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import LoadingComponent from "@/components/loader";
 import { query, collection, where, getDocs } from "firebase/firestore";
+import { StepIndicator, StepNav } from "@/components/Stepper";
 
 type FormData = {
   fullName: string;
@@ -30,11 +29,14 @@ type FormData = {
   companyDescription: string;
 };
 
+const steps = ["Personal Details", "Company Details"];
+
 export default function EditableProfilePage() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
+  const [currentStep, setCurrentStep] = useState(0);
   const {
     register,
     handleSubmit,
@@ -192,12 +194,9 @@ export default function EditableProfilePage() {
             </Alert>
           )}
           <form onSubmit={handleSubmit(onSubmit)}>
-            <Tabs defaultValue="personal" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="personal">Personal Details</TabsTrigger>
-                <TabsTrigger value="company">Company Details</TabsTrigger>
-              </TabsList>
-              <TabsContent value="personal" className="mt-6">
+            <StepIndicator steps={steps} currentStep={currentStep} onStepClick={setCurrentStep} />
+            {currentStep === 0 && (
+              <div className="mt-6">
                 <InputField
                   icon={<User className="h-5 w-5 text-gray-500" aria-hidden="true" />}
                   label="Full Name"
@@ -249,8 +248,10 @@ export default function EditableProfilePage() {
                     <p className="text-red-500 text-sm mt-1">{errors.bio.message}</p>
                   )}
                 </div>
-              </TabsContent>
-              <TabsContent value="company" className="mt-6">
+              </div>
+            )}
+            {currentStep === 1 && (
+              <div className="mt-6">
                 <InputField
                   icon={<Building2 className="h-5 w-5 text-gray-500" aria-hidden="true" />}
                   label="Company Name"
@@ -298,15 +299,17 @@ export default function EditableProfilePage() {
                     </p>
                   )}
                 </div>
-              </TabsContent>
-            </Tabs>
-            <Button
-              type="submit"
-              className="w-full bg-teal-600 hover:bg-teal-700 text-white mt-6 focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
-              disabled={submitLoading}
-            >
-              {submitLoading ? 'Saving...' : 'Save Changes'}
-            </Button>
+              </div>
+            )}
+            <StepNav
+              currentStep={currentStep}
+              totalSteps={steps.length}
+              onBack={() => setCurrentStep(0)}
+              onNext={() => setCurrentStep(1)}
+              isLastStep={currentStep === steps.length - 1}
+              submitLabel={submitLoading ? "Saving..." : "Save Changes"}
+              loading={submitLoading}
+            />
           </form>
         </CardContent>
       </Card>

@@ -2,13 +2,15 @@
 
 import React, { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { User, Mail, Lock, Phone, AlertCircle } from "lucide-react"
 import { auth, db } from "@/utils/firebase" // Adjust this import path if necessary
 import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from "firebase/auth"
 import { doc, setDoc, collection } from "firebase/firestore"
+import { StepIndicator, StepNav } from "@/components/Stepper"
+
+const steps = ["Personal Details", "Account Security"]
 
 export default function UserRegistrationPage() {
   const [firstName, setFirstName] = useState("")
@@ -19,23 +21,41 @@ export default function UserRegistrationPage() {
   const [confirmPassword, setConfirmPassword] = useState("")
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
   const [loading, setLoading] = useState(false)
+  const [currentStep, setCurrentStep] = useState(0)
   const router = useRouter()
 
-  const validateForm = () => {
-    const newErrors: { [key: string]: string } = {}
-
+  const validateStep1 = (newErrors: { [key: string]: string }) => {
     if (!firstName.trim()) newErrors.firstName = "First name is required"
     if (!lastName.trim()) newErrors.lastName = "Last name is required"
     if (!contact.trim()) newErrors.contact = "Contact number is required"
     if (!/^\d{10}$/.test(contact)) newErrors.contact = "Contact number must be 10 digits"
+  }
+
+  const validateStep2 = (newErrors: { [key: string]: string }) => {
     if (!email.trim()) newErrors.email = "Email is required"
     if (!/\S+@\S+\.\S+/.test(email)) newErrors.email = "Email is invalid"
     if (!password) newErrors.password = "Password is required"
     if (password.length < 8) newErrors.password = "Password must be at least 8 characters"
     if (password !== confirmPassword) newErrors.confirmPassword = "Passwords do not match"
+  }
+
+  const validateForm = () => {
+    const newErrors: { [key: string]: string } = {}
+
+    validateStep1(newErrors)
+    validateStep2(newErrors)
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
+  }
+
+  const handleNext = () => {
+    const newErrors: { [key: string]: string } = {}
+    validateStep1(newErrors)
+    setErrors(newErrors)
+    if (Object.keys(newErrors).length === 0) {
+      setCurrentStep(1)
+    }
   }
 
   const createUserAndFirm = async (userId: string) => {
@@ -175,171 +195,183 @@ export default function UserRegistrationPage() {
               </div>
             </div>
 
+            {/* Step indicator */}
+            <StepIndicator steps={steps} currentStep={currentStep} />
+
             {/* Registration form */}
             <form onSubmit={handleSignUp} className="space-y-4">
-              {/* First & Last name row */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1.5">
-                    First Name
-                  </Label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <User className="h-4 w-4 text-gray-400" />
+              {currentStep === 0 && (
+                <>
+                  {/* First & Last name row */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1.5">
+                        First Name
+                      </Label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <User className="h-4 w-4 text-gray-400" />
+                        </div>
+                        <Input
+                          id="firstName"
+                          name="firstName"
+                          type="text"
+                          required
+                          className={inputClass("firstName")}
+                          placeholder="Jane"
+                          value={firstName}
+                          onChange={(e) => setFirstName(e.target.value)}
+                        />
+                      </div>
+                      {errors.firstName && (
+                        <p className="mt-1 text-xs text-red-600">{errors.firstName}</p>
+                      )}
                     </div>
-                    <Input
-                      id="firstName"
-                      name="firstName"
-                      type="text"
-                      required
-                      className={inputClass("firstName")}
-                      placeholder="Jane"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                    />
-                  </div>
-                  {errors.firstName && (
-                    <p className="mt-1 text-xs text-red-600">{errors.firstName}</p>
-                  )}
-                </div>
 
-                <div>
-                  <Label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Last Name
-                  </Label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <User className="h-4 w-4 text-gray-400" />
+                    <div>
+                      <Label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Last Name
+                      </Label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <User className="h-4 w-4 text-gray-400" />
+                        </div>
+                        <Input
+                          id="lastName"
+                          name="lastName"
+                          type="text"
+                          required
+                          className={inputClass("lastName")}
+                          placeholder="Smith"
+                          value={lastName}
+                          onChange={(e) => setLastName(e.target.value)}
+                        />
+                      </div>
+                      {errors.lastName && (
+                        <p className="mt-1 text-xs text-red-600">{errors.lastName}</p>
+                      )}
                     </div>
-                    <Input
-                      id="lastName"
-                      name="lastName"
-                      type="text"
-                      required
-                      className={inputClass("lastName")}
-                      placeholder="Smith"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                    />
                   </div>
-                  {errors.lastName && (
-                    <p className="mt-1 text-xs text-red-600">{errors.lastName}</p>
-                  )}
-                </div>
-              </div>
 
-              <div>
-                <Label htmlFor="contact" className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Contact Number
-                </Label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Phone className="h-4 w-4 text-gray-400" />
+                  <div>
+                    <Label htmlFor="contact" className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Contact Number
+                    </Label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Phone className="h-4 w-4 text-gray-400" />
+                      </div>
+                      <Input
+                        id="contact"
+                        name="contact"
+                        type="tel"
+                        required
+                        className={inputClass("contact")}
+                        placeholder="10-digit number"
+                        value={contact}
+                        onChange={(e) => setContact(e.target.value)}
+                      />
+                    </div>
+                    {errors.contact && (
+                      <p className="mt-1 text-xs text-red-600">{errors.contact}</p>
+                    )}
                   </div>
-                  <Input
-                    id="contact"
-                    name="contact"
-                    type="tel"
-                    required
-                    className={inputClass("contact")}
-                    placeholder="10-digit number"
-                    value={contact}
-                    onChange={(e) => setContact(e.target.value)}
-                  />
-                </div>
-                {errors.contact && (
-                  <p className="mt-1 text-xs text-red-600">{errors.contact}</p>
-                )}
-              </div>
-
-              <div>
-                <Label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Email Address
-                </Label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Mail className="h-4 w-4 text-gray-400" />
-                  </div>
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    required
-                    className={inputClass("email")}
-                    placeholder="you@yourfirm.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </div>
-                {errors.email && (
-                  <p className="mt-1 text-xs text-red-600">{errors.email}</p>
-                )}
-              </div>
-
-              <div>
-                <Label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Password
-                </Label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Lock className="h-4 w-4 text-gray-400" />
-                  </div>
-                  <Input
-                    id="password"
-                    name="password"
-                    type="password"
-                    required
-                    className={inputClass("password")}
-                    placeholder="Min. 8 characters"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                </div>
-                {errors.password && (
-                  <p className="mt-1 text-xs text-red-600">{errors.password}</p>
-                )}
-              </div>
-
-              <div>
-                <Label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Confirm Password
-                </Label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Lock className="h-4 w-4 text-gray-400" />
-                  </div>
-                  <Input
-                    id="confirmPassword"
-                    name="confirmPassword"
-                    type="password"
-                    required
-                    className={inputClass("confirmPassword")}
-                    placeholder="Re-enter password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                  />
-                </div>
-                {errors.confirmPassword && (
-                  <p className="mt-1 text-xs text-red-600">{errors.confirmPassword}</p>
-                )}
-              </div>
-
-              {/* Submit-level error */}
-              {errors.submit && (
-                <div className="flex items-start gap-2 text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
-                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                  <span>{errors.submit}</span>
-                </div>
+                </>
               )}
 
-              <Button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-teal-600 hover:bg-teal-700 text-white font-medium py-3 rounded-lg
-                           transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm mt-2"
-              >
-                {loading ? "Creating account…" : "Create Account"}
-              </Button>
+              {currentStep === 1 && (
+                <>
+                  <div>
+                    <Label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Email Address
+                    </Label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Mail className="h-4 w-4 text-gray-400" />
+                      </div>
+                      <Input
+                        id="email"
+                        name="email"
+                        type="email"
+                        required
+                        className={inputClass("email")}
+                        placeholder="you@yourfirm.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                      />
+                    </div>
+                    {errors.email && (
+                      <p className="mt-1 text-xs text-red-600">{errors.email}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <Label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Password
+                    </Label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Lock className="h-4 w-4 text-gray-400" />
+                      </div>
+                      <Input
+                        id="password"
+                        name="password"
+                        type="password"
+                        required
+                        className={inputClass("password")}
+                        placeholder="Min. 8 characters"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                      />
+                    </div>
+                    {errors.password && (
+                      <p className="mt-1 text-xs text-red-600">{errors.password}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <Label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Confirm Password
+                    </Label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Lock className="h-4 w-4 text-gray-400" />
+                      </div>
+                      <Input
+                        id="confirmPassword"
+                        name="confirmPassword"
+                        type="password"
+                        required
+                        className={inputClass("confirmPassword")}
+                        placeholder="Re-enter password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                      />
+                    </div>
+                    {errors.confirmPassword && (
+                      <p className="mt-1 text-xs text-red-600">{errors.confirmPassword}</p>
+                    )}
+                  </div>
+
+                  {/* Submit-level error */}
+                  {errors.submit && (
+                    <div className="flex items-start gap-2 text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
+                      <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                      <span>{errors.submit}</span>
+                    </div>
+                  )}
+                </>
+              )}
+
+              <StepNav
+                currentStep={currentStep}
+                totalSteps={steps.length}
+                onBack={() => setCurrentStep(0)}
+                onNext={handleNext}
+                isLastStep={currentStep === steps.length - 1}
+                submitLabel={loading ? "Creating account…" : "Create Account"}
+                loading={loading}
+              />
             </form>
 
             {/* Login link */}
