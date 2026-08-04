@@ -26,27 +26,27 @@ export function StepIndicator({ steps, currentStep, onStepClick }: StepIndicator
                 onClick={clickable ? () => onStepClick?.(index) : undefined}
                 disabled={!clickable}
                 aria-current={active ? "step" : undefined}
-                className={`flex items-center gap-2 rounded-xl px-1 py-1 text-sm font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 ${
+                className={`flex items-center gap-2 rounded-xl px-1 py-1 text-sm font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-500)] focus-visible:ring-offset-2 ${
                   clickable ? "cursor-pointer" : "cursor-default"
                 }`}
               >
                 <span
                   className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-colors duration-200 ${
                     completed
-                      ? "bg-teal-600 text-white"
+                      ? "bg-[var(--brand-600)] text-white"
                       : active
-                      ? "bg-teal-600 text-white"
+                      ? "bg-[var(--brand-600)] text-white"
                       : "bg-gray-100 text-gray-400"
                   }`}
                 >
                   {completed ? <Check className="h-4 w-4" aria-hidden="true" /> : index + 1}
                 </span>
-                <span className={active ? "text-teal-700" : completed ? "text-gray-700" : "text-gray-400"}>
+                <span className={active ? "text-[var(--brand-700)]" : completed ? "text-gray-700" : "text-gray-400"}>
                   {label}
                 </span>
               </button>
               {index !== steps.length - 1 && (
-                <div className={`mx-3 h-px flex-1 ${completed ? "bg-teal-600" : "bg-gray-200"}`} />
+                <div className={`mx-3 h-px flex-1 ${completed ? "bg-[var(--brand-600)]" : "bg-gray-200"}`} />
               )}
             </li>
           )
@@ -56,11 +56,11 @@ export function StepIndicator({ steps, currentStep, onStepClick }: StepIndicator
       {/* Mobile: compact "Step X of N" + progress bar */}
       <div className="sm:hidden">
         <p className="text-sm font-medium text-gray-500 mb-2">
-          Step {currentStep + 1} of {steps.length}: <span className="text-teal-700 font-semibold">{steps[currentStep]}</span>
+          Step {currentStep + 1} of {steps.length}: <span className="text-[var(--brand-700)] font-semibold">{steps[currentStep]}</span>
         </p>
         <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
           <div
-            className="h-full bg-teal-600 transition-all duration-300"
+            className="h-full bg-[var(--brand-600)] transition-all duration-300"
             style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}
           />
         </div>
@@ -98,7 +98,7 @@ export function StepNav({
           variant="outline"
           onClick={onBack}
           disabled={loading}
-          className="rounded-xl focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+          className="rounded-xl focus-visible:ring-2 focus-visible:ring-[var(--brand-500)] focus-visible:ring-offset-2"
         >
           Back
         </Button>
@@ -110,7 +110,7 @@ export function StepNav({
         <Button
           type="submit"
           disabled={loading || nextDisabled}
-          className="rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+          className="rounded-xl bg-[var(--brand-600)] hover:bg-[var(--brand-700)] text-white font-semibold focus-visible:ring-2 focus-visible:ring-[var(--brand-500)] focus-visible:ring-offset-2"
         >
           {loading ? "Submitting…" : submitLabel}
         </Button>
@@ -119,7 +119,7 @@ export function StepNav({
           type="button"
           onClick={onNext}
           disabled={loading || nextDisabled}
-          className="rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+          className="rounded-xl bg-[var(--brand-600)] hover:bg-[var(--brand-700)] text-white font-semibold focus-visible:ring-2 focus-visible:ring-[var(--brand-500)] focus-visible:ring-offset-2"
         >
           Next
         </Button>

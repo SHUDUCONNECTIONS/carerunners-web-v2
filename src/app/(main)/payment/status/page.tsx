@@ -5,11 +5,9 @@ import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, Clock, AlertTriangle } from "lucide-react";
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '@/utils/firebase';
-import { auth } from '@/utils/firebase'; 
 import LoadingComponent from '@/components/loader'
 import { useRouter } from "next/navigation"
+import { authedFetch } from '@/utils/authedFetch';
 
 const INITIAL_DELAY = 2000; // 2 seconds
 
@@ -21,68 +19,20 @@ export default function PaymentStatusPage() {
   const apiCalledRef = useRef(false);
   const router = useRouter();
 
-  const updateFirestore = async (status: string) => {
-    const requestId = searchParams.get('requestId');
-    if (!requestId) {
-      console.error('No request ID provided');
-      return;
-    }
-
-    try {
-      const docRef = doc(db, 'pickupRequests', requestId);
-      await updateDoc(docRef, {
-        status: 'waiting for driver',
-        payment_status: status
-      });
-    } catch (error) {
-      console.error('Error updating Firestore document: ', error);
-    }
-  };
-
-  const sendEmail = async (email: string, amount: number, date: string, brand: string) => {
-    try {
-      const res = await fetch('/api/send-invoice', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, amount, date, brand })
-      });
-
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
-
-      await res.json();
-    } catch (error) {
-      console.error('Error sending invoice email:', error);
-    }
-  };
-
+  // Marking the trip paid and emailing the receipt now happens server-side
+  // in /api/check-payment-status, which re-verifies the payment with Peach
+  // before writing anything — the client no longer decides this itself.
   const checkPayment = useCallback(async (id) => {
     if (apiCalledRef.current) return;
     apiCalledRef.current = true;
 
     try {
-      const res = await fetch(`/api/check-payment-status?id=${id}`);
+      const res = await authedFetch(`/api/check-payment-status?id=${id}`);
       if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);
       }
       const data = await res.json();
       setPaymentData(data);
-      
-      // Update Firestore based on payment status
-      if (data.result && data.result.code.startsWith("000.")) {
-        await updateFirestore('paid');
-
-        // Get the authenticated user's email
-        const user = auth.currentUser;
-        if (user) {
-          await sendEmail(user.email, data.amount, data.timestamp, data.paymentBrand);
-        }
-      } else if (data.result && (data.result.code.startsWith("100.") || data.result.code.startsWith("200."))) {
-        await updateFirestore('pending');
-      } else {
-        await updateFirestore('failed');
-      }
     } catch (error) {
       console.error('Error fetching payment status:', error);
       setError(error.message);

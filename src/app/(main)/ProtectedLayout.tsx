@@ -53,7 +53,7 @@ export default function ProtectedLayout({
         <main className="flex-grow container mx-auto px-4 py-8">
           {children}
         </main>
-        <footer className="bg-teal-600 text-white mt-auto">
+        <footer className="bg-[var(--brand-600)] text-white mt-auto">
           <div className="container mx-auto flex justify-center items-center h-12">
             <div className="flex items-center">
               <span className="text-lg font-semibold mr-2">SHUDU</span>

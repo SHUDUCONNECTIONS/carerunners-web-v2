@@ -4,15 +4,18 @@ import React, { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { User, Mail, Lock, Phone, AlertCircle } from "lucide-react"
+import { User, Users, Building2, Mail, Lock, Phone, AlertCircle } from "lucide-react"
 import { auth, db } from "@/utils/firebase" // Adjust this import path if necessary
 import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from "firebase/auth"
 import { doc, setDoc, collection } from "firebase/firestore"
 import { StepIndicator, StepNav } from "@/components/Stepper"
 
-const steps = ["Personal Details", "Account Security"]
+type AccountType = "individual" | "firm"
+
+const steps = ["Account Type", "Personal Details", "Account Security"]
 
 export default function UserRegistrationPage() {
+  const [accountType, setAccountType] = useState<AccountType | null>(null)
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
   const [contact, setContact] = useState("")
@@ -23,6 +26,10 @@ export default function UserRegistrationPage() {
   const [loading, setLoading] = useState(false)
   const [currentStep, setCurrentStep] = useState(0)
   const router = useRouter()
+
+  const validateStep0 = (newErrors: { [key: string]: string }) => {
+    if (!accountType) newErrors.accountType = "Please choose an account type"
+  }
 
   const validateStep1 = (newErrors: { [key: string]: string }) => {
     if (!firstName.trim()) newErrors.firstName = "First name is required"
@@ -42,6 +49,7 @@ export default function UserRegistrationPage() {
   const validateForm = () => {
     const newErrors: { [key: string]: string } = {}
 
+    validateStep0(newErrors)
     validateStep1(newErrors)
     validateStep2(newErrors)
 
@@ -51,46 +59,59 @@ export default function UserRegistrationPage() {
 
   const handleNext = () => {
     const newErrors: { [key: string]: string } = {}
-    validateStep1(newErrors)
-    setErrors(newErrors)
-    if (Object.keys(newErrors).length === 0) {
-      setCurrentStep(1)
+    if (currentStep === 0) {
+      validateStep0(newErrors)
+      setErrors(newErrors)
+      if (Object.keys(newErrors).length === 0) setCurrentStep(1)
+    } else if (currentStep === 1) {
+      validateStep1(newErrors)
+      setErrors(newErrors)
+      if (Object.keys(newErrors).length === 0) setCurrentStep(2)
     }
   }
 
-  const createUserAndFirm = async (userId: string) => {
-    // Create a new firm document
+  const handleBack = () => {
+    setCurrentStep((step) => Math.max(0, step - 1))
+  }
+
+  // Every account gets a workspace ("firms" doc) so document storage, trip
+  // billing, etc. keep working unchanged either way — accountType just
+  // decides whether we send them through the company-details form next.
+  const createUserAndFirm = async (userId: string, type: AccountType) => {
     const firmRef = doc(collection(db, "firms"))
     await setDoc(firmRef, {
       adminId: userId,
+      accountType: type,
       createdAt: new Date(),
-      // Add any other initial firm data here
     })
 
-    // Create the user document
     await setDoc(doc(db, "users", userId), {
       firstName,
       lastName,
       contact,
       email,
-      type: "COMPANY_ADMIN",
+      accountType: type,
       firmId: firmRef.id
     })
 
     return firmRef.id
   }
 
+  const routeAfterSignUp = (firmId: string, type: AccountType) => {
+    router.push(type === "firm" ? `/firm-registration?firmId=${firmId}` : "/dashboard")
+  }
+
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (validateForm()) {
+    if (validateForm() && accountType) {
       setLoading(true)
       try {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password)
         const user = userCredential.user
 
-        const firmId = await createUserAndFirm(user.uid)
+        const firmId = await createUserAndFirm(user.uid, accountType)
 
-        router.push(`/firm-registration?firmId=${firmId}`)
+        routeAfterSignUp(firmId, accountType)
       } catch (error: any) {
         console.error("Error during signup:", error)
         const messages: Record<string, string> = {
@@ -107,15 +128,20 @@ export default function UserRegistrationPage() {
   }
 
   const handleGoogleSignUp = async () => {
+    if (!accountType) {
+      setErrors({ accountType: "Please choose an account type" })
+      setCurrentStep(0)
+      return
+    }
     setLoading(true)
     try {
       const provider = new GoogleAuthProvider()
       const result = await signInWithPopup(auth, provider)
       const user = result.user
 
-      const firmId = await createUserAndFirm(user.uid)
+      const firmId = await createUserAndFirm(user.uid, accountType)
 
-      router.push(`/firm-registration?firmId=${firmId}`)
+      routeAfterSignUp(firmId, accountType)
     } catch (error: any) {
       console.error("Error during Google signup:", error)
       const messages: Record<string, string> = {
@@ -152,10 +178,10 @@ export default function UserRegistrationPage() {
             Carerunners
           </h1>
           <p className="mt-2 text-teal-100 text-sm md:text-base text-center leading-relaxed max-w-xs hidden md:block">
-            Register your firm and start managing care runner services — fast, secure, and built for your practice.
+            Sign up and start managing your delivery and pickup requests — fast, secure, and built for your business.
           </p>
           <p className="mt-1 text-teal-100 text-xs text-center md:hidden">
-            Firm Registration
+            Register
           </p>
         </div>
 
@@ -164,7 +190,7 @@ export default function UserRegistrationPage() {
           <div className="max-w-sm w-full mx-auto">
             <h2 className="text-2xl font-semibold text-gray-900 mb-1">Create an account</h2>
             <p className="text-sm text-gray-500 mb-8">
-              Register your law firm to get started.
+              Register to get started.
             </p>
 
             {/* Google sign-up */}
@@ -201,6 +227,47 @@ export default function UserRegistrationPage() {
             {/* Registration form */}
             <form onSubmit={handleSignUp} className="space-y-4">
               {currentStep === 0 && (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setAccountType("individual")}
+                      className={`flex flex-col items-start gap-2 rounded-xl border-2 p-4 text-left transition-colors ${
+                        accountType === "individual"
+                          ? "border-teal-600 bg-teal-50"
+                          : "border-gray-200 hover:border-gray-300"
+                      }`}
+                    >
+                      <Users className="h-5 w-5 text-teal-600" />
+                      <span className="text-sm font-semibold text-gray-900">Individual</span>
+                      <span className="text-xs text-gray-500">
+                        I'm requesting deliveries or pickups for myself.
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setAccountType("firm")}
+                      className={`flex flex-col items-start gap-2 rounded-xl border-2 p-4 text-left transition-colors ${
+                        accountType === "firm"
+                          ? "border-teal-600 bg-teal-50"
+                          : "border-gray-200 hover:border-gray-300"
+                      }`}
+                    >
+                      <Building2 className="h-5 w-5 text-teal-600" />
+                      <span className="text-sm font-semibold text-gray-900">Firm or Business</span>
+                      <span className="text-xs text-gray-500">
+                        I'm registering on behalf of a company or firm, with a team.
+                      </span>
+                    </button>
+                  </div>
+                  {errors.accountType && (
+                    <p className="mt-1 text-xs text-red-600">{errors.accountType}</p>
+                  )}
+                </>
+              )}
+
+              {currentStep === 1 && (
                 <>
                   {/* First & Last name row */}
                   <div className="grid grid-cols-2 gap-3">
@@ -279,7 +346,7 @@ export default function UserRegistrationPage() {
                 </>
               )}
 
-              {currentStep === 1 && (
+              {currentStep === 2 && (
                 <>
                   <div>
                     <Label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -296,7 +363,7 @@ export default function UserRegistrationPage() {
                         autoComplete="email"
                         required
                         className={inputClass("email")}
-                        placeholder="you@yourfirm.com"
+                        placeholder="you@example.com"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                       />
@@ -369,7 +436,7 @@ export default function UserRegistrationPage() {
               <StepNav
                 currentStep={currentStep}
                 totalSteps={steps.length}
-                onBack={() => setCurrentStep(0)}
+                onBack={handleBack}
                 onNext={handleNext}
                 isLastStep={currentStep === steps.length - 1}
                 submitLabel={loading ? "Creating account…" : "Create Account"}

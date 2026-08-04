@@ -1,10 +1,8 @@
-// @ts-nocheck
-
 "use client"
 
 import React, { useEffect, useState } from 'react';
 import { Button } from "@/components/ui/button";
-import { MapPin, Banknote, Clock, CheckCircle, XCircle, FileText, Calendar, Ban, Car, ListChecks, Loader2 } from "lucide-react";
+import { MapPin, Banknote, Clock, CheckCircle, XCircle, FileText, Calendar, Ban, Car, ListChecks, Loader2, Package, Store, AlertTriangle } from "lucide-react";
 import { db } from '@/utils/firebase';
 import { collection, getDocs, query, where, orderBy, doc, updateDoc } from 'firebase/firestore';
 import { auth } from '@/utils/firebase';
@@ -22,6 +20,11 @@ type Trip = {
   pickupTime: string;
   documentDescription: string;
   requestType: string;
+  serviceCategory?: 'document' | 'parts';
+  itemName?: string;
+  quantity?: number;
+  store?: { id: string; name: string; address: string };
+  priceOverrun?: { actualStorePrice: number; increaseRequired: number } | null;
 };
 
 type GroupedTrips = {
@@ -35,6 +38,8 @@ const statusBorderColor: Record<string, string> = {
   cancelled: "border-l-gray-300",
   pending: "border-l-orange-400",
   "waiting for driver": "border-l-blue-400",
+  "awaiting-price-approval": "border-l-red-400",
+  "awaiting-payment": "border-l-purple-400",
 };
 
 // Pill badge styles for trip status
@@ -44,6 +49,8 @@ const statusPillColors: Record<string, string> = {
   cancelled: "bg-gray-100 text-gray-500 border border-gray-200",
   pending: "bg-orange-100 text-orange-700 border border-orange-200",
   "waiting for driver": "bg-blue-100 text-blue-700 border border-blue-200",
+  "awaiting-price-approval": "bg-red-100 text-red-700 border border-red-200",
+  "awaiting-payment": "bg-purple-100 text-purple-700 border border-purple-200",
 };
 
 // Pill badge styles for payment status
@@ -55,7 +62,7 @@ const paymentPillColors: Record<string, string> = {
 };
 
 const isCancellable = (trip: Trip): boolean => {
-  const cancellableStatuses = ['pending', 'waiting for driver'];
+  const cancellableStatuses = ['pending', 'waiting for driver', 'awaiting-payment'];
   const today = new Date().toISOString().split('T')[0];
   return cancellableStatuses.includes(trip.status) && trip.pickupDate >= today;
 };
@@ -108,6 +115,7 @@ export default function UserTrips() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
   const router = useRouter();
 
@@ -187,6 +195,40 @@ export default function UserTrips() {
       alert('Failed to cancel trip. Please try again.');
     } finally {
       setCancellingId(null);
+    }
+  };
+
+  // Customer approves a driver-reported price increase (parts orders only) —
+  // folds the increase into the total and lets the driver proceed.
+  const handleApproveIncrease = async (e: React.MouseEvent, trip: Trip) => {
+    e.stopPropagation();
+    if (!trip.priceOverrun) return;
+
+    setApprovingId(trip.id);
+    try {
+      const newPrice = Number(
+        ((Number(trip.price) || 0) + Number(trip.priceOverrun.increaseRequired || 0)).toFixed(2)
+      );
+      await updateDoc(doc(db, 'pickupRequests', trip.id), {
+        status: 'in-progress',
+        price: newPrice,
+        priceOverrun: null,
+      });
+
+      setGroupedTrips(prev => {
+        const updated = { ...prev };
+        for (const date in updated) {
+          updated[date] = updated[date].map(t =>
+            t.id === trip.id ? { ...t, status: 'in-progress', price: newPrice, priceOverrun: null } : t
+          );
+        }
+        return updated;
+      });
+    } catch (err) {
+      console.error('Error approving price increase:', err);
+      alert('Failed to approve the price increase. Please try again.');
+    } finally {
+      setApprovingId(null);
     }
   };
 
@@ -349,8 +391,25 @@ export default function UserTrips() {
                             </div>
                           </div>
 
-                          {/* ── Meta row: request type + description ──────── */}
-                          {(trip.requestType || trip.documentDescription) && (
+                          {/* ── Meta row: parts item/store, or request type + description ──────── */}
+                          {trip.serviceCategory === 'parts' ? (
+                            <div className="bg-gray-50 rounded-lg px-3 py-2.5 mb-4 space-y-1.5">
+                              {trip.itemName && (
+                                <div className="flex items-center gap-2 text-sm text-gray-600">
+                                  <Package className="h-3.5 w-3.5 text-teal-500 flex-shrink-0" aria-hidden="true" />
+                                  <span className="font-medium text-gray-700">
+                                    {trip.itemName}{trip.quantity ? ` × ${trip.quantity}` : ''}
+                                  </span>
+                                </div>
+                              )}
+                              {trip.store?.name && (
+                                <div className="flex items-center gap-2 text-xs text-gray-500 pl-5">
+                                  <Store className="h-3 w-3 text-teal-400 flex-shrink-0" aria-hidden="true" />
+                                  {trip.store.name}
+                                </div>
+                              )}
+                            </div>
+                          ) : (trip.requestType || trip.documentDescription) && (
                             <div className="bg-gray-50 rounded-lg px-3 py-2.5 mb-4 space-y-1.5">
                               {trip.requestType && (
                                 <div className="flex items-center gap-2 text-sm text-gray-600">
@@ -365,6 +424,28 @@ export default function UserTrips() {
                                   {trip.documentDescription}
                                 </p>
                               )}
+                            </div>
+                          )}
+
+                          {/* ── Price increase approval (parts orders only) ── */}
+                          {trip.status === 'awaiting-price-approval' && trip.priceOverrun && (
+                            <div className="flex items-center justify-between gap-3 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5 mb-4">
+                              <div className="flex items-start gap-2">
+                                <AlertTriangle className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" aria-hidden="true" />
+                                <p className="text-xs text-red-700 leading-relaxed">
+                                  The store price is {formatCurrency(trip.priceOverrun.actualStorePrice)} — that&apos;s{' '}
+                                  {formatCurrency(trip.priceOverrun.increaseRequired)} more than quoted. Approve to let
+                                  the driver continue.
+                                </p>
+                              </div>
+                              <Button
+                                size="sm"
+                                className="h-8 text-xs px-3 bg-red-600 hover:bg-red-700 text-white shrink-0"
+                                onClick={(e) => handleApproveIncrease(e, trip)}
+                                disabled={approvingId === trip.id}
+                              >
+                                {approvingId === trip.id ? 'Approving…' : 'Approve'}
+                              </Button>
                             </div>
                           )}
 
@@ -409,6 +490,15 @@ export default function UserTrips() {
                                   <CheckCircle className="h-3.5 w-3.5" aria-hidden="true" />
                                   Paid
                                 </span>
+                              ) : trip.status === 'awaiting-payment' ? (
+                                <Button
+                                  size="sm"
+                                  className="h-8 text-xs px-3 bg-teal-600 hover:bg-teal-700 text-white focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+                                  onClick={(e) => { e.stopPropagation(); router.push(`/payment?requestId=${trip.id}`); }}
+                                >
+                                  <Banknote className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
+                                  {trip.payment_status === 'failed' ? 'Retry Payment' : 'Pay Now'}
+                                </Button>
                               ) : trip.payment_status === 'failed' ? (
                                 <Button
                                   size="sm"

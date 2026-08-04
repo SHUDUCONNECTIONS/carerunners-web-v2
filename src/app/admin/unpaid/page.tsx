@@ -20,6 +20,7 @@ import {
   Mail,
   Phone,
   Search,
+  User,
   Users,
 } from "lucide-react"
 import LoadingComponent from "@/components/loader"
@@ -37,9 +38,10 @@ type Trip = {
   requestType: string
 }
 
-type FirmAccount = {
+type CustomerAccount = {
   userId: string
-  firmName: string
+  accountName: string
+  isIndividual: boolean
   adminName: string
   email: string
   phone: string
@@ -48,8 +50,8 @@ type FirmAccount = {
 }
 
 export default function AdminUnpaidPage() {
-  const [accounts, setAccounts] = useState<FirmAccount[]>([])
-  const [filtered, setFiltered] = useState<FirmAccount[]>([])
+  const [accounts, setAccounts] = useState<CustomerAccount[]>([])
+  const [filtered, setFiltered] = useState<CustomerAccount[]>([])
   const [loading, setLoading] = useState(true)
   const [accessDenied, setAccessDenied] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -107,14 +109,19 @@ export default function AdminUnpaidPage() {
         const usersById: Record<string, any> = {}
         usersSnap.docs.forEach((d) => { usersById[d.id] = d.data() })
 
-        const result: FirmAccount[] = Object.entries(byUser).map(([userId, trips]) => {
-          const firm = firmsById[userId] || {}
+        const result: CustomerAccount[] = Object.entries(byUser).map(([userId, trips]) => {
+          // Firm docs get an auto-generated id at signup, never the admin's
+          // own uid — resolve via the user's firmId, not firmsById[userId].
           const user = usersById[userId] || {}
+          const firm = firmsById[user.firmId] || {}
           const total = trips.reduce((sum, t) => sum + parseFloat(t.price || "0"), 0)
+          const isIndividual = user.accountType === "individual"
+          const personName = `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Unknown"
           return {
             userId,
-            firmName: firm.companyName || firm.firmName || "Unknown Firm",
-            adminName: `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Unknown",
+            accountName: firm.companyName || firm.firmName || (isIndividual ? personName : "Unknown Account"),
+            isIndividual,
+            adminName: personName,
             email: user.email || firm.email || "",
             phone: user.phone || firm.phone || firm.contactNumber || "",
             trips,
@@ -146,7 +153,7 @@ export default function AdminUnpaidPage() {
     setFiltered(
       accounts.filter(
         (a) =>
-          a.firmName.toLowerCase().includes(q) ||
+          a.accountName.toLowerCase().includes(q) ||
           a.adminName.toLowerCase().includes(q) ||
           a.email.toLowerCase().includes(q)
       )
@@ -217,7 +224,7 @@ export default function AdminUnpaidPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
               className="pl-9 bg-white"
-              placeholder="Search by firm name, contact, or email..."
+              placeholder="Search by name, contact, or email..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -236,10 +243,16 @@ export default function AdminUnpaidPage() {
                   onClick={() => setExpandedId(isExpanded ? null : account.userId)}
                 >
                   <div className="flex items-start gap-3">
-                    <Building2 className="h-5 w-5 text-teal-600 mt-0.5 shrink-0" />
+                    {account.isIndividual ? (
+                      <User className="h-5 w-5 text-teal-600 mt-0.5 shrink-0" />
+                    ) : (
+                      <Building2 className="h-5 w-5 text-teal-600 mt-0.5 shrink-0" />
+                    )}
                     <div>
-                      <p className="font-semibold text-gray-900">{account.firmName}</p>
-                      <p className="text-sm text-gray-500">{account.adminName}</p>
+                      <p className="font-semibold text-gray-900">{account.accountName}</p>
+                      {!account.isIndividual && (
+                        <p className="text-sm text-gray-500">{account.adminName}</p>
+                      )}
                       <div className="flex flex-wrap gap-3 mt-1">
                         {account.email && (
                           <a

@@ -5,6 +5,7 @@ import ServiceWorkerRegister from "@/components/service-worker-register"
 import InstallPrompt from "@/components/InstallPrompt";
 import { ThemeProvider, themeInitScript } from "@/components/ThemeProvider";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { ServiceBrandProvider } from "@/components/ServiceBrandProvider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -38,10 +39,12 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         <ThemeProvider>
-          <ServiceWorkerRegister />
-          <InstallPrompt />
-          {children}
-          <ThemeToggle />
+          <ServiceBrandProvider>
+            <ServiceWorkerRegister />
+            <InstallPrompt />
+            {children}
+            <ThemeToggle />
+          </ServiceBrandProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -5,8 +5,9 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/utils/firebase';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { MapPin, Calendar, Clock, FileText, DollarSign, Truck, Briefcase, User } from "lucide-react";
+import { MapPin, Calendar, Clock, FileText, DollarSign, Truck, Briefcase, User, Package, Store } from "lucide-react";
 import LoadingComponent from '@/components/loader';
+import { authedFetch } from '@/utils/authedFetch';
 
 
 function formatCurrency(value, locale = 'en-US', currency = 'ZAR') {
@@ -20,18 +21,22 @@ function formatCurrency(value, locale = 'en-US', currency = 'ZAR') {
 
 
 type TripSummaryData = {
-  attorneyName: string;
-  firmName: string;
+  attorneyName?: string;
+  firmName?: string;
   pickupLocation: string;
   dropoffLocation: string;
   pickupDate: string;
   pickupTime: string;
-  documentType: string;
-  documentDescription: string;
-  urgency: string;
-  specialInstructions: string;
+  documentType?: string;
+  documentDescription?: string;
+  urgency?: string;
+  specialInstructions?: string;
   distance: string;
   price: string;
+  serviceCategory?: "document" | "parts";
+  itemName?: string;
+  quantity?: number;
+  store?: { name: string; address: string };
 };
 
 
@@ -85,17 +90,14 @@ export default function TripSummary() {
 
 
       try {
-        // Format the price to always have two decimal places
-        const formattedPrice = parseFloat(tripData.price).toFixed(2);
-
-
-        const response = await fetch("/api/prepare-checkout", {
+        const response = await authedFetch("/api/prepare-checkout", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            price: formattedPrice,
+            type: "trip",
+            requestId,
           }),
         });
 
@@ -128,7 +130,13 @@ export default function TripSummary() {
       script.async = true;
       document.body.appendChild(script);
       return () => {
-        document.body.removeChild(script);
+        // The Peach Payments widget can mutate/move the DOM around this
+        // script tag once it initializes, so it may no longer be a direct
+        // child of <body> by the time this cleanup runs — removeChild would
+        // throw NotFoundError in that case.
+        if (script.parentNode) {
+          script.parentNode.removeChild(script);
+        }
       };
     }
   }, [checkoutId]);
@@ -150,6 +158,7 @@ export default function TripSummary() {
 
 
   const formattedPrice = formatCurrency(parseFloat(tripData.price));
+  const isParts = tripData.serviceCategory === "parts";
 
 
   return (
@@ -157,24 +166,56 @@ export default function TripSummary() {
       <div className="max-w-3xl mx-auto">
         <Card>
           <CardHeader className="bg-teal-600 text-white">
-            <CardTitle className="text-2xl font-bold">Trip Summary</CardTitle>
+            <CardTitle className="text-2xl font-bold">
+              {isParts ? "Order Summary" : "Trip Summary"}
+            </CardTitle>
           </CardHeader>
           <CardContent className="mt-6">
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <User className="h-5 w-5 text-teal-600" />
-                  <span className="font-semibold">Attorney:</span>
-                </div>
-                <span>{tripData.attorneyName}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Briefcase className="h-5 w-5 text-teal-600" />
-                  <span className="font-semibold">Firm:</span>
-                </div>
-                <span>{tripData.firmName}</span>
-              </div>
+              {isParts ? (
+                <>
+                  {tripData.itemName && (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Package className="h-5 w-5 text-teal-600" />
+                        <span className="font-semibold">Item:</span>
+                      </div>
+                      <span>
+                        {tripData.itemName}
+                        {tripData.quantity ? ` × ${tripData.quantity}` : ""}
+                      </span>
+                    </div>
+                  )}
+                  {tripData.store?.name && (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Store className="h-5 w-5 text-teal-600" />
+                        <span className="font-semibold">Store:</span>
+                      </div>
+                      <span>{tripData.store.name}</span>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <User className="h-5 w-5 text-teal-600" />
+                      <span className="font-semibold">Requested by:</span>
+                    </div>
+                    <span>{tripData.attorneyName}</span>
+                  </div>
+                  {tripData.firmName && (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Briefcase className="h-5 w-5 text-teal-600" />
+                        <span className="font-semibold">Company / Firm:</span>
+                      </div>
+                      <span>{tripData.firmName}</span>
+                    </div>
+                  )}
+                </>
+              )}
               <Separator />
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
@@ -205,36 +246,33 @@ export default function TripSummary() {
                 </div>
                 <span>{tripData.pickupTime}</span>
               </div>
-              <Separator />
-              {/* <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <FileText className="h-5 w-5 text-teal-600" />
-                  <span className="font-semibold">Document Type:</span>
-                </div>
-                <span>{tripData.documentType}</span>
-              </div> */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <FileText className="h-5 w-5 text-teal-600" />
-                  <span className="font-semibold">Description:</span>
-                </div>
-                <span>{tripData.documentDescription}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Truck className="h-5 w-5 text-teal-600" />
-                  <span className="font-semibold">Urgency:</span>
-                </div>
-                <span className="capitalize">{tripData.urgency}</span>
-              </div>
-              {tripData.specialInstructions && (
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <FileText className="h-5 w-5 text-teal-600" />
-                    <span className="font-semibold">Special Instructions:</span>
+              {!isParts && (
+                <>
+                  <Separator />
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <FileText className="h-5 w-5 text-teal-600" />
+                      <span className="font-semibold">Description:</span>
+                    </div>
+                    <span>{tripData.documentDescription}</span>
                   </div>
-                  <span>{tripData.specialInstructions}</span>
-                </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Truck className="h-5 w-5 text-teal-600" />
+                      <span className="font-semibold">Urgency:</span>
+                    </div>
+                    <span className="capitalize">{tripData.urgency}</span>
+                  </div>
+                  {tripData.specialInstructions && (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <FileText className="h-5 w-5 text-teal-600" />
+                        <span className="font-semibold">Special Instructions:</span>
+                      </div>
+                      <span>{tripData.specialInstructions}</span>
+                    </div>
+                  )}
+                </>
               )}
               <Separator />
               <div className="flex items-center justify-between">

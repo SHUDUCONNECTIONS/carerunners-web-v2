@@ -112,6 +112,9 @@ export default function PricingPage() {
   const [isPaid, setIsPaid] = useState(false);
   const [firmId, setFirmId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Individuals pay per trip (see /payment, /billing) rather than a seat
+  // plan, so they get a simple explainer here instead of the plan grid.
+  const [isIndividual, setIsIndividual] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -132,6 +135,11 @@ export default function PricingPage() {
       const userDoc = await getDoc(doc(db, "users", userId));
       if (userDoc.exists()) {
         const userData = userDoc.data();
+        if (userData.accountType === "individual") {
+          setIsIndividual(true);
+          setLoading(false);
+          return;
+        }
         if (userData.firmId) {
           setFirmId(userData.firmId);
           fetchFirmData(userData.firmId);
@@ -328,6 +336,39 @@ export default function PricingPage() {
 
   if (loading) {
     return <LoadingComponent />;
+  }
+
+  if (isIndividual) {
+    return (
+      <div className="min-h-screen bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-lg mx-auto">
+          <Card>
+            <CardHeader className="bg-teal-600 text-white">
+              <CardTitle className="text-2xl font-bold text-center">
+                Pay as You Go
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="mt-6 text-center space-y-4">
+              <p className="text-gray-600">
+                Individual accounts don&apos;t need a monthly plan — you&apos;re billed per
+                trip when you request a pickup, delivery, or parts order.
+              </p>
+              <p className="text-gray-500 text-sm">
+                Team/seat-based plans are only for firm and business accounts.
+              </p>
+            </CardContent>
+            <CardFooter>
+              <Button
+                className="w-full bg-teal-600 hover:bg-teal-700 text-white"
+                onClick={() => router.push("/dashboard")}
+              >
+                Go to Dashboard
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
+      </div>
+    );
   }
 
   if (currentPlan && isPaid) {

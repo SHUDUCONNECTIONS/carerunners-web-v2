@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Building2, User, DollarSign, Calendar, CheckCircle } from "lucide-react";
 import LoadingComponent from '@/components/loader';
+import { authedFetch } from '@/utils/authedFetch';
 
 function formatCurrency(value: number, locale = 'en-US', currency = 'ZAR') {
   return new Intl.NumberFormat(locale, {
@@ -112,13 +113,14 @@ export default function PlanPaymentSummary() {
       if (!planData) return;
 
       try {
-        const response = await fetch("/api/prepare-checkout", {
+        const response = await authedFetch("/api/prepare-checkout", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            price: planData.planPrice.toFixed(2),
+            type: "plan",
+            firmId,
           }),
         });
 
@@ -147,7 +149,13 @@ export default function PlanPaymentSummary() {
       script.async = true;
       document.body.appendChild(script);
       return () => {
-        document.body.removeChild(script);
+        // The Peach Payments widget can mutate/move the DOM around this
+        // script tag once it initializes, so it may no longer be a direct
+        // child of <body> by the time this cleanup runs — removeChild would
+        // throw NotFoundError in that case.
+        if (script.parentNode) {
+          script.parentNode.removeChild(script);
+        }
       };
     }
   }, [checkoutId]);

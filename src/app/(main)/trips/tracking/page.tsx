@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db, rtdb } from "@/utils/firebase";
 import { ref, onValue, off } from "firebase/database";
-import { GoogleMap, LoadScript, Marker } from "@react-google-maps/api";
+import { GoogleMap, Marker } from "@react-google-maps/api";
 import {
   Clock,
   CheckCircle,
@@ -15,11 +15,15 @@ import {
   FileText,
   Phone,
   CreditCard,
+  Package,
+  Store,
+  AlertTriangle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSearchParams } from "next/navigation";
 import LoadingComponent from "@/components/loader";
 import Image from "next/image";
+import { useGoogleMapsLoader } from "@/components/GoogleMapsLoaderProvider";
 
 // Updated interfaces
 interface DriverInfo {
@@ -52,6 +56,7 @@ interface Trip {
     | "in-progress"
     | "out-for-delivery"
     | "arrived"
+    | "awaiting-price-approval"
     | "completed"
     | "cancelled";
   payment_status: "paid" | "pending" | "failed";
@@ -59,6 +64,11 @@ interface Trip {
   pickupLocation: string;
   dropoffLocations: DropoffLocation[];
   price: number;
+  serviceCategory?: "document" | "parts";
+  itemName?: string;
+  quantity?: number;
+  store?: { id: string; name: string; address: string };
+  priceOverrun?: { actualStorePrice: number; increaseRequired: number } | null;
 }
 
 const deliverySteps = [
@@ -75,6 +85,7 @@ const statusToStep = {
   "in-progress": 2,
   "out-for-delivery": 2,
   arrived: 2,
+  "awaiting-price-approval": 2,
   completed: 3,
   cancelled: 0,
 };
@@ -86,6 +97,7 @@ const statusColors: Record<string, string> = {
   "in-progress": "bg-yellow-100 text-yellow-800",
   "out-for-delivery": "bg-orange-100 text-orange-800",
   arrived: "bg-pink-100 text-pink-800",
+  "awaiting-price-approval": "bg-red-100 text-red-800",
   completed: "bg-green-100 text-green-800",
   cancelled: "bg-red-100 text-red-800",
 };
@@ -110,6 +122,8 @@ export default function TripDetailsPage() {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [driverLocation, setDriverLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [approving, setApproving] = useState(false);
+  const { isLoaded: mapsReady } = useGoogleMapsLoader();
 
   const fetchTripDetails = async () => {
     if (!tripId) {
@@ -195,6 +209,27 @@ export default function TripDetailsPage() {
 
     return () => off(locationRef);
   }, [trip?.driverId, trip?.status]);
+
+  const handleApproveIncrease = async () => {
+    if (!trip?.priceOverrun || !tripId) return;
+    setApproving(true);
+    try {
+      const newPrice = Number(
+        ((Number(trip.price) || 0) + Number(trip.priceOverrun.increaseRequired || 0)).toFixed(2)
+      );
+      await updateDoc(doc(db, "pickupRequests", tripId), {
+        status: "in-progress",
+        price: newPrice,
+        priceOverrun: null,
+      });
+      await fetchTripDetails();
+    } catch (err) {
+      console.error("Error approving price increase:", err);
+      alert("Failed to approve the price increase. Please try again.");
+    } finally {
+      setApproving(false);
+    }
+  };
 
   if (loading) return <LoadingComponent />;
 
@@ -295,6 +330,49 @@ export default function TripDetailsPage() {
           </div>
         </div>
 
+        {/* Parts Order Card */}
+        {trip.serviceCategory === "parts" && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-4 space-y-2">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Your Order</p>
+            {trip.itemName && (
+              <div className="flex items-center gap-2 text-sm text-gray-700">
+                <Package className="h-4 w-4 text-teal-500 flex-shrink-0" aria-hidden="true" />
+                <span className="font-medium">
+                  {trip.itemName}{trip.quantity ? ` × ${trip.quantity}` : ""}
+                </span>
+              </div>
+            )}
+            {trip.store?.name && (
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <Store className="h-4 w-4 text-teal-400 flex-shrink-0" aria-hidden="true" />
+                {trip.store.name}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Price Increase Approval Card */}
+        {trip.status === "awaiting-price-approval" && trip.priceOverrun && (
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-5 mb-4 flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" aria-hidden="true" />
+            <div className="flex-1">
+              <p className="text-sm text-red-800 font-medium mb-1">Price at the store is higher than quoted</p>
+              <p className="text-xs text-red-700 leading-relaxed mb-3">
+                The store price is {formatCurrency(trip.priceOverrun.actualStorePrice)} — that&apos;s{" "}
+                {formatCurrency(trip.priceOverrun.increaseRequired)} more than quoted. Approve to let the driver
+                continue with the purchase.
+              </p>
+              <button
+                onClick={handleApproveIncrease}
+                disabled={approving}
+                className="text-xs font-semibold bg-red-600 hover:bg-red-700 text-white rounded-lg px-4 py-2 disabled:opacity-60"
+              >
+                {approving ? "Approving…" : "Approve increase"}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Driver Info Card */}
         {driverInfo && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-4">
@@ -346,7 +424,7 @@ export default function TripDetailsPage() {
         )}
 
         {/* Live Map Card */}
-        {driverLocation && (
+        {driverLocation && mapsReady && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 mb-4 overflow-hidden">
             <div className="px-5 py-4 flex items-center gap-2">
               <span className="relative flex h-3 w-3">
@@ -356,21 +434,19 @@ export default function TripDetailsPage() {
               <span className="text-sm font-semibold text-gray-800">Live Location</span>
             </div>
             <div className="rounded-b-2xl overflow-hidden">
-              <LoadScript googleMapsApiKey="AIzaSyAuzjtvfjuDgxVfuCmpeeoOyOy53eadqcc">
-                <GoogleMap
-                  mapContainerStyle={{ width: "100%", height: "280px" }}
-                  center={driverLocation}
-                  zoom={15}
-                >
-                  <Marker
-                    position={driverLocation}
-                    title="Driver"
-                    icon={{
-                      url: "https://maps.google.com/mapfiles/ms/icons/blue-dot.png",
-                    }}
-                  />
-                </GoogleMap>
-              </LoadScript>
+              <GoogleMap
+                mapContainerStyle={{ width: "100%", height: "280px" }}
+                center={driverLocation}
+                zoom={15}
+              >
+                <Marker
+                  position={driverLocation}
+                  title="Driver"
+                  icon={{
+                    url: "https://maps.google.com/mapfiles/ms/icons/blue-dot.png",
+                  }}
+                />
+              </GoogleMap>
             </div>
           </div>
         )}

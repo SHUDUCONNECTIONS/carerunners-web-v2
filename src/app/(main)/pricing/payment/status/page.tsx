@@ -5,9 +5,8 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, Clock, AlertTriangle } from "lucide-react";
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
-import { db, auth } from '@/utils/firebase';
 import LoadingComponent from '@/components/loader'
+import { authedFetch } from '@/utils/authedFetch';
 
 const INITIAL_DELAY = 2000; // 2 seconds
 
@@ -19,80 +18,27 @@ export default function PaymentStatusPage() {
   const [error, setError] = useState(null);
   const apiCalledRef = useRef(false);
 
-  const updateFirestore = async (status: string) => {
-    const firmId = searchParams.get('firmId');
-    const planName = searchParams.get('plan');
-    if (!firmId || !planName) {
-      console.error('No firm ID or plan name provided');
-      return;
-    }
-
-    try {
-      const docRef = doc(db, 'firms', firmId);
-      await updateDoc(docRef, {
-        planName: planName,
-        paymentStatus: status,
-        lastPaymentDate: new Date().toISOString()
-      });
-    } catch (error) {
-      console.error('Error updating Firestore document: ', error);
-    }
-  };
-
-  const sendEmail = async (email: string, amount: number, date: string, brand: string, planName: string) => {
-    try {
-      const res = await fetch('/api/send-plan-confirmation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, amount, date, brand, planName })
-      });
-
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
-
-      await res.json();
-    } catch (error) {
-      console.error('Error sending plan confirmation email:', error);
-    }
-  };
-
+  // Marking the firm's plan paid and emailing the confirmation now happens
+  // server-side in /api/check-payment-status, which re-verifies the payment
+  // with Peach before writing anything.
   const checkPayment = useCallback(async (id) => {
     if (apiCalledRef.current) return;
     apiCalledRef.current = true;
 
     try {
-      const res = await fetch(`/api/check-payment-status?id=${id}`);
+      const res = await authedFetch(`/api/check-payment-status?id=${id}`);
       if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);
       }
       const data = await res.json();
       setPaymentData(data);
-      
-      // Update Firestore based on payment status
-      if (data.result && data.result.code.startsWith("000.")) {
-        await updateFirestore('paid');
-
-        // Get the authenticated user's email and firm details
-        const user = auth.currentUser;
-        if (user) {
-          const firmId = searchParams.get('firmId');
-          const firmDoc = await getDoc(doc(db, 'firms', firmId));
-          const firmData = firmDoc.data();
-          await sendEmail(user.email, data.amount, data.timestamp, data.paymentBrand, firmData.planName);
-        }
-      } else if (data.result && (data.result.code.startsWith("100.") || data.result.code.startsWith("200."))) {
-        await updateFirestore('pending');
-      } else {
-        await updateFirestore('failed');
-      }
     } catch (error) {
       console.error('Error fetching payment status:', error);
       setError(error.message);
     } finally {
       setIsLoading(false);
     }
-  }, [searchParams]);
+  }, []);
 
   useEffect(() => {
     const paymentId = searchParams.get('id');

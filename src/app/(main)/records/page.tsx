@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { FileText, MoreVertical, Download, Trash, Eye } from "lucide-react"
 import { db, auth } from "@/utils/firebase"
-import { collection, query, where, getDocs, deleteDoc, doc } from "firebase/firestore"
+import { collection, getDocs, deleteDoc, doc, getDoc } from "firebase/firestore"
 import { onAuthStateChanged } from "firebase/auth"
 import { useRouter } from "next/navigation"
 import LoadingComponent from "@/components/loader"
@@ -37,7 +37,7 @@ type Document = {
   firmId: string
 }
 
-export default function LawyerDocuments() {
+export default function DocumentRecords() {
   const [documents, setDocuments] = useState<Document[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [loading, setLoading] = useState(true)
@@ -65,14 +65,16 @@ export default function LawyerDocuments() {
 
       try {
         setLoading(true)
-        const firmsCollection = collection(db, "firms")
-        const userFirmsQuery = query(firmsCollection, where("adminId", "==", user.uid))
-        const firmsSnapshot = await getDocs(userFirmsQuery)
+        // Resolve the user's firm via users/{uid}.firmId rather than
+        // firms.adminId — invited firm members only ever get a firmId on
+        // their own user doc, never an adminId entry on the firm.
+        const userDocSnap = await getDoc(doc(db, "users", user.uid))
+        const firmId = userDocSnap.exists() ? userDocSnap.data().firmId : null
 
         const allDocuments: Document[] = []
 
-        for (const firmDoc of firmsSnapshot.docs) {
-          const documentsCollection = collection(db, "firms", firmDoc.id, "documents")
+        if (firmId) {
+          const documentsCollection = collection(db, "firms", firmId, "documents")
           const documentsSnapshot = await getDocs(documentsCollection)
 
           documentsSnapshot.forEach((doc) => {
@@ -84,7 +86,7 @@ export default function LawyerDocuments() {
               uploadedAt: data.uploadedAt.toDate().toLocaleDateString(),
               fileUrl: data.fileUrl,
               description: data.description,
-              firmId: firmDoc.id
+              firmId: firmId
             })
           })
         }
@@ -141,7 +143,7 @@ export default function LawyerDocuments() {
       <div className="max-w-4xl mx-auto">
         <Card>
           <CardHeader className="bg-teal-600 text-white">
-            <CardTitle className="text-2xl font-bold">Firm Records</CardTitle>
+            <CardTitle className="text-2xl font-bold">My Records</CardTitle>
           </CardHeader>
           <CardContent className="mt-6">
             <div className="mb-4">

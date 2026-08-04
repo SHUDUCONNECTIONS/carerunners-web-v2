@@ -1,10 +1,8 @@
-// @ts-nocheck
-
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useForm, Controller } from "react-hook-form";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -27,10 +25,10 @@ import {
   User,
   Briefcase,
   Phone,
+  ArrowRight,
 } from "lucide-react";
 import {
   GoogleMap,
-  LoadScript,
   Autocomplete,
   Marker,
 } from "@react-google-maps/api";
@@ -40,6 +38,9 @@ import { ref, set } from "firebase/database";
 import { onAuthStateChanged } from "firebase/auth";
 import LoadingComponent from "@/components/loader";
 import { StepIndicator, StepNav } from "@/components/Stepper";
+import PartsRequestFlow from "./PartsRequestFlow";
+import { useServiceBrand } from "@/components/ServiceBrandProvider";
+import { useGoogleMapsLoader } from "@/components/GoogleMapsLoaderProvider";
 
 // Cache object for storing distance calculations
 const distanceCache = new Map();
@@ -55,6 +56,25 @@ const defaultCenter = {
 };
 
 export default function AttorneyDocumentPickup() {
+  const searchParams = useSearchParams();
+  // Lets promo links (e.g. the dashboard's Auto Parts Delivery banner) jump
+  // straight into that flow instead of stopping at the category picker.
+  const [serviceCategory, setServiceCategory] = useState<"document" | "parts" | null>(
+    searchParams.get("service") === "parts" ? "parts" : null
+  );
+  const { setBrand } = useServiceBrand();
+  const { isLoaded: mapsReady } = useGoogleMapsLoader();
+
+  // Reskins the whole app (sidebar, footer, etc. — see ServiceBrandProvider)
+  // to PartRunner's red while the customer is in the Auto Parts flow. Resets
+  // to Carerunners teal on category change AND on unmount, so navigating
+  // away from /request entirely (dashboard, trips, etc.) never leaves the
+  // rest of the app stuck in PartRunner branding.
+  useEffect(() => {
+    setBrand(serviceCategory === "parts" ? "partrunner" : "carerunners");
+    return () => setBrand("carerunners");
+  }, [serviceCategory, setBrand]);
+
   const [pickupCoords, setPickupCoords] = useState(defaultCenter);
   const [dropoffCoords, setDropoffCoords] = useState(null);
   const [distance, setDistance] = useState(null);
@@ -64,6 +84,9 @@ export default function AttorneyDocumentPickup() {
   const today = new Date().toISOString().split("T")[0];
   const [pickupAutocomplete, setPickupAutocomplete] = useState(null);
   const [dropoffAutocomplete, setDropoffAutocomplete] = useState(null);
+  // Individuals pay upfront before a trip is scheduled (no unpaid-balance
+  // deferral); firm accounts keep the existing pay-after-completion flow.
+  const [isIndividual, setIsIndividual] = useState(false);
 
   // Wizard state
   const steps = ["Trip Details", "Sender & Receiver", "Locations", "Schedule", "Document Info", "Terms"];
@@ -138,6 +161,7 @@ export default function AttorneyDocumentPickup() {
     receiverNumber: "",
     documentDescription: "",
     requestType: "",
+    agreeToTerms: false,
   };
 
   const {
@@ -154,7 +178,7 @@ export default function AttorneyDocumentPickup() {
   });
 
   // Fields belonging to each wizard step, used for per-step validation
-  const stepFields = [
+  const stepFields: (keyof typeof defaultValues)[][] = [
     ["attorneyName", "firmName"],
     ["senderName", "senderNumber", "receiverName", "receiverNumber"],
     ["pickupLocation", "dropoffLocation"],
@@ -184,19 +208,25 @@ export default function AttorneyDocumentPickup() {
       if (user) {
         try {
           const userDoc = await getDoc(doc(db, "users", user.uid));
-          const firmDoc = await getDoc(doc(db, "firms", user.uid));
+          // Resolve via users/{uid}.firmId, not firms/{uid} — firm docs get
+          // an auto-generated id at signup, never the admin's own uid.
+          const firmId = userDoc.exists() ? userDoc.data().firmId : null;
+          const firmDoc = firmId ? await getDoc(doc(db, "firms", firmId)) : null;
 
-          if (userDoc.exists() && firmDoc.exists()) {
+          if (userDoc.exists()) {
             const userData = userDoc.data();
-            const firmData = firmDoc.data();
+            const firmData = firmDoc?.exists() ? firmDoc.data() : null;
+            setIsIndividual(userData.accountType === "individual");
 
-            // Update form values
+            // Update form values — company/firm name and address only
+            // prefill when there's real company data (firm accounts);
+            // individuals just get their own name filled in.
             reset({
               ...defaultValues,
               attorneyName: `${userData.firstName} ${userData.lastName}`,
-              firmName: firmData.companyName,
+              firmName: firmData?.companyName || "",
               barNumber: userData.barNumber || "",
-              pickupLocation: firmData.address || "",
+              pickupLocation: firmData?.address || "",
             });
           }
         } catch (error) {
@@ -233,21 +263,24 @@ export default function AttorneyDocumentPickup() {
     return price.toFixed(2);
   };
 
-  const onSubmit = async (data: FormData) => {
+  const onSubmit = async (data: typeof defaultValues) => {
     const user = auth.currentUser;
     if (user) {
       try {
         const calculatedPrice = calculatePrice(parseFloat(distance));
         setPrice(calculatedPrice);
 
-        // Save pickup request data
+        // Save pickup request data. Individuals aren't driver-visible
+        // ("pending") until they've paid — check-payment-status flips this
+        // to "pending" once the upfront payment clears. Firm accounts keep
+        // the existing behavior: visible immediately, billed later.
         const requestId = `${user.uid}_${Date.now()}`;
         const requestData = {
           ...data,
           userId: user.uid,
           distance: distance,
           price: calculatedPrice,
-          status: "pending",
+          status: isIndividual ? "awaiting-payment" : "pending",
           payment_status: "unpaid",
           createdAt: new Date(),
         };
@@ -258,7 +291,7 @@ export default function AttorneyDocumentPickup() {
           createdAt: Date.now(),
         });
 
-        router.push("/trips");
+        router.push(isIndividual ? `/payment?requestId=${requestId}` : "/trips");
       } catch (error) {
         console.error("Error saving pickup request:", error);
       }
@@ -269,11 +302,78 @@ export default function AttorneyDocumentPickup() {
     return <LoadingComponent />;
   }
 
+  // ── Category picker — the "what do you need?" screen, same relationship
+  // Auto Parts Delivery has to Legal Document Pickup that Pick n Pay has to
+  // Uber Eats: one platform, one login, pick a service and go. ──
+  if (!serviceCategory) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <main className="container mx-auto px-4 py-8 max-w-2xl">
+          <div className="mb-7">
+            <h1 className="text-2xl font-bold text-gray-900">What do you need picked up?</h1>
+            <p className="text-sm text-gray-500 mt-1">Choose a service to get started.</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <button
+              type="button"
+              onClick={() => setServiceCategory("document")}
+              className="text-left h-full bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col gap-4 hover:-translate-y-0.5 hover:shadow-md hover:border-teal-100 transition-all duration-200"
+            >
+              <div className="w-12 h-12 rounded-xl bg-teal-50 flex items-center justify-center shrink-0 overflow-hidden">
+                <img src="/carerunnerlogo.png" alt="Carerunners" className="h-8 w-8 object-contain" />
+              </div>
+              <div className="flex-1">
+                <p className="text-base font-bold text-gray-900">Legal Document Pickup</p>
+                <p className="mt-1 text-sm text-gray-500 leading-relaxed">
+                  Schedule a courier pickup for legal or important documents — between offices, courts, and individuals.
+                </p>
+              </div>
+              <span className="text-sm font-semibold text-teal-600 flex items-center gap-1">
+                Get started <ArrowRight className="h-4 w-4" />
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setServiceCategory("parts")}
+              className="text-left h-full bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col gap-4 hover:-translate-y-0.5 hover:shadow-md hover:border-teal-100 transition-all duration-200"
+            >
+              <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center shrink-0 overflow-hidden">
+                <img src="/partrunnerlogo.png" alt="PartRunner" className="h-8 w-8 object-contain" />
+              </div>
+              <div className="flex-1">
+                <p className="text-base font-bold text-gray-900">Auto Parts Delivery</p>
+                <p className="mt-1 text-sm text-gray-500 leading-relaxed">
+                  Need a car or truck part? We&apos;ll find it at a nearby store and deliver it to you.
+                </p>
+              </div>
+              <span className="text-sm font-semibold text-teal-600 flex items-center gap-1">
+                Get started <ArrowRight className="h-4 w-4" />
+              </span>
+            </button>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (serviceCategory === "parts") {
+    return <PartsRequestFlow onBack={() => setServiceCategory(null)} />;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <main className="container mx-auto px-4 py-8 max-w-2xl">
 
         {/* Page header */}
+        <button
+          type="button"
+          onClick={() => setServiceCategory(null)}
+          className="text-sm font-medium text-gray-500 hover:text-teal-700 mb-3"
+        >
+          ← Change service
+        </button>
         <div className="mb-7">
           <h1 className="text-2xl font-bold text-gray-900">Request Document Pick-up</h1>
           <p className="text-sm text-gray-500 mt-1">Fill in the details below to schedule a courier pickup.</p>
@@ -292,20 +392,20 @@ export default function AttorneyDocumentPickup() {
               <div className="h-px bg-gray-100 mb-5" />
 
               <div className="space-y-4">
-                {/* Attorney Name */}
+                {/* Requester Name */}
                 <div>
                   <Label htmlFor="attorneyName" className="text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
                     <User className="h-4 w-4 text-gray-400" />
-                    Attorney Name
+                    Your Name
                   </Label>
                   <Controller
                     name="attorneyName"
                     control={control}
-                    rules={{ required: "Attorney Name is required" }}
+                    rules={{ required: "Your name is required" }}
                     render={({ field }) => (
                       <Input
                         id="attorneyName"
-                        placeholder="Enter attorney name"
+                        placeholder="Enter your name"
                         {...field}
                         className={`h-11 rounded-xl border-gray-200 focus:ring-teal-500 focus:border-teal-500 ${errors.attorneyName ? "border-red-400" : ""}`}
                       />
@@ -316,28 +416,25 @@ export default function AttorneyDocumentPickup() {
                   )}
                 </div>
 
-                {/* Firm Name */}
+                {/* Company / Firm (optional — individuals can leave this blank) */}
                 <div>
                   <Label htmlFor="firmName" className="text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
                     <Briefcase className="h-4 w-4 text-gray-400" />
-                    Firm Name
+                    Company / Firm
+                    <span className="ml-auto text-xs font-normal text-gray-400">Optional</span>
                   </Label>
                   <Controller
                     name="firmName"
                     control={control}
-                    rules={{ required: "Firm Name is required" }}
                     render={({ field }) => (
                       <Input
                         id="firmName"
-                        placeholder="Enter firm name"
+                        placeholder="If applicable"
                         {...field}
-                        className={`h-11 rounded-xl border-gray-200 focus:ring-teal-500 focus:border-teal-500 ${errors.firmName ? "border-red-400" : ""}`}
+                        className="h-11 rounded-xl border-gray-200 focus:ring-teal-500 focus:border-teal-500"
                       />
                     )}
                   />
-                  {errors.firmName && (
-                    <p className="text-xs text-red-500 mt-1">{errors.firmName.message}</p>
-                  )}
                 </div>
               </div>
             </section>
@@ -445,7 +542,7 @@ export default function AttorneyDocumentPickup() {
             </section>
           )}
 
-          {/* ── Section: Locations (contains LoadScript + Map) ── */}
+          {/* ── Section: Locations (Autocomplete + Map — script loaded once via GoogleMapsLoaderProvider) ── */}
           {currentStep === 2 && (
             <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
               <h2 className="text-sm font-semibold uppercase tracking-widest text-gray-400 mb-4">
@@ -453,11 +550,7 @@ export default function AttorneyDocumentPickup() {
               </h2>
               <div className="h-px bg-gray-100 mb-5" />
 
-              <LoadScript
-                googleMapsApiKey="AIzaSyAuzjtvfjuDgxVfuCmpeeoOyOy53eadqcc"
-                libraries={["places"]}
-              >
-                <div className="space-y-4">
+              <div className="space-y-4">
                   {/* Pickup Location */}
                   <div>
                     <Label htmlFor="pickupLocation" className="text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
@@ -468,38 +561,49 @@ export default function AttorneyDocumentPickup() {
                       name="pickupLocation"
                       control={control}
                       rules={{ required: "Pickup location is required" }}
-                      render={({ field }) => (
-                        <Autocomplete
-                          onLoad={(autocomplete) => {
-                            setPickupAutocomplete(autocomplete);
-                            autocomplete.setComponentRestrictions({
-                              country: "za",
-                            });
-                          }}
-                          onPlaceChanged={() => {
-                            if (pickupAutocomplete) {
-                              const place = pickupAutocomplete.getPlace();
-                              if (place.geometry) {
-                                const location = {
-                                  lat: place.geometry.location.lat(),
-                                  lng: place.geometry.location.lng(),
-                                };
-                                setPickupCoords(location);
-                                field.onChange(place.formatted_address);
+                      render={({ field }) =>
+                        mapsReady ? (
+                          <Autocomplete
+                            onLoad={(autocomplete) => {
+                              setPickupAutocomplete(autocomplete);
+                              autocomplete.setComponentRestrictions({
+                                country: "za",
+                              });
+                            }}
+                            onPlaceChanged={() => {
+                              if (pickupAutocomplete) {
+                                const place = pickupAutocomplete.getPlace();
+                                if (place.geometry) {
+                                  const location = {
+                                    lat: place.geometry.location.lat(),
+                                    lng: place.geometry.location.lng(),
+                                  };
+                                  setPickupCoords(location);
+                                  field.onChange(place.formatted_address);
+                                }
                               }
-                            }
-                          }}
-                        >
+                            }}
+                          >
+                            <Input
+                              type="text"
+                              id="pickupLocation"
+                              value={field.value}
+                              onChange={(e) => field.onChange(e.target.value)}
+                              placeholder="Search pickup address…"
+                              className={`h-11 rounded-xl border-gray-200 focus:ring-teal-500 focus:border-teal-500 ${errors.pickupLocation ? "border-red-400" : ""}`}
+                            />
+                          </Autocomplete>
+                        ) : (
                           <Input
                             type="text"
                             id="pickupLocation"
                             value={field.value}
-                            onChange={(e) => field.onChange(e.target.value)}
-                            placeholder="Search pickup address…"
-                            className={`h-11 rounded-xl border-gray-200 focus:ring-teal-500 focus:border-teal-500 ${errors.pickupLocation ? "border-red-400" : ""}`}
+                            disabled
+                            placeholder="Loading maps…"
+                            className="h-11 rounded-xl border-gray-200"
                           />
-                        </Autocomplete>
-                      )}
+                        )
+                      }
                     />
                     {errors.pickupLocation && (
                       <p className="text-xs text-red-500 mt-1">{errors.pickupLocation.message}</p>
@@ -516,38 +620,49 @@ export default function AttorneyDocumentPickup() {
                       name="dropoffLocation"
                       control={control}
                       rules={{ required: "Dropoff location is required" }}
-                      render={({ field }) => (
-                        <Autocomplete
-                          onLoad={(autocomplete) => {
-                            setDropoffAutocomplete(autocomplete);
-                            autocomplete.setComponentRestrictions({
-                              country: "za",
-                            });
-                          }}
-                          onPlaceChanged={() => {
-                            if (dropoffAutocomplete) {
-                              const place = dropoffAutocomplete.getPlace();
-                              if (place.geometry) {
-                                const location = {
-                                  lat: place.geometry.location.lat(),
-                                  lng: place.geometry.location.lng(),
-                                };
-                                setDropoffCoords(location);
-                                field.onChange(place.formatted_address);
+                      render={({ field }) =>
+                        mapsReady ? (
+                          <Autocomplete
+                            onLoad={(autocomplete) => {
+                              setDropoffAutocomplete(autocomplete);
+                              autocomplete.setComponentRestrictions({
+                                country: "za",
+                              });
+                            }}
+                            onPlaceChanged={() => {
+                              if (dropoffAutocomplete) {
+                                const place = dropoffAutocomplete.getPlace();
+                                if (place.geometry) {
+                                  const location = {
+                                    lat: place.geometry.location.lat(),
+                                    lng: place.geometry.location.lng(),
+                                  };
+                                  setDropoffCoords(location);
+                                  field.onChange(place.formatted_address);
+                                }
                               }
-                            }
-                          }}
-                        >
+                            }}
+                          >
+                            <Input
+                              type="text"
+                              id="dropoffLocation"
+                              value={field.value}
+                              onChange={(e) => field.onChange(e.target.value)}
+                              placeholder="Search dropoff address…"
+                              className={`h-11 rounded-xl border-gray-200 focus:ring-teal-500 focus:border-teal-500 ${errors.dropoffLocation ? "border-red-400" : ""}`}
+                            />
+                          </Autocomplete>
+                        ) : (
                           <Input
                             type="text"
                             id="dropoffLocation"
                             value={field.value}
-                            onChange={(e) => field.onChange(e.target.value)}
-                            placeholder="Search dropoff address…"
-                            className={`h-11 rounded-xl border-gray-200 focus:ring-teal-500 focus:border-teal-500 ${errors.dropoffLocation ? "border-red-400" : ""}`}
+                            disabled
+                            placeholder="Loading maps…"
+                            className="h-11 rounded-xl border-gray-200"
                           />
-                        </Autocomplete>
-                      )}
+                        )
+                      }
                     />
                     {errors.dropoffLocation && (
                       <p className="text-xs text-red-500 mt-1">{errors.dropoffLocation.message}</p>
@@ -555,16 +670,18 @@ export default function AttorneyDocumentPickup() {
                   </div>
 
                   {/* Google Map */}
-                  <div className="rounded-xl overflow-hidden mt-2">
-                    <GoogleMap
-                      mapContainerStyle={mapContainerStyle}
-                      center={pickupCoords || defaultCenter}
-                      zoom={10}
-                    >
-                      {pickupCoords && <Marker position={pickupCoords} />}
-                      {dropoffCoords && <Marker position={dropoffCoords} />}
-                    </GoogleMap>
-                  </div>
+                  {mapsReady && (
+                    <div className="rounded-xl overflow-hidden mt-2">
+                      <GoogleMap
+                        mapContainerStyle={mapContainerStyle}
+                        center={pickupCoords || defaultCenter}
+                        zoom={10}
+                      >
+                        {pickupCoords && <Marker position={pickupCoords} />}
+                        {dropoffCoords && <Marker position={dropoffCoords} />}
+                      </GoogleMap>
+                    </div>
+                  )}
 
                   {/* Distance & Price result card */}
                   {distance && price && (
@@ -584,8 +701,7 @@ export default function AttorneyDocumentPickup() {
                   {!distance && locationHint && (
                     <p className="text-xs text-amber-600 mt-1">{locationHint}</p>
                   )}
-                </div>
-              </LoadScript>
+              </div>
             </section>
           )}
 

@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -14,8 +13,9 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Calendar, MapPin, Wallet, ListChecks, CalendarClock } from "lucide-react";
+import { Calendar, MapPin, Wallet, ListChecks, CalendarClock, AlertCircle } from "lucide-react";
 import LoadingComponent from "@/components/loader";
+import { authedFetch } from "@/utils/authedFetch";
 
 type UnpaidTrip = {
   id: string;
@@ -73,6 +73,7 @@ export default function BillingPage() {
   const [checkoutId, setCheckoutId] = useState<string | null>(null);
   const [shopperResultUrl, setShopperResultUrl] = useState("");
   const [preparingPayment, setPreparingPayment] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -85,7 +86,7 @@ export default function BillingPage() {
         const q = query(
           collection(db, "pickupRequests"),
           where("userId", "==", user.uid),
-          where("payment_status", "==", "unpaid")
+          where("payment_status", "in", ["unpaid", "failed"])
         );
         const snapshot = await getDocs(q);
         // Only bill trips that were actually completed
@@ -114,27 +115,43 @@ export default function BillingPage() {
     script.async = true;
     document.body.appendChild(script);
     return () => {
-      document.body.removeChild(script);
+      // The Peach Payments widget can mutate/move the DOM around this script
+      // tag once it initializes, so it may no longer be a direct child of
+      // <body> by the time this cleanup runs (e.g. after cancelling) —
+      // removeChild would throw NotFoundError in that case.
+      if (script.parentNode) {
+        script.parentNode.removeChild(script);
+      }
     };
   }, [checkoutId]);
 
   const handlePayNow = async (group: MonthGroup) => {
     setPreparingPayment(true);
+    setPaymentError(null);
     try {
-      const response = await fetch("/api/prepare-checkout", {
+      const requestIds = group.trips.map((t) => t.id);
+      const response = await authedFetch("/api/prepare-checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ price: group.total.toFixed(2) }),
+        body: JSON.stringify({ type: "billing", requestIds }),
       });
       if (!response.ok) throw new Error("Failed to prepare checkout");
       const data = await response.json();
 
-      const requestIds = group.trips.map((t) => t.id).join(",");
-      setShopperResultUrl(`/billing/status?requestIds=${requestIds}`);
+      // Peach Payments returns a 200 with an error payload (no `id`) rather
+      // than a non-2xx status when the request itself is rejected — e.g. a
+      // missing/invalid ENTITY_ID or BEARER_TOKEN. Treat a missing id as a
+      // failure instead of silently reverting with no explanation.
+      if (!data?.id) {
+        throw new Error(data?.message || "Payment gateway did not return a checkout session.");
+      }
+
+      setShopperResultUrl(`/billing/status?requestIds=${requestIds.join(",")}`);
       setPayingGroupKey(group.key);
       setCheckoutId(data.id);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Billing: checkout preparation failed", err);
+      setPaymentError(err?.message || "Could not start checkout. Please try again.");
     } finally {
       setPreparingPayment(false);
     }
@@ -144,6 +161,7 @@ export default function BillingPage() {
     setCheckoutId(null);
     setPayingGroupKey(null);
     setShopperResultUrl("");
+    setPaymentError(null);
   };
 
   if (loading) return <LoadingComponent />;
@@ -303,23 +321,31 @@ export default function BillingPage() {
                   </Button>
                 </div>
               ) : (
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <Button
-                    className="flex-1 w-full sm:w-auto bg-teal-600 hover:bg-teal-700 text-white focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
-                    onClick={() => handlePayNow(group)}
-                    disabled={preparingPayment || payingGroupKey !== null}
-                  >
-                    {preparingPayment && payingGroupKey === null
-                      ? "Preparing..."
-                      : `Pay ${formatCurrency(group.total)} Now`}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="flex-1 w-full sm:w-auto focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
-                    onClick={() => router.push("/dashboard")}
-                  >
-                    Pay Later
-                  </Button>
+                <div>
+                  {paymentError && (
+                    <div className="flex items-start gap-2 text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2.5 mb-3">
+                      <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" aria-hidden="true" />
+                      <span>{paymentError}</span>
+                    </div>
+                  )}
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <Button
+                      className="flex-1 w-full sm:w-auto bg-teal-600 hover:bg-teal-700 text-white focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+                      onClick={() => handlePayNow(group)}
+                      disabled={preparingPayment || payingGroupKey !== null}
+                    >
+                      {preparingPayment && payingGroupKey === null
+                        ? "Preparing..."
+                        : `Pay ${formatCurrency(group.total)} Now`}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="flex-1 w-full sm:w-auto focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+                      onClick={() => router.push("/dashboard")}
+                    >
+                      Pay Later
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>

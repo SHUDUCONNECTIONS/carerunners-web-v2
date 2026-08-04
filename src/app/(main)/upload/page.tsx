@@ -10,14 +10,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Upload, File, CheckCircle, AlertCircle, Info } from "lucide-react";
 import { db, auth, storage } from "@/utils/firebase";
-import { collection, addDoc, getDocs, query, where } from "firebase/firestore";
+import { collection, addDoc, doc, getDoc } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { User } from "firebase/auth";
 import LoadingComponent from "@/components/loader";
 
 type NotificationType = "info" | "success" | "error" | null;
 
-export default function FirmDocumentUpload() {
+export default function DocumentUpload() {
   const [file, setFile] = useState<File | null>(null);
   const [fileType, setFileType] = useState("");
   const [description, setDescription] = useState("");
@@ -43,29 +43,43 @@ export default function FirmDocumentUpload() {
       if (!user) {
         setNotification({
           type: "error",
-          message: "You must be logged in to view firms and upload documents.",
+          message: "You must be logged in to upload documents.",
         });
         return;
       }
 
       try {
-        const firmsCollection = collection(db, "firms");
-        const userFirmsQuery = query(firmsCollection, where("adminId", "==", user.uid));
-        const firmsSnapshot = await getDocs(userFirmsQuery);
-        const firmsList = firmsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().companyName }));
+        // Resolve the user's firm via users/{uid}.firmId rather than
+        // firms.adminId — invited firm members only ever get a firmId on
+        // their own user doc, never an adminId entry on the firm.
+        const userDocSnap = await getDoc(doc(db, "users", user.uid));
+        const firmId = userDocSnap.exists() ? userDocSnap.data().firmId : null;
+
+        const firmsList: { id: string; name: string }[] = [];
+        if (firmId) {
+          const firmDocSnap = await getDoc(doc(db, "firms", firmId));
+          if (firmDocSnap.exists()) {
+            firmsList.push({ id: firmDocSnap.id, name: firmDocSnap.data().companyName || "My Documents" });
+          }
+        }
         setFirms(firmsList);
 
-        if (firmsList.length === 0) {
+        // Everyone (individual or firm) has exactly one workspace today, so
+        // just pick it automatically instead of making the user choose from
+        // a list of one.
+        if (firmsList.length === 1) {
+          setSelectedFirm(firmsList[0].id);
+        } else if (firmsList.length === 0) {
           setNotification({
             type: "info",
-            message: "You don't have any firms associated with your account.",
+            message: "We couldn't find a workspace for your account. Please contact support.",
           });
         }
       } catch (error) {
         console.error("Error fetching user's firms:", error);
         setNotification({
           type: "error",
-          message: "There was an error fetching your firms. Please try again later.",
+          message: "There was an error loading your account. Please try again later.",
         });
       }
     };
@@ -201,30 +215,32 @@ export default function FirmDocumentUpload() {
       <div className="max-w-2xl mx-auto">
         <Card>
           <CardHeader className="bg-teal-600 text-white">
-            <CardTitle className="text-2xl font-bold">Upload Firm Document</CardTitle>
+            <CardTitle className="text-2xl font-bold">Upload Document</CardTitle>
           </CardHeader>
           <CardContent className="mt-6 space-y-6">
             {notification.type && (
               <NotificationBox type={notification.type} message={notification.message} />
             )}
 
-            <div>
-              <Label htmlFor="firm-select" className="block text-sm font-medium text-gray-700">
-                Select Firm
-              </Label>
-              <Select onValueChange={setSelectedFirm}>
-                <SelectTrigger className="w-full mt-1">
-                  <SelectValue placeholder="Select a firm" />
-                </SelectTrigger>
-                <SelectContent>
-                  {firms.map((firm) => (
-                    <SelectItem key={firm.id} value={firm.id}>
-                      {firm.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {firms.length > 1 && (
+              <div>
+                <Label htmlFor="firm-select" className="block text-sm font-medium text-gray-700">
+                  Upload to
+                </Label>
+                <Select onValueChange={setSelectedFirm}>
+                  <SelectTrigger className="w-full mt-1">
+                    <SelectValue placeholder="Select a workspace" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {firms.map((firm) => (
+                      <SelectItem key={firm.id} value={firm.id}>
+                        {firm.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div>
               <Label htmlFor="file-upload" className="block text-sm font-medium text-gray-700">
@@ -274,6 +290,7 @@ export default function FirmDocumentUpload() {
                   <SelectItem value="contract">Contract</SelectItem>
                   <SelectItem value="court_filing">Court Filing</SelectItem>
                   <SelectItem value="evidence">Evidence</SelectItem>
+                  <SelectItem value="personal_document">Personal Document</SelectItem>
                   <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>

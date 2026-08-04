@@ -3,11 +3,12 @@ import React, { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { AlertCircle, Check, Mail, Lock } from "lucide-react"
+import { AlertCircle, Check, Mail, Lock, MapPin, Zap, ShieldCheck, ArrowRight } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { auth } from "@/utils/firebase"
 import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, sendPasswordResetEmail } from "firebase/auth"
-import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore'
+import { getFirestore, collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore'
+import { PartRunnerParticles } from "@/components/PartRunnerParticles"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -19,19 +20,25 @@ export default function LoginPage() {
   const router = useRouter()
   const db = getFirestore()
 
-  const checkIsFirm = async (uid: string) => {
+  // Every signup (individual or firm) gets a workspace doc in "firms" and a
+  // firmId on their user doc, so this just confirms the account actually
+  // finished registration — it's no longer firm-specific despite the name
+  // of the underlying collection.
+  const hasRegisteredAccount = async (uid: string) => {
     try {
-      // Query the firms collection where adminId matches the authentication UID
       const firmsRef = collection(db, 'firms')
       const q = query(firmsRef, where('adminId', '==', uid))
       const querySnapshot = await getDocs(q)
 
-      // If we find any documents, this UID is an admin of a firm
-      const isFirmAdmin = !querySnapshot.empty
+      if (!querySnapshot.empty) return true
 
-      return isFirmAdmin
+      // Otherwise, check whether this UID belongs to a workspace as an
+      // invited member (accept-invitation writes users/{uid}.firmId without
+      // ever adding them to firms.adminId)
+      const userDoc = await getDoc(doc(db, 'users', uid))
+      return userDoc.exists() && !!userDoc.data().firmId
     } catch (error) {
-      console.error("Error checking firm status:", error)
+      console.error("Error checking account status:", error)
       return false
     }
   }
@@ -49,13 +56,11 @@ export default function LoginPage() {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password)
 
-      // Check if the user's UID matches any firm's adminId
-      const isFirm = await checkIsFirm(userCredential.user.uid)
+      const registered = await hasRegisteredAccount(userCredential.user.uid)
 
-      if (!isFirm) {
-        // Sign out the user if they're not a firm admin
+      if (!registered) {
         await auth.signOut()
-        setError("Access denied. Only registered law firm administrators can access this portal.")
+        setError("Access denied. This account isn't registered on this portal.")
         return
       }
 
@@ -100,13 +105,11 @@ export default function LoginPage() {
       const provider = new GoogleAuthProvider()
       const result = await signInWithPopup(auth, provider)
 
-      // Check if the user's UID matches any firm's adminId
-      const isFirm = await checkIsFirm(result.user.uid)
+      const registered = await hasRegisteredAccount(result.user.uid)
 
-      if (!isFirm) {
-        // Sign out the user if they're not a firm admin
+      if (!registered) {
         await auth.signOut()
-        setError("Access denied. Only registered law firm administrators can access this portal.")
+        setError("Access denied. This account isn't registered on this portal.")
         return
       }
 
@@ -159,28 +162,91 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+    <div className="relative min-h-screen bg-gray-100 flex items-center justify-center p-4 overflow-hidden">
+      <PartRunnerParticles />
+
       {/* Card wrapper */}
-      <div className="w-full max-w-4xl flex flex-col md:flex-row rounded-2xl shadow-2xl overflow-hidden">
+      <div className="relative z-10 w-full max-w-4xl flex flex-col md:flex-row rounded-2xl shadow-2xl overflow-hidden">
 
         {/* Left panel — teal brand panel */}
-        <div className="bg-teal-600 text-white flex flex-col items-center justify-center
-                        px-8 py-8 md:py-12 md:w-5/12 shrink-0">
-          {/* Mobile: compact header bar; desktop: full brand column */}
-          <img
-            src="/carerunnerlogo.png"
-            alt="Carerunners Logo"
-            className="w-20 h-20 md:w-32 md:h-32 object-contain mb-3 md:mb-6"
-          />
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-center">
-            Carerunners
-          </h1>
-          <p className="mt-2 text-teal-100 text-sm md:text-base text-center leading-relaxed max-w-xs hidden md:block">
-            The law firm portal for managing care runner services — fast, secure, and built for your practice.
-          </p>
-          <p className="mt-1 text-teal-100 text-xs text-center md:hidden">
-            Law Firm Portal
-          </p>
+        <div className="bg-teal-600 text-white flex flex-col items-center
+                        px-6 py-8 md:py-10 md:w-1/2 shrink-0">
+          {/* Compact Carerunners header */}
+          <div className="flex items-center gap-2.5 self-center md:self-start mb-6 md:mb-8">
+            <img
+              src="/carerunnerlogo.png"
+              alt="Carerunners Logo"
+              className="w-9 h-9 object-contain"
+            />
+            <span className="text-lg font-bold tracking-tight">Carerunners</span>
+          </div>
+
+          {/* ── Big Auto Parts Delivery advertisement ── */}
+          <div className="relative w-full max-w-sm rounded-3xl p-6 md:p-7 overflow-hidden
+                          bg-gradient-to-br from-[#ef2530] via-[#e21b22] to-[#8f1116]
+                          shadow-[0_20px_60px_-15px_rgba(226,27,34,0.7)] border border-white/10">
+            {/* Decorative glow blobs */}
+            <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/10 blur-2xl pointer-events-none" />
+            <div className="absolute -bottom-14 -left-10 w-44 h-44 rounded-full bg-black/20 blur-2xl pointer-events-none" />
+
+            <div className="relative">
+              {/* NEW badge */}
+              <span className="inline-flex items-center gap-1.5 bg-white/15 backdrop-blur-sm text-white text-[11px] font-bold uppercase tracking-widest rounded-full px-3 py-1 mb-4">
+                <span className="relative flex h-1.5 w-1.5 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white" />
+                </span>
+                Just launched
+              </span>
+
+              {/* Logo + wordmark */}
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-14 w-14 rounded-2xl bg-white shadow-lg flex items-center justify-center shrink-0">
+                  <img src="/partrunnerlogo.png" alt="PartRunner" className="h-10 w-10 object-contain" />
+                </div>
+                <div>
+                  <p className="text-white font-extrabold text-xl leading-none">PartRunner</p>
+                  <p className="text-white/70 text-xs font-medium mt-1">by Carerunners</p>
+                </div>
+              </div>
+
+              {/* Headline */}
+              <h3 className="text-white text-2xl md:text-[28px] font-extrabold leading-tight mb-2">
+                Need an auto part?<br />We&apos;ll bring it to you.
+              </h3>
+              <p className="text-white/85 text-sm leading-relaxed mb-5">
+                Tell us what your car needs — we find it at a real store nearby and get it to your door, fast.
+              </p>
+
+              {/* Feature list */}
+              <div className="space-y-2.5 mb-6">
+                <div className="flex items-center gap-2.5 text-sm text-white/95">
+                  <span className="flex h-7 w-7 rounded-lg bg-white/15 items-center justify-center shrink-0">
+                    <MapPin className="h-3.5 w-3.5" />
+                  </span>
+                  Real stores near you, not guesswork
+                </div>
+                <div className="flex items-center gap-2.5 text-sm text-white/95">
+                  <span className="flex h-7 w-7 rounded-lg bg-white/15 items-center justify-center shrink-0">
+                    <Zap className="h-3.5 w-3.5" />
+                  </span>
+                  Same-day delivery to your door
+                </div>
+                <div className="flex items-center gap-2.5 text-sm text-white/95">
+                  <span className="flex h-7 w-7 rounded-lg bg-white/15 items-center justify-center shrink-0">
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                  </span>
+                  Live tracking from store to your door
+                </div>
+              </div>
+
+              {/* CTA */}
+              <div className="flex items-center justify-between gap-2 bg-white rounded-xl px-4 py-3">
+                <span className="text-[#b9151b] font-bold text-sm">Sign in to get started</span>
+                <ArrowRight className="h-4 w-4 text-[#b9151b] shrink-0" />
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Right panel — white form area */}
@@ -188,7 +254,7 @@ export default function LoginPage() {
           <div className="max-w-sm w-full mx-auto">
             <h2 className="text-2xl font-semibold text-gray-900 mb-1">Welcome back</h2>
             <p className="text-sm text-gray-500 mb-8">
-              Sign in to your firm administrator account.
+              Sign in to your account.
             </p>
 
             {/* Google sign-in */}
@@ -238,7 +304,7 @@ export default function LoginPage() {
                     className={`pl-10 py-3 w-full rounded-lg border text-sm transition-colors
                       focus:ring-2 focus:ring-teal-500 focus:border-teal-500
                       ${error ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
-                    placeholder="you@yourfirm.com"
+                    placeholder="you@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                   />
@@ -308,7 +374,7 @@ export default function LoginPage() {
 
             {/* Register link */}
             <p className="mt-6 text-center text-sm text-gray-500">
-              New firm?{" "}
+              Don&apos;t have an account?{" "}
               <button
                 type="button"
                 onClick={handleSignUp}

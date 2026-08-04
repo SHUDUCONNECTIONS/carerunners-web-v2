@@ -12,7 +12,6 @@ import { db, auth } from "@/utils/firebase";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import LoadingComponent from "@/components/loader";
-import { query, collection, where, getDocs } from "firebase/firestore";
 import { StepIndicator, StepNav } from "@/components/Stepper";
 
 type FormData = {
@@ -29,8 +28,6 @@ type FormData = {
   companyDescription: string;
 };
 
-const steps = ["Personal Details", "Company Details"];
-
 export default function EditableProfilePage() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [submitLoading, setSubmitLoading] = useState(false);
@@ -38,6 +35,10 @@ export default function EditableProfilePage() {
   const [submitError, setSubmitError] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [currentStep, setCurrentStep] = useState(0);
+  // Accounts created before the individual/firm split have no accountType
+  // field saved — treat those as firm accounts, since they already have
+  // real company data attached. New individual signups explicitly opt in.
+  const [isFirmAccount, setIsFirmAccount] = useState(true);
   const {
     register,
     handleSubmit,
@@ -45,23 +46,26 @@ export default function EditableProfilePage() {
     setValue,
   } = useForm<FormData>();
 
+  const steps = isFirmAccount ? ["Personal Details", "Company Details"] : ["Personal Details"];
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         try {
-         
+
           const userDoc = await getDoc(doc(db, "users", user.uid));
-      
-          const firmQuery = query(collection(db, "firms"), where("adminId", "==", user.uid));
-          const firmQuerySnapshot = await getDocs(firmQuery);
-          const firmDoc = firmQuerySnapshot.docs[0];
-    
-          
-          if (userDoc.exists() && firmDoc) {
-           
+
+          // Resolve the user's firm via users/{uid}.firmId rather than
+          // firms.adminId — invited firm members only ever get a firmId on
+          // their own user doc, never an adminId entry on the firm.
+          const firmId = userDoc.exists() ? userDoc.data().firmId : null;
+          const firmDoc = firmId ? await getDoc(doc(db, "firms", firmId)) : null;
+
+          if (userDoc.exists()) {
             const userData = userDoc.data();
-            const firmData = firmDoc.data();
-            
+            const firmData = firmDoc?.exists() ? firmDoc.data() : null;
+            setIsFirmAccount(userData.accountType !== "individual");
+
             // Set user values
             setValue("fullName", `${userData.firstName} ${userData.lastName}`);
             setValue("email", userData.email);
@@ -69,15 +73,17 @@ export default function EditableProfilePage() {
             setValue("dateOfBirth", userData.dateOfBirth || "");
             setValue("jobTitle", userData.jobTitle || "");
             setValue("bio", userData.bio || "");
-            
-            // Set company values
-            setValue("companyName", firmData.companyName);
-            setValue("companyEmail", firmData.companyEmail);
-            setValue("companyPhone", firmData.telephone);
-            setValue("companyAddress", firmData.address);
-            setValue("companyDescription", firmData.companyDescription || "");
+
+            // Set company values, if any
+            if (firmData) {
+              setValue("companyName", firmData.companyName || "");
+              setValue("companyEmail", firmData.companyEmail || "");
+              setValue("companyPhone", firmData.telephone || "");
+              setValue("companyAddress", firmData.address || "");
+              setValue("companyDescription", firmData.companyDescription || "");
+            }
           } else {
-            console.error("Document does not exist for user or firm.");
+            console.error("Document does not exist for user.");
           }
         } catch (error) {
           console.error("Error fetching user or firm data:", error);
@@ -90,7 +96,7 @@ export default function EditableProfilePage() {
       }
       setAuthLoading(false);
     });
-    
+
     return () => unsubscribe();
   }, [setValue]);
 
@@ -100,7 +106,7 @@ export default function EditableProfilePage() {
     try {
       const user = auth.currentUser;
       if (user) {
-        
+
         await updateDoc(doc(db, "users", user.uid), {
           firstName: data.fullName.split(" ")[0],
           lastName: data.fullName.split(" ").slice(1).join(" "),
@@ -110,26 +116,28 @@ export default function EditableProfilePage() {
           jobTitle: data.jobTitle,
           bio: data.bio,
         });
-  
-        const firmQuery = query(collection(db, "firms"), where("adminId", "==", user.uid));
-        const firmQuerySnapshot = await getDocs(firmQuery);
-        const firmDoc = firmQuerySnapshot.docs[0];
-  
-        if (firmDoc) {
-          
-          await updateDoc(doc(db, "firms", firmDoc.id), {
-            companyName: data.companyName,
-            companyEmail: data.companyEmail,
-            telephone: data.companyPhone,
-            address: data.companyAddress,
-            companyDescription: data.companyDescription,
-          });
-          
-          setSubmitSuccess(true);
-        } else {
-          console.error("No firm found for this user");
-          setSubmitError(true);
+
+        if (isFirmAccount) {
+          const userDocSnap = await getDoc(doc(db, "users", user.uid));
+          const firmId = userDocSnap.exists() ? userDocSnap.data().firmId : null;
+          const firmDoc = firmId ? await getDoc(doc(db, "firms", firmId)) : null;
+
+          if (firmDoc?.exists()) {
+            await updateDoc(doc(db, "firms", firmDoc.id), {
+              companyName: data.companyName,
+              companyEmail: data.companyEmail,
+              telephone: data.companyPhone,
+              address: data.companyAddress,
+              companyDescription: data.companyDescription,
+            });
+          } else {
+            console.error("No firm found for this user");
+            setSubmitError(true);
+            return;
+          }
         }
+
+        setSubmitSuccess(true);
       }
     } catch (error) {
       console.error("Error updating profile:", error);

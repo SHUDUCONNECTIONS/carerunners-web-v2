@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client";
 
 import React, { useEffect, useState, useRef, useCallback } from "react";
@@ -6,9 +5,8 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, Clock, AlertTriangle } from "lucide-react";
-import { db, auth } from "@/utils/firebase";
-import { doc, writeBatch } from "firebase/firestore";
 import LoadingComponent from "@/components/loader";
+import { authedFetch } from "@/utils/authedFetch";
 
 const INITIAL_DELAY = 2000;
 
@@ -20,62 +18,23 @@ export default function BillingStatusPage() {
   const [error, setError] = useState<string | null>(null);
   const apiCalledRef = useRef(false);
 
-  const markAllPaid = useCallback(
-    async (data) => {
-      const raw = searchParams.get("requestIds") ?? "";
-      const requestIds = raw.split(",").filter(Boolean);
-      if (requestIds.length === 0) return;
-
-      const batch = writeBatch(db);
-      requestIds.forEach((id) => {
-        batch.update(doc(db, "pickupRequests", id), {
-          payment_status: "paid",
-          status: "waiting for driver",
-        });
-      });
-      await batch.commit();
-
-      const user = auth.currentUser;
-      if (user) {
-        await fetch("/api/send-invoice", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: user.email,
-            amount: data.amount,
-            date: data.timestamp,
-            brand: data.paymentBrand,
-            customMessage: `This payment covers ${requestIds.length} trip${
-              requestIds.length !== 1 ? "s" : ""
-            }.`,
-          }),
-        });
-      }
-    },
-    [searchParams]
-  );
-
-  const checkPayment = useCallback(
-    async (id: string) => {
-      if (apiCalledRef.current) return;
-      apiCalledRef.current = true;
-      try {
-        const res = await fetch(`/api/check-payment-status?id=${id}`);
-        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-        const data = await res.json();
-        setPaymentData(data);
-
-        if (data.result?.code?.startsWith("000.")) {
-          await markAllPaid(data);
-        }
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [markAllPaid]
-  );
+  // Marking every trip in the group paid and emailing the receipt now
+  // happens server-side in /api/check-payment-status, which re-verifies the
+  // payment with Peach before writing anything.
+  const checkPayment = useCallback(async (id: string) => {
+    if (apiCalledRef.current) return;
+    apiCalledRef.current = true;
+    try {
+      const res = await authedFetch(`/api/check-payment-status?id=${id}`);
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      const data = await res.json();
+      setPaymentData(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     const paymentId = searchParams.get("id");

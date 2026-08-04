@@ -20,7 +20,7 @@ export default function BillingBanner() {
         const q = query(
           collection(db, "pickupRequests"),
           where("userId", "==", user.uid),
-          where("payment_status", "==", "unpaid")
+          where("payment_status", "in", ["unpaid", "failed"])
         );
         const snapshot = await getDocs(q);
 

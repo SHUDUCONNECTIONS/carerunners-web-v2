@@ -23,6 +23,9 @@ import {
   ClipboardList,
   Menu,
   Circle,
+  Store,
+  AlertTriangle,
+  FileText,
 } from "lucide-react"
 import { auth, db, rtdb } from "@/utils/firebase"
 import {
@@ -71,6 +74,12 @@ interface Trip {
   receiverNumber: string
   driverId?: string
   createdAt?: any
+  serviceCategory?: "document" | "parts"
+  itemName?: string
+  quantity?: number
+  itemTotal?: number
+  store?: { id: string; name: string; address: string }
+  priceOverrun?: { actualStorePrice: number; increaseRequired: number } | null
 }
 
 // Left accent strip color per status
@@ -79,6 +88,7 @@ const statusAccent: Record<string, string> = {
   accepted: "border-blue-500",
   "picked-up": "border-purple-500",
   "in-progress": "border-yellow-400",
+  "awaiting-price-approval": "border-red-400",
   completed: "border-green-500",
   cancelled: "border-gray-300",
 }
@@ -89,6 +99,7 @@ const statusBadge: Record<string, string> = {
   accepted: "bg-blue-100 text-blue-700 border border-blue-200",
   "picked-up": "bg-purple-100 text-purple-700 border border-purple-200",
   "in-progress": "bg-yellow-100 text-yellow-700 border border-yellow-200",
+  "awaiting-price-approval": "bg-red-100 text-red-700 border border-red-200",
   completed: "bg-green-100 text-green-700 border border-green-200",
   cancelled: "bg-gray-100 text-gray-500 border border-gray-200",
 }
@@ -117,7 +128,13 @@ export default function DriverDashboard() {
   const [pastTrips, setPastTrips] = useState<Trip[]>([])
   const [loading, setLoading] = useState(true)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [serviceView, setServiceView] = useState<"document" | "parts">("document")
   const router = useRouter()
+
+  // Legacy trips have no serviceCategory field at all — treat those as
+  // "document" trips so nothing existing disappears from that tab.
+  const matchesView = (t: Trip) =>
+    serviceView === "parts" ? t.serviceCategory === "parts" : t.serviceCategory !== "parts"
 
   // Broadcast live location to RTDB while driver has an active trip
   useEffect(() => {
@@ -234,6 +251,23 @@ export default function DriverDashboard() {
       // onSnapshot listeners update the UI automatically
     } catch (error) {
       console.error("Error updating status:", error)
+    } finally {
+      setUpdatingId(null)
+    }
+  }
+
+  // Driver reports the actual shelf price for a parts job — puts the order
+  // on hold until the customer approves the increase.
+  const handleReportPrice = async (trip: Trip, actualStorePrice: number) => {
+    setUpdatingId(trip.id)
+    try {
+      const increaseRequired = actualStorePrice - Number(trip.itemTotal ?? 0)
+      await updateDoc(doc(db, "pickupRequests", trip.id), {
+        status: "awaiting-price-approval",
+        priceOverrun: { actualStorePrice, increaseRequired },
+      })
+    } catch (error) {
+      console.error("Error reporting store price:", error)
     } finally {
       setUpdatingId(null)
     }
@@ -369,136 +403,179 @@ export default function DriverDashboard() {
 
         {/* ── Trips Tabs (approved drivers only) ── */}
         {driver.isApproved && (
-          <Tabs defaultValue="available">
-            {/* Pill-style tab list */}
-            <TabsList className="w-full bg-gray-100 rounded-xl p-1 h-auto gap-1">
-              <TabsTrigger
-                value="available"
-                className="flex-1 rounded-lg text-sm font-medium py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-teal-700 text-gray-500 transition-all"
+          <>
+            {/* Document Trips / Parts Jobs switch — a separate queue per service, not a merged feed */}
+            <div className="flex bg-gray-100 rounded-xl p-1 gap-1 mb-4">
+              <button
+                onClick={() => setServiceView("document")}
+                className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg text-sm font-medium py-2 transition-all ${
+                  serviceView === "document" ? "bg-white shadow-sm text-teal-700" : "text-gray-500"
+                }`}
               >
-                <span className="flex items-center justify-center gap-1.5">
-                  {/* Pulsing green dot for live updates */}
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
-                  </span>
-                  Available
-                  {availableTrips.length > 0 && (
-                    <span className="ml-1 bg-teal-600 text-white text-xs rounded-full px-1.5 py-0.5 font-semibold leading-none">
-                      {availableTrips.length}
-                    </span>
-                  )}
-                </span>
-              </TabsTrigger>
-
-              <TabsTrigger
-                value="my-trips"
-                className="flex-1 rounded-lg text-sm font-medium py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-teal-700 text-gray-500 transition-all"
+                <FileText className="h-4 w-4" />
+                Document Trips
+              </button>
+              <button
+                onClick={() => setServiceView("parts")}
+                className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg text-sm font-medium py-2 transition-all ${
+                  serviceView === "parts" ? "bg-white shadow-sm text-teal-700" : "text-gray-500"
+                }`}
               >
-                <span className="flex items-center justify-center gap-1.5">
-                  My Trips
-                  {myTrips.length > 0 && (
-                    <span className="ml-1 bg-teal-600 text-white text-xs rounded-full px-1.5 py-0.5 font-semibold leading-none">
-                      {myTrips.length}
-                    </span>
-                  )}
-                </span>
-              </TabsTrigger>
+                <Package className="h-4 w-4" />
+                Parts Jobs
+              </button>
+            </div>
 
-              <TabsTrigger
-                value="past"
-                className="flex-1 rounded-lg text-sm font-medium py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-teal-700 text-gray-500 transition-all"
-              >
-                <span className="flex items-center justify-center gap-1.5">
-                  Past
-                  {pastTrips.length > 0 && (
-                    <span className="ml-1 bg-gray-400 text-white text-xs rounded-full px-1.5 py-0.5 font-semibold leading-none">
-                      {pastTrips.length}
-                    </span>
-                  )}
-                </span>
-              </TabsTrigger>
-            </TabsList>
+            {(() => {
+              const viewAvailable = availableTrips.filter(matchesView)
+              const viewMyTrips = myTrips.filter(matchesView)
+              const viewPastTrips = pastTrips.filter(matchesView)
 
-            {/* ── Available Trips ── */}
-            <TabsContent value="available" className="space-y-3 mt-4">
-              {availableTrips.length === 0 ? (
-                <EmptyState icon={<ClipboardList className="h-10 w-10 text-gray-300" />} message="No available trips at the moment." />
-              ) : (
-                availableTrips.map((trip) => (
-                  <TripCard
-                    key={trip.id}
-                    trip={trip}
-                    action={
-                      <button
-                        className="w-full mt-4 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white font-semibold text-sm rounded-xl py-3 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                        onClick={() => handleAcceptTrip(trip.id)}
-                        disabled={updatingId === trip.id}
-                      >
-                        {updatingId === trip.id ? "Accepting…" : "Accept Trip"}
-                      </button>
-                    }
-                  />
-                ))
-              )}
-            </TabsContent>
+              return (
+                <Tabs defaultValue="available">
+                  {/* Pill-style tab list */}
+                  <TabsList className="w-full bg-gray-100 rounded-xl p-1 h-auto gap-1">
+                    <TabsTrigger
+                      value="available"
+                      className="flex-1 rounded-lg text-sm font-medium py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-teal-700 text-gray-500 transition-all"
+                    >
+                      <span className="flex items-center justify-center gap-1.5">
+                        {/* Pulsing green dot for live updates */}
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                        </span>
+                        Available
+                        {viewAvailable.length > 0 && (
+                          <span className="ml-1 bg-teal-600 text-white text-xs rounded-full px-1.5 py-0.5 font-semibold leading-none">
+                            {viewAvailable.length}
+                          </span>
+                        )}
+                      </span>
+                    </TabsTrigger>
 
-            {/* ── My Trips ── */}
-            <TabsContent value="my-trips" className="space-y-3 mt-4">
-              {myTrips.length === 0 ? (
-                <EmptyState icon={<Truck className="h-10 w-10 text-gray-300" />} message="You haven't accepted any trips yet." />
-              ) : (
-                myTrips.map((trip) => (
-                  <TripCard
-                    key={trip.id}
-                    trip={trip}
-                    showStatus
-                    action={
-                      nextStatus[trip.status] ? (
-                        <button
-                          className="w-full mt-4 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white font-semibold text-sm rounded-xl py-3 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                          onClick={() => handleUpdateStatus(trip.id, nextStatus[trip.status].value)}
-                          disabled={updatingId === trip.id}
-                        >
-                          {updatingId === trip.id ? "Updating…" : nextStatus[trip.status].label}
-                        </button>
-                      ) : trip.status === "completed" ? (
-                        <div className="w-full mt-4 flex items-center justify-center gap-2 bg-green-50 border border-green-200 text-green-700 font-semibold text-sm rounded-xl py-3">
-                          <CheckCircle className="h-4 w-4" />
-                          Completed · Payout:{" "}
-                          {isNaN(Number(trip.price)) ? "R—" : `R${(Number(trip.price) * 0.7).toFixed(2)}`}
-                        </div>
-                      ) : null
-                    }
-                  />
-                ))
-              )}
-            </TabsContent>
+                    <TabsTrigger
+                      value="my-trips"
+                      className="flex-1 rounded-lg text-sm font-medium py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-teal-700 text-gray-500 transition-all"
+                    >
+                      <span className="flex items-center justify-center gap-1.5">
+                        My Trips
+                        {viewMyTrips.length > 0 && (
+                          <span className="ml-1 bg-teal-600 text-white text-xs rounded-full px-1.5 py-0.5 font-semibold leading-none">
+                            {viewMyTrips.length}
+                          </span>
+                        )}
+                      </span>
+                    </TabsTrigger>
 
-            {/* ── Past Trips ── */}
-            <TabsContent value="past" className="space-y-3 mt-4">
-              {pastTrips.length === 0 ? (
-                <EmptyState icon={<ClipboardList className="h-10 w-10 text-gray-300" />} message="No past trips yet." />
-              ) : (
-                pastTrips.map((trip) => (
-                  <TripCard
-                    key={trip.id}
-                    trip={trip}
-                    showStatus
-                    action={
-                      trip.status === "completed" ? (
-                        <div className="w-full mt-4 flex items-center justify-center gap-2 bg-green-50 border border-green-200 text-green-700 font-semibold text-sm rounded-xl py-3">
-                          <CheckCircle className="h-4 w-4" />
-                          Completed · Payout:{" "}
-                          {isNaN(Number(trip.price)) ? "R—" : `R${(Number(trip.price) * 0.7).toFixed(2)}`}
-                        </div>
-                      ) : null
-                    }
-                  />
-                ))
-              )}
-            </TabsContent>
-          </Tabs>
+                    <TabsTrigger
+                      value="past"
+                      className="flex-1 rounded-lg text-sm font-medium py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-teal-700 text-gray-500 transition-all"
+                    >
+                      <span className="flex items-center justify-center gap-1.5">
+                        Past
+                        {viewPastTrips.length > 0 && (
+                          <span className="ml-1 bg-gray-400 text-white text-xs rounded-full px-1.5 py-0.5 font-semibold leading-none">
+                            {viewPastTrips.length}
+                          </span>
+                        )}
+                      </span>
+                    </TabsTrigger>
+                  </TabsList>
+
+                  {/* ── Available Trips ── */}
+                  <TabsContent value="available" className="space-y-3 mt-4">
+                    {viewAvailable.length === 0 ? (
+                      <EmptyState icon={<ClipboardList className="h-10 w-10 text-gray-300" />} message="No available trips at the moment." />
+                    ) : (
+                      viewAvailable.map((trip) => (
+                        <TripCard
+                          key={trip.id}
+                          trip={trip}
+                          action={
+                            <button
+                              className="w-full mt-4 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white font-semibold text-sm rounded-xl py-3 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                              onClick={() => handleAcceptTrip(trip.id)}
+                              disabled={updatingId === trip.id}
+                            >
+                              {updatingId === trip.id ? "Accepting…" : "Accept Trip"}
+                            </button>
+                          }
+                        />
+                      ))
+                    )}
+                  </TabsContent>
+
+                  {/* ── My Trips ── */}
+                  <TabsContent value="my-trips" className="space-y-3 mt-4">
+                    {viewMyTrips.length === 0 ? (
+                      <EmptyState icon={<Truck className="h-10 w-10 text-gray-300" />} message="You haven't accepted any trips yet." />
+                    ) : (
+                      viewMyTrips.map((trip) => (
+                        <TripCard
+                          key={trip.id}
+                          trip={trip}
+                          showStatus
+                          action={
+                            trip.status === "awaiting-price-approval" ? (
+                              <div className="w-full mt-4 flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl py-3 px-3">
+                                <AlertTriangle className="h-4 w-4 shrink-0" />
+                                Waiting for customer to approve the price increase.
+                              </div>
+                            ) : trip.serviceCategory === "parts" && trip.status === "accepted" ? (
+                              <PriceReportControl
+                                trip={trip}
+                                onReport={(actual) => handleReportPrice(trip, actual)}
+                                disabled={updatingId === trip.id}
+                              />
+                            ) : nextStatus[trip.status] ? (
+                              <button
+                                className="w-full mt-4 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white font-semibold text-sm rounded-xl py-3 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                                onClick={() => handleUpdateStatus(trip.id, nextStatus[trip.status].value)}
+                                disabled={updatingId === trip.id}
+                              >
+                                {updatingId === trip.id ? "Updating…" : nextStatus[trip.status].label}
+                              </button>
+                            ) : trip.status === "completed" ? (
+                              <div className="w-full mt-4 flex items-center justify-center gap-2 bg-green-50 border border-green-200 text-green-700 font-semibold text-sm rounded-xl py-3">
+                                <CheckCircle className="h-4 w-4" />
+                                Completed · Payout:{" "}
+                                {isNaN(Number(trip.price)) ? "R—" : `R${(Number(trip.price) * 0.7).toFixed(2)}`}
+                              </div>
+                            ) : null
+                          }
+                        />
+                      ))
+                    )}
+                  </TabsContent>
+
+                  {/* ── Past Trips ── */}
+                  <TabsContent value="past" className="space-y-3 mt-4">
+                    {viewPastTrips.length === 0 ? (
+                      <EmptyState icon={<ClipboardList className="h-10 w-10 text-gray-300" />} message="No past trips yet." />
+                    ) : (
+                      viewPastTrips.map((trip) => (
+                        <TripCard
+                          key={trip.id}
+                          trip={trip}
+                          showStatus
+                          action={
+                            trip.status === "completed" ? (
+                              <div className="w-full mt-4 flex items-center justify-center gap-2 bg-green-50 border border-green-200 text-green-700 font-semibold text-sm rounded-xl py-3">
+                                <CheckCircle className="h-4 w-4" />
+                                Completed · Payout:{" "}
+                                {isNaN(Number(trip.price)) ? "R—" : `R${(Number(trip.price) * 0.7).toFixed(2)}`}
+                              </div>
+                            ) : null
+                          }
+                        />
+                      ))
+                    )}
+                  </TabsContent>
+                </Tabs>
+              )
+            })()}
+          </>
         )}
       </main>
 
@@ -591,7 +668,7 @@ function TripCard({
         </div>
 
         {/* ── Meta chips row ── */}
-        {(trip.distance || trip.requestType || trip.firmName) && (
+        {(trip.distance || trip.requestType || trip.firmName || trip.itemName || trip.store) && (
           <div className="flex flex-wrap gap-2 mb-4">
             {trip.distance && (
               <span className="inline-flex items-center gap-1 text-xs bg-gray-50 border border-gray-100 text-gray-500 rounded-full px-2.5 py-1">
@@ -599,11 +676,28 @@ function TripCard({
                 {trip.distance} km
               </span>
             )}
-            {trip.requestType && (
-              <span className="inline-flex items-center gap-1 text-xs bg-gray-50 border border-gray-100 text-gray-500 rounded-full px-2.5 py-1">
-                <Package className="h-3 w-3 text-teal-500" />
-                {requestLabel}
-              </span>
+            {trip.serviceCategory === "parts" ? (
+              <>
+                {trip.itemName && (
+                  <span className="inline-flex items-center gap-1 text-xs bg-gray-50 border border-gray-100 text-gray-500 rounded-full px-2.5 py-1">
+                    <Package className="h-3 w-3 text-teal-500" />
+                    {trip.itemName}{trip.quantity ? ` × ${trip.quantity}` : ""}
+                  </span>
+                )}
+                {trip.store?.name && (
+                  <span className="inline-flex items-center gap-1 text-xs bg-gray-50 border border-gray-100 text-gray-500 rounded-full px-2.5 py-1">
+                    <Store className="h-3 w-3 text-teal-500" />
+                    {trip.store.name}
+                  </span>
+                )}
+              </>
+            ) : (
+              trip.requestType && (
+                <span className="inline-flex items-center gap-1 text-xs bg-gray-50 border border-gray-100 text-gray-500 rounded-full px-2.5 py-1">
+                  <FileText className="h-3 w-3 text-teal-500" />
+                  {requestLabel}
+                </span>
+              )
             )}
             {trip.firmName && (
               <span className="inline-flex items-center gap-1 text-xs bg-gray-50 border border-gray-100 text-gray-500 rounded-full px-2.5 py-1">
@@ -640,6 +734,57 @@ function TripCard({
 
         {/* ── Action button ── */}
         {action}
+      </div>
+    </div>
+  )
+}
+
+// ── Price Report Control (parts jobs only) ─────────────────────────────────
+// Lets a driver flag that the shelf price at the store is higher than the
+// customer's quoted estimate — puts the order on hold pending approval.
+function PriceReportControl({
+  trip,
+  onReport,
+  disabled,
+}: {
+  trip: Trip
+  onReport: (actualStorePrice: number) => void
+  disabled?: boolean
+}) {
+  const [reporting, setReporting] = useState(false)
+  const [actualPrice, setActualPrice] = useState("")
+
+  if (!reporting) {
+    return (
+      <button
+        className="w-full mt-4 bg-white border border-red-200 text-red-600 hover:bg-red-50 font-semibold text-sm rounded-xl py-3 transition-colors flex items-center justify-center gap-1.5"
+        onClick={() => setReporting(true)}
+      >
+        <AlertTriangle className="h-4 w-4" />
+        Price is different at the store
+      </button>
+    )
+  }
+
+  return (
+    <div className="mt-4 space-y-2">
+      <label className="text-xs font-medium text-gray-500">Actual price at the store (R)</label>
+      <div className="flex gap-2">
+        <input
+          type="number"
+          min={0}
+          value={actualPrice}
+          onChange={(e) => setActualPrice(e.target.value)}
+          placeholder={String(trip.itemTotal ?? "")}
+          className="flex-1 h-10 rounded-lg border border-gray-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+        />
+        <button
+          className="bg-red-600 hover:bg-red-700 text-white font-semibold text-sm rounded-lg px-4 disabled:opacity-60"
+          disabled={disabled || !actualPrice || parseFloat(actualPrice) <= 0}
+          onClick={() => onReport(parseFloat(actualPrice))}
+        >
+          Submit
+        </button>
       </div>
     </div>
   )
