@@ -102,17 +102,24 @@ export default function TripSummary() {
         });
 
 
+        const data = await response.json().catch(() => null);
+
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+          throw new Error(data?.message || `Failed to prepare checkout (HTTP ${response.status})`);
         }
 
+        // Peach Payments returns a 200 with an error payload (no `id`)
+        // rather than a non-2xx status when the request itself is rejected
+        // — e.g. a missing/invalid ENTITY_ID or BEARER_TOKEN.
+        if (!data?.id) {
+          throw new Error(data?.message || "Payment gateway did not return a checkout session.");
+        }
 
-        const data = await response.json();
         setCheckoutId(data.id);
         setShopperResultUrl(`/payment/status?requestId=${requestId}`);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error calling API:", error);
-        setError('Error preparing payment checkout');
+        setError(error?.message || 'Error preparing payment checkout');
       }
     };
 

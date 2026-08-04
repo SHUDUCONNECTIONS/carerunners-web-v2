@@ -135,8 +135,10 @@ export default function BillingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: "billing", requestIds }),
       });
-      if (!response.ok) throw new Error("Failed to prepare checkout");
-      const data = await response.json();
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.message || `Failed to prepare checkout (HTTP ${response.status})`);
+      }
 
       // Peach Payments returns a 200 with an error payload (no `id`) rather
       // than a non-2xx status when the request itself is rejected — e.g. a
