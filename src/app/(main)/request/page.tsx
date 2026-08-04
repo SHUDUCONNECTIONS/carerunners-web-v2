@@ -858,12 +858,18 @@ export default function AttorneyDocumentPickup() {
               <div className="h-px bg-gray-100 mb-5" />
 
               <div className="flex items-start gap-3">
-                <Checkbox
-                  id="agreeToTerms"
-                  {...register("agreeToTerms", {
-                    required: "You must agree to the terms and conditions",
-                  })}
-                  className="mt-0.5 data-[state=checked]:bg-teal-600 data-[state=checked]:border-teal-600"
+                <Controller
+                  name="agreeToTerms"
+                  control={control}
+                  rules={{ required: "You must agree to the terms and conditions" }}
+                  render={({ field }) => (
+                    <Checkbox
+                      id="agreeToTerms"
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      className="mt-0.5 data-[state=checked]:bg-teal-600 data-[state=checked]:border-teal-600"
+                    />
+                  )}
                 />
                 <div>
                   <Label htmlFor="agreeToTerms" className="text-sm font-medium text-gray-700 cursor-pointer">
