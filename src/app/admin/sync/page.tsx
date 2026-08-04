@@ -1,17 +1,15 @@
 // @ts-nocheck
 "use client"
 import React, { useState } from "react"
-import { useJsApiLoader } from "@react-google-maps/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { CheckCircle, AlertCircle, RefreshCw, Lock } from "lucide-react"
 import { db } from "@/utils/firebase"
 import { collection, getDocs, doc, updateDoc } from "firebase/firestore"
+import { GoogleMapsLoaderProvider, useGoogleMapsLoader } from "@/components/GoogleMapsLoaderProvider"
 
 const SYNC_PASSWORD = "shudu-sync-2024"
-const MAPS_API_KEY = "AIzaSyAuzjtvfjuDgxVfuCmpeeoOyOy53eadqcc"
-const LIBRARIES = ["places"]
 
 const calculatePrice = (distanceKm: number) => {
   const basePrice = 32
@@ -41,17 +39,26 @@ const getDistanceKm = (origin: string, destination: string): Promise<number | nu
   })
 }
 
+// This route sits outside the (main) route group, so it doesn't inherit
+// GoogleMapsLoaderProvider from (main)/layout.tsx — mount it locally with
+// the same id/config so the underlying @react-google-maps/api loader
+// singleton never sees two different option sets during prerendering.
 export default function SyncPage() {
+  return (
+    <GoogleMapsLoaderProvider>
+      <SyncPageContent />
+    </GoogleMapsLoaderProvider>
+  )
+}
+
+function SyncPageContent() {
   const [password, setPassword] = useState("")
   const [unlocked, setUnlocked] = useState(false)
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<{ fixed: number; skipped: number; errors: number } | null>(null)
   const [error, setError] = useState("")
 
-  const { isLoaded } = useJsApiLoader({
-    googleMapsApiKey: MAPS_API_KEY,
-    libraries: LIBRARIES,
-  })
+  const { isLoaded } = useGoogleMapsLoader()
 
   const handleUnlock = (e: React.FormEvent) => {
     e.preventDefault()
