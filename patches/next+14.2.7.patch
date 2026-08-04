@@ -1,0 +1,18 @@
+diff --git a/node_modules/next/dist/build/swc/index.js b/node_modules/next/dist/build/swc/index.js
+index 0799cd4..fe74b81 100644
+--- a/node_modules/next/dist/build/swc/index.js
++++ b/node_modules/next/dist/build/swc/index.js
+@@ -279,6 +279,13 @@ async function loadBindings(useWasmBinary = false) {
+                 }
+             }
+             attempts = attempts.concat(a);
++            // Native binary exists but failed to load (e.g. blocked by an OS
++            // Application Control policy) -- fall back to the wasm build
++            // instead of hard-failing, same as the unsupported-platform path.
++            const wasmFallbackBindings = await tryLoadWasmWithFallback(attempts);
++            if (wasmFallbackBindings) {
++                return resolve(wasmFallbackBindings);
++            }
+         }
+         logLoadFailure(attempts, true);
+     });
