@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation"
 import { auth } from "@/utils/firebase"
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth"
 import { getFirestore, doc, getDoc } from "firebase/firestore"
+import { PartRunnerAdPanel } from "@/components/PartRunnerAdPanel"
 
 export default function DriverLoginPage() {
   const [email, setEmail] = useState("")
@@ -82,13 +83,27 @@ export default function DriverLoginPage() {
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <Card className="w-full max-w-md">
-        <CardHeader className="bg-teal-600 text-white">
+      <div className="w-full max-w-4xl flex flex-col md:flex-row rounded-2xl shadow-2xl overflow-hidden">
+
+        {/* Left panel — teal brand panel + PartRunner promo */}
+        <div className="bg-teal-600 text-white flex flex-col items-center justify-center
+                        px-8 py-8 md:py-12 md:w-1/2 shrink-0">
+          <img
+            src="/carerunnerlogo.png"
+            alt="Carerunners Logo"
+            className="w-20 h-20 md:w-24 md:h-24 object-contain mb-3 md:mb-6"
+          />
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-center mb-6">
+            Driver Portal
+          </h1>
+          <PartRunnerAdPanel ctaText="Sign in to start earning" />
+        </div>
+
+        {/* Right panel — login form */}
+        <Card className="rounded-none border-0 flex-1 shadow-none">
+        <CardHeader className="bg-teal-700 text-white">
           <CardTitle className="text-2xl font-bold text-center">Driver Portal Login</CardTitle>
         </CardHeader>
-        <div className="mx-auto w-32 h-32">
-          <img src="/carerunnerlogo.png" alt="Care Runners Logo" className="w-full h-full object-contain" />
-        </div>
         <CardContent className="mt-6">
           <form onSubmit={handleLogin} className="space-y-6">
             <div>
@@ -168,7 +183,8 @@ export default function DriverLoginPage() {
             </div>
           </div>
         </CardContent>
-      </Card>
+        </Card>
+      </div>
     </div>
   )
 }

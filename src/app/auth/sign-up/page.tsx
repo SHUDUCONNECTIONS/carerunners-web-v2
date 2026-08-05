@@ -9,6 +9,7 @@ import { auth, db } from "@/utils/firebase" // Adjust this import path if necess
 import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from "firebase/auth"
 import { doc, setDoc, collection } from "firebase/firestore"
 import { StepIndicator, StepNav } from "@/components/Stepper"
+import { PartRunnerAdPanel } from "@/components/PartRunnerAdPanel"
 
 type AccountType = "individual" | "firm"
 
@@ -180,9 +181,12 @@ export default function UserRegistrationPage() {
           <p className="mt-2 text-teal-100 text-sm md:text-base text-center leading-relaxed max-w-xs hidden md:block">
             Sign up and start managing your delivery and pickup requests — fast, secure, and built for your business.
           </p>
-          <p className="mt-1 text-teal-100 text-xs text-center md:hidden">
+          <p className="mt-1 text-teal-100 text-xs text-center md:hidden mb-4">
             Register
           </p>
+          <div className="mt-6">
+            <PartRunnerAdPanel ctaText="Sign up to get started" />
+          </div>
         </div>
 
         {/* Right panel — white form area */}
