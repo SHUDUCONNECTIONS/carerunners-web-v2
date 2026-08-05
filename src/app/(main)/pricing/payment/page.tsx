@@ -77,7 +77,7 @@ export default function PlanPaymentSummary() {
             billingCycle: 'Monthly', // Assuming monthly by default
           });
         } else {
-          setError('Firm not found');
+          setError('Company account not found');
         }
       } catch (err) {
         setError('Error fetching data');

@@ -126,8 +126,8 @@ export default function Dashboard() {
     },
     {
       icon: <Upload className="h-6 w-6 text-teal-600" />,
-      label: "Upload Case File",
-      description: "Attach documents to an existing case.",
+      label: "Upload Document",
+      description: "Attach documents to an existing record.",
       link: "/upload",
     },
     {

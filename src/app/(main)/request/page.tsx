@@ -146,7 +146,6 @@ export default function DocumentPickup() {
   const defaultValues = {
     attorneyName: "",
     firmName: "",
-    barNumber: "",
     pickupLocation: "",
     dropoffLocation: "",
     pickupDate: today,
@@ -221,7 +220,6 @@ export default function DocumentPickup() {
               ...defaultValues,
               attorneyName: `${userData.firstName} ${userData.lastName}`,
               firmName: firmData?.companyName || "",
-              barNumber: userData.barNumber || "",
               pickupLocation: firmData?.address || "",
             });
           }

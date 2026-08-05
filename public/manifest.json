@@ -1,7 +1,7 @@
 {
   "name": "Carerunners",
   "short_name": "Carerunners",
-  "description": "Document pickup and delivery for law firms",
+  "description": "Document and parcel pickup and delivery for businesses and individuals",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f3f4f6",
