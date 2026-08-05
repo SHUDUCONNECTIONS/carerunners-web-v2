@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Constructing this at module scope with a missing key throws immediately,
+// which fails `next build`'s page-data collection for this route (and takes
+// the whole build down with it) rather than just this one email failing at
+// request time. Defer construction until a request actually needs it.
+let resend: Resend | null = null;
+function getResend(): Resend {
+  if (!resend) resend = new Resend(process.env.RESEND_API_KEY);
+  return resend;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -36,7 +44,7 @@ export async function POST(request: NextRequest) {
 
 async function sendSingleEmail(email: string, amount: number, date: string, brand: string, customMessage?: string) {
   try {
-    await resend.emails.send({
+    await getResend().emails.send({
       from: 'Carerunners <no-reply@carerunners.app>',
       to: [email],
       subject: 'Payment Successful',
