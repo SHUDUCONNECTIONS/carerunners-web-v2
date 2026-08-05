@@ -26,6 +26,7 @@ import {
   Store,
   AlertTriangle,
   FileText,
+  Navigation,
 } from "lucide-react"
 import { auth, db, rtdb } from "@/utils/firebase"
 import {
@@ -41,6 +42,8 @@ import { ref, set, remove } from "firebase/database"
 import { onAuthStateChanged, signOut } from "firebase/auth"
 import { useRouter } from "next/navigation"
 import LoadingComponent from "@/components/loader"
+import { GoogleMapsLoaderProvider } from "@/components/GoogleMapsLoaderProvider"
+import DriverRouteMap from "@/components/DriverRouteMap"
 
 interface Driver {
   firstName: string
@@ -109,6 +112,25 @@ const nextStatus: Record<string, { label: string; value: string }> = {
   "in-progress": { label: "Mark as Delivered", value: "completed" },
 }
 
+// Before collection the driver needs directions to the pickup; after, to the
+// dropoff. Returns null once there's nowhere left to navigate to (completed,
+// cancelled, or still just "pending" — i.e. not yet accepted).
+function getNavStop(trip: Trip): { label: string; address: string } | null {
+  if (trip.status === "accepted" || trip.status === "awaiting-price-approval") {
+    return trip.pickupLocation ? { label: "pickup", address: trip.pickupLocation } : null
+  }
+  if (trip.status === "in-progress" || trip.status === "picked-up") {
+    return trip.dropoffLocation ? { label: "dropoff", address: trip.dropoffLocation } : null
+  }
+  return null
+}
+
+// Omitting origin lets Google Maps use the device's live GPS position as the
+// starting point and kick straight into turn-by-turn voice navigation.
+function buildNavUrl(address: string): string {
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}&travelmode=driving`
+}
+
 // createdAt comes back from Firestore as a Timestamp (with toMillis()), but can
 // also be a plain Date or epoch-millis number depending on how it was written.
 // Normalize to a millisecond number so sort comparisons behave correctly instead
@@ -121,7 +143,19 @@ function toMillis(value: any): number {
   return 0
 }
 
+// This route sits outside the (main) route group, so it doesn't inherit
+// GoogleMapsLoaderProvider from (main)/layout.tsx — mount it locally with
+// the same id/config so the underlying @react-google-maps/api loader
+// singleton never sees two different option sets during prerendering.
 export default function DriverDashboard() {
+  return (
+    <GoogleMapsLoaderProvider>
+      <DriverDashboardContent />
+    </GoogleMapsLoaderProvider>
+  )
+}
+
+function DriverDashboardContent() {
   const [driver, setDriver] = useState<Driver | null>(null)
   const [availableTrips, setAvailableTrips] = useState<Trip[]>([])
   const [myTrips, setMyTrips] = useState<Trip[]>([])
@@ -129,6 +163,7 @@ export default function DriverDashboard() {
   const [loading, setLoading] = useState(true)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [serviceView, setServiceView] = useState<"document" | "parts">("document")
+  const [driverPosition, setDriverPosition] = useState<{ lat: number; lng: number } | null>(null)
   const router = useRouter()
 
   // Legacy trips have no serviceCategory field at all — treat those as
@@ -142,6 +177,7 @@ export default function DriverDashboard() {
     if (!user) return
     const hasActiveTrip = myTrips.length > 0
     if (!hasActiveTrip) {
+      setDriverPosition(null)
       remove(ref(rtdb, `driverLocations/${user.uid}`))
       return
     }
@@ -150,9 +186,10 @@ export default function DriverDashboard() {
 
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
+        const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+        setDriverPosition(coords)
         set(ref(rtdb, `driverLocations/${user.uid}`), {
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
+          ...coords,
           updatedAt: Date.now(),
         })
       },
@@ -516,6 +553,8 @@ export default function DriverDashboard() {
                           key={trip.id}
                           trip={trip}
                           showStatus
+                          showNavigate
+                          driverPosition={driverPosition}
                           action={
                             trip.status === "awaiting-price-approval" ? (
                               <div className="w-full mt-4 flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl py-3 px-3">
@@ -608,12 +647,17 @@ function TripCard({
   trip,
   action,
   showStatus,
+  showNavigate,
+  driverPosition,
 }: {
   trip: Trip
   action?: React.ReactNode
   showStatus?: boolean
+  showNavigate?: boolean
+  driverPosition?: { lat: number; lng: number } | null
 }) {
   const accentClass = statusAccent[trip.status] ?? "border-gray-200"
+  const navStop = showNavigate ? getNavStop(trip) : null
 
   const requestLabel = trip.requestType
     ?.replace(/_/g, " ")
@@ -730,6 +774,29 @@ function TripCard({
               </div>
             )}
           </div>
+        )}
+
+        {/* ── Live route preview ── */}
+        {navStop && driverPosition && (
+          <DriverRouteMap origin={driverPosition} destination={navStop.address} label={navStop.label} />
+        )}
+        {navStop && !driverPosition && (
+          <div className="mt-4 h-[52px] rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center text-xs text-gray-400">
+            Getting your location…
+          </div>
+        )}
+
+        {/* ── Navigate button (opens full turn-by-turn voice navigation) ── */}
+        {navStop && (
+          <a
+            href={buildNavUrl(navStop.address)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full mt-3 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold text-sm rounded-xl py-3 transition-colors"
+          >
+            <Navigation className="h-4 w-4" />
+            Start voice navigation to {navStop.label}
+          </a>
         )}
 
         {/* ── Action button ── */}
