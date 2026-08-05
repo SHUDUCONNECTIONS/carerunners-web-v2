@@ -215,7 +215,7 @@ export default function DocumentUpload() {
       <div className="max-w-2xl mx-auto">
         <Card>
           <CardHeader className="bg-teal-600 text-white">
-            <CardTitle className="text-2xl font-bold">Upload Document</CardTitle>
+            <CardTitle className="text-2xl font-bold">Upload File</CardTitle>
           </CardHeader>
           <CardContent className="mt-6 space-y-6">
             {notification.type && (
@@ -286,10 +286,10 @@ export default function DocumentUpload() {
                   <SelectValue placeholder="Select document type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="legal_brief">Legal Brief</SelectItem>
                   <SelectItem value="contract">Contract</SelectItem>
-                  <SelectItem value="court_filing">Court Filing</SelectItem>
-                  <SelectItem value="evidence">Evidence</SelectItem>
+                  <SelectItem value="invoice">Invoice</SelectItem>
+                  <SelectItem value="id_document">ID Document</SelectItem>
+                  <SelectItem value="certificate">Certificate</SelectItem>
                   <SelectItem value="personal_document">Personal Document</SelectItem>
                   <SelectItem value="other">Other</SelectItem>
                 </SelectContent>

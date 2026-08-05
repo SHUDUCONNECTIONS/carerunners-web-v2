@@ -354,7 +354,7 @@ export default function PricingPage() {
                 trip when you request a pickup, delivery, or parts order.
               </p>
               <p className="text-gray-500 text-sm">
-                Team/seat-based plans are only for firm and business accounts.
+                Team/seat-based plans are only for company and business accounts.
               </p>
             </CardContent>
             <CardFooter>

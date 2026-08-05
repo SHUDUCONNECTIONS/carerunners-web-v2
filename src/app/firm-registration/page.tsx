@@ -53,7 +53,7 @@ function FirmRegistrationContent() {
           }
         } catch (error) {
           console.error("Error fetching firm data:", error);
-          setSubmitError("Unable to load existing firm details. You can still fill out the form below.");
+          setSubmitError("Unable to load existing company details. You can still fill out the form below.");
         }
       }
     };
@@ -63,7 +63,7 @@ function FirmRegistrationContent() {
   const onSubmit = async (data: FormData) => {
     if (!firmId) {
       console.error("No firmId provided");
-      setSubmitError("Missing firm reference. Please use the registration link from your sign-up email.");
+      setSubmitError("Missing company reference. Please use the registration link from your sign-up email.");
       return;
     }
 
@@ -82,7 +82,7 @@ function FirmRegistrationContent() {
       }, 2000);
     } catch (error) {
       console.error("Error during firm registration:", error);
-      setSubmitError("Something went wrong while saving your firm details. Please try again.");
+      setSubmitError("Something went wrong while saving your company details. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -92,7 +92,7 @@ function FirmRegistrationContent() {
     <div className="min-h-screen flex items-center justify-center bg-white p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="bg-teal-600 text-white">
-          <CardTitle className="text-2xl font-bold text-center">Firm Registration</CardTitle>
+          <CardTitle className="text-2xl font-bold text-center">Company Registration</CardTitle>
         </CardHeader>
         <div className="mx-auto w-32 h-32">
           <img

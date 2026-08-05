@@ -259,9 +259,9 @@ export default function UserRegistrationPage() {
                       }`}
                     >
                       <Building2 className="h-5 w-5 text-teal-600" />
-                      <span className="text-sm font-semibold text-gray-900">Firm or Business</span>
+                      <span className="text-sm font-semibold text-gray-900">Company or Business</span>
                       <span className="text-xs text-gray-500">
-                        I'm registering on behalf of a company or firm, with a team.
+                        I'm registering on behalf of a company or business, with a team.
                       </span>
                     </button>
                   </div>

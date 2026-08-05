@@ -156,7 +156,7 @@ function AcceptInvitationPageContent() {
         </CardHeader>
         <CardContent>
           <p className="text-center mb-4">
-            You're signed in as {user.email}. Click the button below to accept the invitation and join the firm.
+            You're signed in as {user.email}. Click the button below to accept the invitation and join the company.
           </p>
           <Button onClick={handleAcceptInvitation} className="w-full">
             Accept Invitation

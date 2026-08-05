@@ -55,7 +55,7 @@ const defaultCenter = {
   lng: 0.0473,
 };
 
-export default function AttorneyDocumentPickup() {
+export default function DocumentPickup() {
   const searchParams = useSearchParams();
   // Lets promo links (e.g. the dashboard's Auto Parts Delivery banner) jump
   // straight into that flow instead of stopping at the category picker.
@@ -297,7 +297,7 @@ export default function AttorneyDocumentPickup() {
   }
 
   // ── Category picker — the "what do you need?" screen, same relationship
-  // Auto Parts Delivery has to Legal Document Pickup that Pick n Pay has to
+  // Auto Parts Delivery has to Document & Parcel Pickup that Pick n Pay has to
   // Uber Eats: one platform, one login, pick a service and go. ──
   if (!serviceCategory) {
     return (
@@ -318,9 +318,9 @@ export default function AttorneyDocumentPickup() {
                 <img src="/carerunnerlogo.png" alt="Carerunners" className="h-8 w-8 object-contain" />
               </div>
               <div className="flex-1">
-                <p className="text-base font-bold text-gray-900">Legal Document Pickup</p>
+                <p className="text-base font-bold text-gray-900">Document &amp; Parcel Pickup</p>
                 <p className="mt-1 text-sm text-gray-500 leading-relaxed">
-                  Schedule a courier pickup for legal or important documents — between offices, courts, and individuals.
+                  Schedule a courier pickup for documents or parcels — between offices, addresses, and individuals.
                 </p>
               </div>
               <span className="text-sm font-semibold text-teal-600 flex items-center gap-1">
@@ -369,7 +369,7 @@ export default function AttorneyDocumentPickup() {
           ← Change service
         </button>
         <div className="mb-7">
-          <h1 className="text-2xl font-bold text-gray-900">Request Document Pick-up</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Request a Pickup</h1>
           <p className="text-sm text-gray-500 mt-1">Fill in the details below to schedule a courier pickup.</p>
         </div>
 
@@ -414,7 +414,7 @@ export default function AttorneyDocumentPickup() {
                 <div>
                   <Label htmlFor="firmName" className="text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
                     <Briefcase className="h-4 w-4 text-gray-400" />
-                    Company / Firm
+                    Company
                     <span className="ml-auto text-xs font-normal text-gray-400">Optional</span>
                   </Label>
                   <Controller
@@ -792,8 +792,8 @@ export default function AttorneyDocumentPickup() {
                           <SelectValue placeholder="Select request type" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="magistrate_court">Magistrate Court</SelectItem>
-                          <SelectItem value="high_court">High Court</SelectItem>
+                          <SelectItem value="business">Business</SelectItem>
+                          <SelectItem value="personal">Personal</SelectItem>
                           <SelectItem value="other">Other</SelectItem>
                         </SelectContent>
                       </Select>

@@ -53,14 +53,14 @@ export async function POST(req: NextRequest) {
 
       const userSnap = await db.collection("users").doc(uid).get();
       if (userSnap.data()?.firmId !== firmId) {
-        return NextResponse.json({ message: "Not your firm" }, { status: 403 });
+        return NextResponse.json({ message: "Not your company account" }, { status: 403 });
       }
 
       const firmSnap = await db.collection("firms").doc(firmId).get();
-      if (!firmSnap.exists) return NextResponse.json({ message: "Firm not found" }, { status: 404 });
+      if (!firmSnap.exists) return NextResponse.json({ message: "Company account not found" }, { status: 404 });
       const firm = firmSnap.data()!;
       if (!firm.planPrice || !firm.selectedPlan) {
-        return NextResponse.json({ message: "No plan selected for this firm" }, { status: 409 });
+        return NextResponse.json({ message: "No plan selected for this company account" }, { status: 409 });
       }
 
       amount = Number(firm.planPrice);

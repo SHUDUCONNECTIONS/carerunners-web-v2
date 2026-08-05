@@ -216,7 +216,7 @@ export default function TripSummary() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
                         <Briefcase className="h-5 w-5 text-teal-600" />
-                        <span className="font-semibold">Company / Firm:</span>
+                        <span className="font-semibold">Company:</span>
                       </div>
                       <span>{tripData.firmName}</span>
                     </div>

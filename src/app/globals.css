@@ -4,7 +4,7 @@
 
 /* ── Service brand palette ──────────────────────────────────────────────
    Swapped by ServiceBrandProvider via the data-service-brand attribute on
-   <html> when a customer picks Auto Parts Delivery vs Legal Document
+   <html> when a customer picks Auto Parts Delivery vs Document & Parcel
    Pickup on /request. Default is Carerunners teal; the PartRunner reds
    are sampled from its own brand (see part runner/app/src/theme.ts). */
 :root {
