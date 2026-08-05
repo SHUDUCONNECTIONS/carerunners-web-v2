@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { StepIndicator, StepNav } from "@/components/Stepper";
 import { auth, db, rtdb, storage } from "@/utils/firebase";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, setDoc } from "firebase/firestore";
 import { ref as dbRef, set as dbSet } from "firebase/database";
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { useGoogleMapsLoader } from "@/components/GoogleMapsLoaderProvider";
@@ -81,17 +81,6 @@ export default function PartsRequestFlow({ onBack }: { onBack: () => void }) {
   const [agreeToTerms, setAgreeToTerms] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
-
-  // Individuals pay upfront before a trip is scheduled (no unpaid-balance
-  // deferral); firm accounts keep the existing pay-after-completion flow.
-  const [isIndividual, setIsIndividual] = useState(false);
-  useEffect(() => {
-    const user = auth.currentUser;
-    if (!user) return;
-    getDoc(doc(db, "users", user.uid))
-      .then((snap) => setIsIndividual(snap.exists() && snap.data().accountType === "individual"))
-      .catch((err) => console.error("Error fetching account type:", err));
-  }, []);
 
   const loadStores = useCallback(() => {
     if (!mapsReady || typeof window === "undefined" || !window.google) return;
@@ -219,7 +208,7 @@ export default function PartsRequestFlow({ onBack }: { onBack: () => void }) {
         hadDiscrepancy: false,
         pickupDate: today,
         pickupTime: "ASAP",
-        status: isIndividual ? "awaiting-payment" : "pending",
+        status: "awaiting-payment",
         payment_status: "unpaid",
         createdAt: new Date(),
       };
@@ -227,7 +216,7 @@ export default function PartsRequestFlow({ onBack }: { onBack: () => void }) {
       await setDoc(doc(db, "pickupRequests", requestId), requestData);
       await dbSet(dbRef(rtdb, `trips/${requestId}`), { ...requestData, createdAt: Date.now() });
 
-      router.push(isIndividual ? `/payment?requestId=${requestId}` : "/trips");
+      router.push(`/payment?requestId=${requestId}`);
     } catch (error) {
       console.error("Error saving parts request:", error);
       setSubmitError("Could not submit your request. Please try again.");

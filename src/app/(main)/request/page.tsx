@@ -84,9 +84,6 @@ export default function AttorneyDocumentPickup() {
   const today = new Date().toISOString().split("T")[0];
   const [pickupAutocomplete, setPickupAutocomplete] = useState(null);
   const [dropoffAutocomplete, setDropoffAutocomplete] = useState(null);
-  // Individuals pay upfront before a trip is scheduled (no unpaid-balance
-  // deferral); firm accounts keep the existing pay-after-completion flow.
-  const [isIndividual, setIsIndividual] = useState(false);
 
   // Wizard state
   const steps = ["Trip Details", "Sender & Receiver", "Locations", "Schedule", "Document Info", "Terms"];
@@ -216,7 +213,6 @@ export default function AttorneyDocumentPickup() {
           if (userDoc.exists()) {
             const userData = userDoc.data();
             const firmData = firmDoc?.exists() ? firmDoc.data() : null;
-            setIsIndividual(userData.accountType === "individual");
 
             // Update form values — company/firm name and address only
             // prefill when there's real company data (firm accounts);
@@ -270,17 +266,15 @@ export default function AttorneyDocumentPickup() {
         const calculatedPrice = calculatePrice(parseFloat(distance));
         setPrice(calculatedPrice);
 
-        // Save pickup request data. Individuals aren't driver-visible
-        // ("pending") until they've paid — check-payment-status flips this
-        // to "pending" once the upfront payment clears. Firm accounts keep
-        // the existing behavior: visible immediately, billed later.
+        // Everyone pays before a trip is driver-visible — it isn't "pending"
+        // until check-payment-status flips it there once payment clears.
         const requestId = `${user.uid}_${Date.now()}`;
         const requestData = {
           ...data,
           userId: user.uid,
           distance: distance,
           price: calculatedPrice,
-          status: isIndividual ? "awaiting-payment" : "pending",
+          status: "awaiting-payment",
           payment_status: "unpaid",
           createdAt: new Date(),
         };
@@ -291,7 +285,7 @@ export default function AttorneyDocumentPickup() {
           createdAt: Date.now(),
         });
 
-        router.push(isIndividual ? `/payment?requestId=${requestId}` : "/trips");
+        router.push(`/payment?requestId=${requestId}`);
       } catch (error) {
         console.error("Error saving pickup request:", error);
       }

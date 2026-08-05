@@ -330,24 +330,18 @@ export default function BillingPage() {
                       <span>{paymentError}</span>
                     </div>
                   )}
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <Button
-                      className="flex-1 w-full sm:w-auto bg-teal-600 hover:bg-teal-700 text-white focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
-                      onClick={() => handlePayNow(group)}
-                      disabled={preparingPayment || payingGroupKey !== null}
-                    >
-                      {preparingPayment && payingGroupKey === null
-                        ? "Preparing..."
-                        : `Pay ${formatCurrency(group.total)} Now`}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="flex-1 w-full sm:w-auto focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
-                      onClick={() => router.push("/dashboard")}
-                    >
-                      Pay Later
-                    </Button>
-                  </div>
+                  {/* No "Pay Later" — every trip now requires payment before
+                      delivery, so anything reaching this page is a
+                      pre-existing balance that still needs settling. */}
+                  <Button
+                    className="w-full bg-teal-600 hover:bg-teal-700 text-white focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+                    onClick={() => handlePayNow(group)}
+                    disabled={preparingPayment || payingGroupKey !== null}
+                  >
+                    {preparingPayment && payingGroupKey === null
+                      ? "Preparing..."
+                      : `Pay ${formatCurrency(group.total)} Now`}
+                  </Button>
                 </div>
               )}
             </CardContent>
