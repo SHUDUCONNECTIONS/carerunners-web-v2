@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db, rtdb } from "@/utils/firebase";
 import { ref, onValue, off } from "firebase/database";
+import { authedFetch } from "@/utils/authedFetch";
 import { GoogleMap, Marker } from "@react-google-maps/api";
 import {
   Clock,
@@ -18,6 +19,7 @@ import {
   Package,
   Store,
   AlertTriangle,
+  Ban,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSearchParams } from "next/navigation";
@@ -59,7 +61,7 @@ interface Trip {
     | "awaiting-price-approval"
     | "completed"
     | "cancelled";
-  payment_status: "paid" | "pending" | "failed";
+  payment_status: "paid" | "pending" | "unpaid" | "failed" | "cancelled" | "refunded";
   pickupDate: string;
   pickupLocation: string;
   dropoffLocations: DropoffLocation[];
@@ -106,6 +108,16 @@ const paymentStatusColors: Record<string, string> = {
   paid: "bg-green-100 text-green-800",
   pending: "bg-yellow-100 text-yellow-800",
   failed: "bg-red-100 text-red-800",
+  cancelled: "bg-gray-100 text-gray-700",
+  refunded: "bg-blue-100 text-blue-800",
+};
+
+// Mirrors the cancellable-status rule on the trips list page: only before a
+// driver has accepted, and only for a pickup that hasn't happened yet.
+const isCancellable = (trip: Trip): boolean => {
+  const cancellableStatuses = ["pending", "waiting for driver", "awaiting-payment"];
+  const today = new Date().toISOString().split("T")[0];
+  return cancellableStatuses.includes(trip.status) && trip.pickupDate >= today;
 };
 
 function formatCurrency(amount: number): string {
@@ -123,6 +135,7 @@ export default function TripDetailsPage() {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [driverLocation, setDriverLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [approving, setApproving] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const { isLoaded: mapsReady } = useGoogleMapsLoader();
 
   const fetchTripDetails = async () => {
@@ -231,6 +244,28 @@ export default function TripDetailsPage() {
     }
   };
 
+  const handleCancel = async () => {
+    if (!tripId || !trip) return;
+    if (!confirm("Are you sure you want to cancel this trip?")) return;
+
+    setCancelling(true);
+    try {
+      const res = await authedFetch("/api/cancel-trip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestId: tripId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || "Failed to cancel trip");
+      await fetchTripDetails();
+    } catch (err: any) {
+      console.error("Error cancelling trip:", err);
+      alert(err?.message || "Failed to cancel trip. Please try again.");
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   if (loading) return <LoadingComponent />;
 
   if (error) {
@@ -281,10 +316,22 @@ export default function TripDetailsPage() {
             <span className="text-2xl font-bold text-teal-700">{formatCurrency(trip.price)}</span>
           </div>
 
-          {/* Pickup date */}
-          <div className="flex items-center gap-1.5 mb-5">
-            <Clock className="h-4 w-4 text-gray-400" aria-hidden="true" />
-            <span className="text-sm text-gray-500">{trip.pickupDate}</span>
+          {/* Pickup date + cancel action */}
+          <div className="flex items-center justify-between gap-3 mb-5">
+            <div className="flex items-center gap-1.5">
+              <Clock className="h-4 w-4 text-gray-400" aria-hidden="true" />
+              <span className="text-sm text-gray-500">{trip.pickupDate}</span>
+            </div>
+            {isCancellable(trip) && (
+              <button
+                onClick={handleCancel}
+                disabled={cancelling}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 border border-red-300 hover:bg-red-50 hover:border-red-400 rounded-lg px-3 py-1.5 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+              >
+                <Ban className="h-3.5 w-3.5" aria-hidden="true" />
+                {cancelling ? "Cancelling…" : "Cancel Trip"}
+              </button>
+            )}
           </div>
 
           {/* Route connector */}

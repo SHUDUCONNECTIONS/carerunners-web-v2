@@ -8,6 +8,7 @@ import { collection, getDocs, query, where, orderBy, doc, updateDoc } from 'fire
 import { auth } from '@/utils/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { useRouter } from "next/navigation";
+import { authedFetch } from '@/utils/authedFetch';
 
 type Trip = {
   id: string;
@@ -58,6 +59,7 @@ const paymentPillColors: Record<string, string> = {
   paid: "bg-green-100 text-green-700 border border-green-200",
   unpaid: "bg-orange-100 text-orange-700 border border-orange-200",
   cancelled: "bg-gray-100 text-gray-500 border border-gray-200",
+  refunded: "bg-blue-100 text-blue-700 border border-blue-200",
   failed: "bg-red-100 text-red-700 border border-red-200",
 };
 
@@ -175,24 +177,27 @@ export default function UserTrips() {
 
     setCancellingId(tripId);
     try {
-      await updateDoc(doc(db, 'pickupRequests', tripId), {
-        status: 'cancelled',
-        payment_status: 'cancelled',
+      const res = await authedFetch('/api/cancel-trip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId: tripId }),
       });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || 'Failed to cancel trip');
 
       // Update local state so UI reflects immediately
       setGroupedTrips(prev => {
         const updated = { ...prev };
         for (const date in updated) {
           updated[date] = updated[date].map(t =>
-            t.id === tripId ? { ...t, status: 'cancelled', payment_status: 'cancelled' } : t
+            t.id === tripId ? { ...t, status: 'cancelled', payment_status: data.payment_status || 'cancelled' } : t
           );
         }
         return updated;
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error cancelling trip:', err);
-      alert('Failed to cancel trip. Please try again.');
+      alert(err?.message || 'Failed to cancel trip. Please try again.');
     } finally {
       setCancellingId(null);
     }

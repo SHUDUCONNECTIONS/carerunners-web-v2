@@ -93,6 +93,9 @@ export async function GET(req: NextRequest) {
         if (tripSnap.exists && tripSnap.data()?.status === "awaiting-payment") {
           update.status = "pending";
         }
+        // Lets cancel-trip find this payment to refund later without having
+        // to search the checkouts collection for it.
+        update.checkoutId = id;
       }
       await db.collection("pickupRequests").doc(checkout.requestId).update(update);
     } else if (checkout.type === "plan") {

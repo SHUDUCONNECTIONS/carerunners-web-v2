@@ -43,6 +43,36 @@ export async function getPaymentStatus(checkoutId: string) {
   return res.json();
 }
 
+// Refunds a previously successful payment. `paymentId` is the id of that
+// payment (the `id` field on the peachResult stored on its checkouts doc),
+// not the original checkout id.
+export async function refundPayment({
+  paymentId,
+  amount,
+  currency = "ZAR",
+}: {
+  paymentId: string;
+  amount: string;
+  currency?: string;
+}) {
+  const body = new URLSearchParams({
+    entityId: ENTITY_ID || "",
+    amount,
+    currency,
+    paymentType: "RF",
+  });
+
+  const res = await fetch(`https://${PEACH_HOST}/v1/payments/${paymentId}`, {
+    method: "POST",
+    headers: {
+      Authorization: BEARER_TOKEN || "",
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body,
+  });
+  return res.json();
+}
+
 // Peach/OPPWA result codes: 000.000.*, 000.100.1xx and 000.[36]xx mean success.
 export function isSuccessCode(code: unknown) {
   return typeof code === "string" && /^(000\.000\.|000\.100\.1|000\.[36])/.test(code);
