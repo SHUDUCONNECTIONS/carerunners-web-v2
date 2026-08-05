@@ -351,7 +351,7 @@ export default function PricingPage() {
             <CardContent className="mt-6 text-center space-y-4">
               <p className="text-gray-600">
                 Individual accounts don&apos;t need a monthly plan — you&apos;re billed per
-                trip when you request a pickup, delivery, or parts order.
+                trip when you request a pickup or delivery.
               </p>
               <p className="text-gray-500 text-sm">
                 Team/seat-based plans are only for company and business accounts.

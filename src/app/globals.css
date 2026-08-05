@@ -2,23 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Service brand palette ──────────────────────────────────────────────
-   Swapped by ServiceBrandProvider via the data-service-brand attribute on
-   <html> when a customer picks Auto Parts Delivery vs Document & Parcel
-   Pickup on /request. Default is Carerunners teal; the PartRunner reds
-   are sampled from its own brand (see part runner/app/src/theme.ts). */
+/* ── Brand palette (Carerunners teal) ───────────────────────────────── */
 :root {
   --brand-50: #f0fdfa;
   --brand-500: #14b8a6;
   --brand-600: #0d9488;
   --brand-700: #0f766e;
-}
-
-[data-service-brand="partrunner"] {
-  --brand-50: #fef2f2;
-  --brand-500: #ef4444;
-  --brand-600: #e21b22;
-  --brand-700: #b9151b;
 }
 
 @layer base {

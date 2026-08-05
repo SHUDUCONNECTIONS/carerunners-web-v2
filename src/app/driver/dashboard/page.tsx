@@ -17,14 +17,11 @@ import {
   Car,
   User,
   LogOut,
-  Package,
   CheckCircle,
   Truck,
   ClipboardList,
   Menu,
   Circle,
-  Store,
-  AlertTriangle,
   FileText,
   Navigation,
 } from "lucide-react"
@@ -77,12 +74,6 @@ interface Trip {
   receiverNumber: string
   driverId?: string
   createdAt?: any
-  serviceCategory?: "document" | "parts"
-  itemName?: string
-  quantity?: number
-  itemTotal?: number
-  store?: { id: string; name: string; address: string }
-  priceOverrun?: { actualStorePrice: number; increaseRequired: number } | null
 }
 
 // Left accent strip color per status
@@ -91,7 +82,6 @@ const statusAccent: Record<string, string> = {
   accepted: "border-blue-500",
   "picked-up": "border-purple-500",
   "in-progress": "border-yellow-400",
-  "awaiting-price-approval": "border-red-400",
   completed: "border-green-500",
   cancelled: "border-gray-300",
 }
@@ -102,7 +92,6 @@ const statusBadge: Record<string, string> = {
   accepted: "bg-blue-100 text-blue-700 border border-blue-200",
   "picked-up": "bg-purple-100 text-purple-700 border border-purple-200",
   "in-progress": "bg-yellow-100 text-yellow-700 border border-yellow-200",
-  "awaiting-price-approval": "bg-red-100 text-red-700 border border-red-200",
   completed: "bg-green-100 text-green-700 border border-green-200",
   cancelled: "bg-gray-100 text-gray-500 border border-gray-200",
 }
@@ -116,7 +105,7 @@ const nextStatus: Record<string, { label: string; value: string }> = {
 // dropoff. Returns null once there's nowhere left to navigate to (completed,
 // cancelled, or still just "pending" — i.e. not yet accepted).
 function getNavStop(trip: Trip): { label: string; address: string } | null {
-  if (trip.status === "accepted" || trip.status === "awaiting-price-approval") {
+  if (trip.status === "accepted") {
     return trip.pickupLocation ? { label: "pickup", address: trip.pickupLocation } : null
   }
   if (trip.status === "in-progress" || trip.status === "picked-up") {
@@ -162,14 +151,8 @@ function DriverDashboardContent() {
   const [pastTrips, setPastTrips] = useState<Trip[]>([])
   const [loading, setLoading] = useState(true)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
-  const [serviceView, setServiceView] = useState<"document" | "parts">("document")
   const [driverPosition, setDriverPosition] = useState<{ lat: number; lng: number } | null>(null)
   const router = useRouter()
-
-  // Legacy trips have no serviceCategory field at all — treat those as
-  // "document" trips so nothing existing disappears from that tab.
-  const matchesView = (t: Trip) =>
-    serviceView === "parts" ? t.serviceCategory === "parts" : t.serviceCategory !== "parts"
 
   // Broadcast live location to RTDB while driver has an active trip
   useEffect(() => {
@@ -288,23 +271,6 @@ function DriverDashboardContent() {
       // onSnapshot listeners update the UI automatically
     } catch (error) {
       console.error("Error updating status:", error)
-    } finally {
-      setUpdatingId(null)
-    }
-  }
-
-  // Driver reports the actual shelf price for a parts job — puts the order
-  // on hold until the customer approves the increase.
-  const handleReportPrice = async (trip: Trip, actualStorePrice: number) => {
-    setUpdatingId(trip.id)
-    try {
-      const increaseRequired = actualStorePrice - Number(trip.itemTotal ?? 0)
-      await updateDoc(doc(db, "pickupRequests", trip.id), {
-        status: "awaiting-price-approval",
-        priceOverrun: { actualStorePrice, increaseRequired },
-      })
-    } catch (error) {
-      console.error("Error reporting store price:", error)
     } finally {
       setUpdatingId(null)
     }
@@ -441,32 +407,10 @@ function DriverDashboardContent() {
         {/* ── Trips Tabs (approved drivers only) ── */}
         {driver.isApproved && (
           <>
-            {/* Document Trips / Parts Jobs switch — a separate queue per service, not a merged feed */}
-            <div className="flex bg-gray-100 rounded-xl p-1 gap-1 mb-4">
-              <button
-                onClick={() => setServiceView("document")}
-                className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg text-sm font-medium py-2 transition-all ${
-                  serviceView === "document" ? "bg-white shadow-sm text-teal-700" : "text-gray-500"
-                }`}
-              >
-                <FileText className="h-4 w-4" />
-                Document Trips
-              </button>
-              <button
-                onClick={() => setServiceView("parts")}
-                className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg text-sm font-medium py-2 transition-all ${
-                  serviceView === "parts" ? "bg-white shadow-sm text-teal-700" : "text-gray-500"
-                }`}
-              >
-                <Package className="h-4 w-4" />
-                Parts Jobs
-              </button>
-            </div>
-
             {(() => {
-              const viewAvailable = availableTrips.filter(matchesView)
-              const viewMyTrips = myTrips.filter(matchesView)
-              const viewPastTrips = pastTrips.filter(matchesView)
+              const viewAvailable = availableTrips
+              const viewMyTrips = myTrips
+              const viewPastTrips = pastTrips
 
               return (
                 <Tabs defaultValue="available">
@@ -556,18 +500,7 @@ function DriverDashboardContent() {
                           showNavigate
                           driverPosition={driverPosition}
                           action={
-                            trip.status === "awaiting-price-approval" ? (
-                              <div className="w-full mt-4 flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl py-3 px-3">
-                                <AlertTriangle className="h-4 w-4 shrink-0" />
-                                Waiting for customer to approve the price increase.
-                              </div>
-                            ) : trip.serviceCategory === "parts" && trip.status === "accepted" ? (
-                              <PriceReportControl
-                                trip={trip}
-                                onReport={(actual) => handleReportPrice(trip, actual)}
-                                disabled={updatingId === trip.id}
-                              />
-                            ) : nextStatus[trip.status] ? (
+                            nextStatus[trip.status] ? (
                               <button
                                 className="w-full mt-4 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white font-semibold text-sm rounded-xl py-3 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                                 onClick={() => handleUpdateStatus(trip.id, nextStatus[trip.status].value)}
@@ -712,7 +645,7 @@ function TripCard({
         </div>
 
         {/* ── Meta chips row ── */}
-        {(trip.distance || trip.requestType || trip.firmName || trip.itemName || trip.store) && (
+        {(trip.distance || trip.requestType || trip.firmName) && (
           <div className="flex flex-wrap gap-2 mb-4">
             {trip.distance && (
               <span className="inline-flex items-center gap-1 text-xs bg-gray-50 border border-gray-100 text-gray-500 rounded-full px-2.5 py-1">
@@ -720,28 +653,11 @@ function TripCard({
                 {trip.distance} km
               </span>
             )}
-            {trip.serviceCategory === "parts" ? (
-              <>
-                {trip.itemName && (
-                  <span className="inline-flex items-center gap-1 text-xs bg-gray-50 border border-gray-100 text-gray-500 rounded-full px-2.5 py-1">
-                    <Package className="h-3 w-3 text-teal-500" />
-                    {trip.itemName}{trip.quantity ? ` × ${trip.quantity}` : ""}
-                  </span>
-                )}
-                {trip.store?.name && (
-                  <span className="inline-flex items-center gap-1 text-xs bg-gray-50 border border-gray-100 text-gray-500 rounded-full px-2.5 py-1">
-                    <Store className="h-3 w-3 text-teal-500" />
-                    {trip.store.name}
-                  </span>
-                )}
-              </>
-            ) : (
-              trip.requestType && (
-                <span className="inline-flex items-center gap-1 text-xs bg-gray-50 border border-gray-100 text-gray-500 rounded-full px-2.5 py-1">
-                  <FileText className="h-3 w-3 text-teal-500" />
-                  {requestLabel}
-                </span>
-              )
+            {trip.requestType && (
+              <span className="inline-flex items-center gap-1 text-xs bg-gray-50 border border-gray-100 text-gray-500 rounded-full px-2.5 py-1">
+                <FileText className="h-3 w-3 text-teal-500" />
+                {requestLabel}
+              </span>
             )}
             {trip.firmName && (
               <span className="inline-flex items-center gap-1 text-xs bg-gray-50 border border-gray-100 text-gray-500 rounded-full px-2.5 py-1">
@@ -801,57 +717,6 @@ function TripCard({
 
         {/* ── Action button ── */}
         {action}
-      </div>
-    </div>
-  )
-}
-
-// ── Price Report Control (parts jobs only) ─────────────────────────────────
-// Lets a driver flag that the shelf price at the store is higher than the
-// customer's quoted estimate — puts the order on hold pending approval.
-function PriceReportControl({
-  trip,
-  onReport,
-  disabled,
-}: {
-  trip: Trip
-  onReport: (actualStorePrice: number) => void
-  disabled?: boolean
-}) {
-  const [reporting, setReporting] = useState(false)
-  const [actualPrice, setActualPrice] = useState("")
-
-  if (!reporting) {
-    return (
-      <button
-        className="w-full mt-4 bg-white border border-red-200 text-red-600 hover:bg-red-50 font-semibold text-sm rounded-xl py-3 transition-colors flex items-center justify-center gap-1.5"
-        onClick={() => setReporting(true)}
-      >
-        <AlertTriangle className="h-4 w-4" />
-        Price is different at the store
-      </button>
-    )
-  }
-
-  return (
-    <div className="mt-4 space-y-2">
-      <label className="text-xs font-medium text-gray-500">Actual price at the store (R)</label>
-      <div className="flex gap-2">
-        <input
-          type="number"
-          min={0}
-          value={actualPrice}
-          onChange={(e) => setActualPrice(e.target.value)}
-          placeholder={String(trip.itemTotal ?? "")}
-          className="flex-1 h-10 rounded-lg border border-gray-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-        />
-        <button
-          className="bg-red-600 hover:bg-red-700 text-white font-semibold text-sm rounded-lg px-4 disabled:opacity-60"
-          disabled={disabled || !actualPrice || parseFloat(actualPrice) <= 0}
-          onClick={() => onReport(parseFloat(actualPrice))}
-        >
-          Submit
-        </button>
       </div>
     </div>
   )

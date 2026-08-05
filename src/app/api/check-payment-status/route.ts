@@ -85,8 +85,8 @@ export async function GET(req: NextRequest) {
       const update: Record<string, unknown> = { payment_status: newStatus };
       if (success) {
         // Individual accounts create trips gated behind payment (see
-        // request/page.tsx, PartsRequestFlow.tsx) — only those need to
-        // transition to "pending" (driver-visible) here. Firm trips are
+        // request/page.tsx) — only those need to transition to "pending"
+        // (driver-visible) here. Firm trips are
         // already "pending" the moment they're created and get paid later
         // via /billing, so leave their status alone.
         const tripSnap = await db.collection("pickupRequests").doc(checkout.requestId).get();

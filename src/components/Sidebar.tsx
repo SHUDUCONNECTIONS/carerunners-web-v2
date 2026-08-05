@@ -17,7 +17,6 @@ import {
   Receipt,
   type LucideIcon,
 } from "lucide-react"
-import { useServiceBrand } from "@/components/ServiceBrandProvider"
 
 interface MenuItem {
   icon: LucideIcon
@@ -84,9 +83,6 @@ function SidebarNav({
 }
 
 function SidebarBrand() {
-  const { brand } = useServiceBrand()
-  const isPartRunner = brand === "partrunner"
-
   return (
     <Link
       href="/dashboard"
@@ -94,14 +90,12 @@ function SidebarBrand() {
     >
       <span className="flex items-center shrink-0">
         <img
-          src={isPartRunner ? "/partrunnerlogo.png" : "/carerunnerlogo.png"}
-          alt={isPartRunner ? "PartRunner" : "Carerunners"}
-          className={`h-9 w-9 bg-white rounded-lg border border-white/20 ${isPartRunner ? "object-contain p-0.5" : ""}`}
+          src="/carerunnerlogo.png"
+          alt="Carerunners"
+          className="h-9 w-9 bg-white rounded-lg border border-white/20"
         />
       </span>
-      <h1 className="text-lg font-bold text-white leading-tight">
-        {isPartRunner ? "PartRunner" : "Carerunners"}
-      </h1>
+      <h1 className="text-lg font-bold text-white leading-tight">Carerunners</h1>
     </Link>
   )
 }
@@ -113,7 +107,6 @@ export default function Sidebar({
 }) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
-  const { brand } = useServiceBrand()
 
   return (
     <>
@@ -121,13 +114,11 @@ export default function Sidebar({
       <div className="md:hidden sticky top-0 z-40 flex items-center justify-between bg-[var(--brand-600)] shadow-md px-4 py-3">
         <Link href="/dashboard" className="flex items-center gap-2">
           <img
-            src={brand === "partrunner" ? "/partrunnerlogo.png" : "/carerunnerlogo.png"}
-            alt={brand === "partrunner" ? "PartRunner" : "Carerunners"}
-            className={`h-8 w-8 bg-white rounded-lg shrink-0 border border-white/20 ${brand === "partrunner" ? "object-contain p-0.5" : ""}`}
+            src="/carerunnerlogo.png"
+            alt="Carerunners"
+            className="h-8 w-8 bg-white rounded-lg shrink-0 border border-white/20"
           />
-          <span className="text-base font-bold text-white">
-            {brand === "partrunner" ? "PartRunner" : "Carerunners"}
-          </span>
+          <span className="text-base font-bold text-white">Carerunners</span>
         </Link>
         <Button
           variant="ghost"

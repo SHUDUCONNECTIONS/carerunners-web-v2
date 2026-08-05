@@ -34,7 +34,6 @@ import { doc, setDoc } from "firebase/firestore";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { ref as dbRef, set } from "firebase/database";
 import { useRouter } from "next/navigation";
-import { PartRunnerAdPanel } from "@/components/PartRunnerAdPanel";
 
 
 const steps = [
@@ -792,9 +791,6 @@ export default function DriverSignUpStepper() {
             alt="Care Runners Logo"
             className="w-full h-full object-contain"
           />
-        </div>
-        <div className="flex justify-center px-4">
-          <PartRunnerAdPanel ctaText="Also deliver for PartRunner" />
         </div>
         <CardContent className="mt-6">
           <div className="mb-8">

@@ -9,7 +9,6 @@ import { useRouter } from "next/navigation"
 import { auth } from "@/utils/firebase"
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth"
 import { getFirestore, doc, getDoc } from "firebase/firestore"
-import { PartRunnerAdPanel } from "@/components/PartRunnerAdPanel"
 
 export default function DriverLoginPage() {
   const [email, setEmail] = useState("")
@@ -85,7 +84,7 @@ export default function DriverLoginPage() {
     <div className="min-h-screen bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="w-full max-w-4xl flex flex-col md:flex-row rounded-2xl shadow-2xl overflow-hidden">
 
-        {/* Left panel — teal brand panel + PartRunner promo */}
+        {/* Left panel — teal brand panel */}
         <div className="bg-teal-600 text-white flex flex-col items-center justify-center
                         px-8 py-8 md:py-12 md:w-1/2 shrink-0">
           <img
@@ -93,10 +92,12 @@ export default function DriverLoginPage() {
             alt="Carerunners Logo"
             className="w-20 h-20 md:w-24 md:h-24 object-contain mb-3 md:mb-6"
           />
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-center mb-6">
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-center mb-3">
             Driver Portal
           </h1>
-          <PartRunnerAdPanel ctaText="Sign in to start earning" />
+          <p className="text-teal-100 text-sm text-center leading-relaxed max-w-xs hidden md:block">
+            Sign in to see available trips, accept jobs, and start earning.
+          </p>
         </div>
 
         {/* Right panel — login form */}

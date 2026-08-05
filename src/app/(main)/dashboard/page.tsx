@@ -13,7 +13,6 @@ import {
   Wallet,
   Clock,
   CalendarCheck,
-  ArrowRight,
 } from "lucide-react"
 import Link from "next/link"
 import { auth, db } from "@/utils/firebase"
@@ -172,27 +171,6 @@ export default function Dashboard() {
             Here&apos;s an overview of your Carerunners account.
           </p>
         </div>
-
-        {/* ── Auto Parts Delivery promo ──────────────────────────────────── */}
-        <Link
-          href="/request?service=parts"
-          className="group mb-8 flex flex-col sm:flex-row items-center gap-5 rounded-2xl p-6 bg-[#e21b22] shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden relative"
-        >
-          <div className="absolute -right-8 -bottom-10 w-40 h-40 rounded-full bg-white/5 pointer-events-none" />
-          <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center shrink-0 shadow-sm">
-            <img src="/partrunnerlogo.png" alt="PartRunner" className="h-9 w-9 object-contain" />
-          </div>
-          <div className="flex-1 text-center sm:text-left">
-            <p className="text-xs font-bold uppercase tracking-widest text-white/70 mb-1">New · Powered by PartRunner</p>
-            <p className="text-lg font-bold text-white">Need an auto part fast?</p>
-            <p className="text-sm text-white/80 mt-0.5">
-              Tell us what you need — we&apos;ll find it at a nearby store and get it delivered to you.
-            </p>
-          </div>
-          <span className="shrink-0 inline-flex items-center gap-1.5 bg-white text-[#e21b22] font-semibold text-sm rounded-xl px-5 py-2.5 group-hover:gap-2.5 transition-all">
-            Get Started <ArrowRight className="h-4 w-4" />
-          </span>
-        </Link>
 
         {/* ── Quick stats row ──────────────────────────────────────────── */}
         <div className="mb-8 grid grid-cols-1 sm:grid-cols-3 gap-4">

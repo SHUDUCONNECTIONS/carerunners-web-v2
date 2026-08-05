@@ -8,8 +8,6 @@ import { useRouter } from "next/navigation"
 import { auth } from "@/utils/firebase"
 import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, sendPasswordResetEmail } from "firebase/auth"
 import { getFirestore, collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore'
-import { PartRunnerParticles } from "@/components/PartRunnerParticles"
-import { PartRunnerAdPanel } from "@/components/PartRunnerAdPanel"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -163,26 +161,22 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="relative min-h-screen bg-gray-100 flex items-center justify-center p-4 overflow-hidden">
-      <PartRunnerParticles />
-
+    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
       {/* Card wrapper */}
-      <div className="relative z-10 w-full max-w-4xl flex flex-col md:flex-row rounded-2xl shadow-2xl overflow-hidden">
+      <div className="w-full max-w-4xl flex flex-col md:flex-row rounded-2xl shadow-2xl overflow-hidden">
 
         {/* Left panel — teal brand panel */}
-        <div className="bg-teal-600 text-white flex flex-col items-center
+        <div className="bg-teal-600 text-white flex flex-col items-center justify-center
                         px-6 py-8 md:py-10 md:w-1/2 shrink-0">
-          {/* Compact Carerunners header */}
-          <div className="flex items-center gap-2.5 self-center md:self-start mb-6 md:mb-8">
-            <img
-              src="/carerunnerlogo.png"
-              alt="Carerunners Logo"
-              className="w-9 h-9 object-contain"
-            />
-            <span className="text-lg font-bold tracking-tight">Carerunners</span>
-          </div>
-
-          <PartRunnerAdPanel ctaText="Sign in to get started" />
+          <img
+            src="/carerunnerlogo.png"
+            alt="Carerunners Logo"
+            className="w-16 h-16 md:w-24 md:h-24 object-contain mb-3 md:mb-6"
+          />
+          <span className="text-lg md:text-2xl font-bold tracking-tight">Carerunners</span>
+          <p className="mt-2 text-teal-100 text-sm text-center leading-relaxed max-w-xs hidden md:block">
+            Sign in to schedule pickups, track deliveries, and manage your requests.
+          </p>
         </div>
 
         {/* Right panel — white form area */}

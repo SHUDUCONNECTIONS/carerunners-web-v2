@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useForm, Controller } from "react-hook-form";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -25,7 +25,6 @@ import {
   User,
   Briefcase,
   Phone,
-  ArrowRight,
 } from "lucide-react";
 import {
   GoogleMap,
@@ -38,8 +37,6 @@ import { ref, set } from "firebase/database";
 import { onAuthStateChanged } from "firebase/auth";
 import LoadingComponent from "@/components/loader";
 import { StepIndicator, StepNav } from "@/components/Stepper";
-import PartsRequestFlow from "./PartsRequestFlow";
-import { useServiceBrand } from "@/components/ServiceBrandProvider";
 import { useGoogleMapsLoader } from "@/components/GoogleMapsLoaderProvider";
 
 // Cache object for storing distance calculations
@@ -56,24 +53,7 @@ const defaultCenter = {
 };
 
 export default function DocumentPickup() {
-  const searchParams = useSearchParams();
-  // Lets promo links (e.g. the dashboard's Auto Parts Delivery banner) jump
-  // straight into that flow instead of stopping at the category picker.
-  const [serviceCategory, setServiceCategory] = useState<"document" | "parts" | null>(
-    searchParams.get("service") === "parts" ? "parts" : null
-  );
-  const { setBrand } = useServiceBrand();
   const { isLoaded: mapsReady } = useGoogleMapsLoader();
-
-  // Reskins the whole app (sidebar, footer, etc. — see ServiceBrandProvider)
-  // to PartRunner's red while the customer is in the Auto Parts flow. Resets
-  // to Carerunners teal on category change AND on unmount, so navigating
-  // away from /request entirely (dashboard, trips, etc.) never leaves the
-  // rest of the app stuck in PartRunner branding.
-  useEffect(() => {
-    setBrand(serviceCategory === "parts" ? "partrunner" : "carerunners");
-    return () => setBrand("carerunners");
-  }, [serviceCategory, setBrand]);
 
   const [pickupCoords, setPickupCoords] = useState(defaultCenter);
   const [dropoffCoords, setDropoffCoords] = useState(null);
@@ -294,78 +274,11 @@ export default function DocumentPickup() {
     return <LoadingComponent />;
   }
 
-  // ── Category picker — the "what do you need?" screen, same relationship
-  // Auto Parts Delivery has to Document & Parcel Pickup that Pick n Pay has to
-  // Uber Eats: one platform, one login, pick a service and go. ──
-  if (!serviceCategory) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <main className="container mx-auto px-4 py-8 max-w-2xl">
-          <div className="mb-7">
-            <h1 className="text-2xl font-bold text-gray-900">What do you need picked up?</h1>
-            <p className="text-sm text-gray-500 mt-1">Choose a service to get started.</p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <button
-              type="button"
-              onClick={() => setServiceCategory("document")}
-              className="text-left h-full bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col gap-4 hover:-translate-y-0.5 hover:shadow-md hover:border-teal-100 transition-all duration-200"
-            >
-              <div className="w-12 h-12 rounded-xl bg-teal-50 flex items-center justify-center shrink-0 overflow-hidden">
-                <img src="/carerunnerlogo.png" alt="Carerunners" className="h-8 w-8 object-contain" />
-              </div>
-              <div className="flex-1">
-                <p className="text-base font-bold text-gray-900">Document &amp; Parcel Pickup</p>
-                <p className="mt-1 text-sm text-gray-500 leading-relaxed">
-                  Schedule a courier pickup for documents or parcels — between offices, addresses, and individuals.
-                </p>
-              </div>
-              <span className="text-sm font-semibold text-teal-600 flex items-center gap-1">
-                Get started <ArrowRight className="h-4 w-4" />
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setServiceCategory("parts")}
-              className="text-left h-full bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col gap-4 hover:-translate-y-0.5 hover:shadow-md hover:border-teal-100 transition-all duration-200"
-            >
-              <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center shrink-0 overflow-hidden">
-                <img src="/partrunnerlogo.png" alt="PartRunner" className="h-8 w-8 object-contain" />
-              </div>
-              <div className="flex-1">
-                <p className="text-base font-bold text-gray-900">Auto Parts Delivery</p>
-                <p className="mt-1 text-sm text-gray-500 leading-relaxed">
-                  Need a car or truck part? We&apos;ll find it at a nearby store and deliver it to you.
-                </p>
-              </div>
-              <span className="text-sm font-semibold text-teal-600 flex items-center gap-1">
-                Get started <ArrowRight className="h-4 w-4" />
-              </span>
-            </button>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
-  if (serviceCategory === "parts") {
-    return <PartsRequestFlow onBack={() => setServiceCategory(null)} />;
-  }
-
   return (
     <div className="min-h-screen bg-gray-50">
       <main className="container mx-auto px-4 py-8 max-w-2xl">
 
         {/* Page header */}
-        <button
-          type="button"
-          onClick={() => setServiceCategory(null)}
-          className="text-sm font-medium text-gray-500 hover:text-teal-700 mb-3"
-        >
-          ← Change service
-        </button>
         <div className="mb-7">
           <h1 className="text-2xl font-bold text-gray-900">Request a Pickup</h1>
           <p className="text-sm text-gray-500 mt-1">Fill in the details below to schedule a courier pickup.</p>
