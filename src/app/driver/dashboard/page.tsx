@@ -41,6 +41,15 @@ import { useRouter } from "next/navigation"
 import LoadingComponent from "@/components/loader"
 import { GoogleMapsLoaderProvider } from "@/components/GoogleMapsLoaderProvider"
 import DriverRouteMap from "@/components/DriverRouteMap"
+import { PhotoProofCapture } from "@/components/PhotoProofCapture"
+import {
+  TripStatus,
+  normalizeStatus,
+  getStatusAccentClass,
+  getStatusBadgeClass,
+  getStatusLabel,
+} from "@/lib/tripStatus"
+import { calculatePayout } from "@/lib/pricing"
 
 interface Driver {
   firstName: string
@@ -72,45 +81,78 @@ interface Trip {
   senderNumber: string
   receiverName: string
   receiverNumber: string
+  serviceType?: string
+  vehicleType?: string
   driverId?: string
   createdAt?: any
 }
 
-// Left accent strip color per status
-const statusAccent: Record<string, string> = {
-  pending: "border-orange-400",
-  accepted: "border-blue-500",
-  "picked-up": "border-purple-500",
-  "in-progress": "border-yellow-400",
-  completed: "border-green-500",
-  cancelled: "border-gray-300",
-}
-
-// Badge styling per status
-const statusBadge: Record<string, string> = {
-  pending: "bg-orange-100 text-orange-700 border border-orange-200",
-  accepted: "bg-blue-100 text-blue-700 border border-blue-200",
-  "picked-up": "bg-purple-100 text-purple-700 border border-purple-200",
-  "in-progress": "bg-yellow-100 text-yellow-700 border border-yellow-200",
-  completed: "bg-green-100 text-green-700 border border-green-200",
-  cancelled: "bg-gray-100 text-gray-500 border border-gray-200",
-}
-
-const nextStatus: Record<string, { label: string; value: string }> = {
-  accepted: { label: "Mark as Collected", value: "in-progress" },
-  "in-progress": { label: "Mark as Delivered", value: "completed" },
+// Photo-proof-gated status transitions available to the driver. Both legs
+// (pickup and delivery) require a photo to be uploaded before the trip's
+// status advances — "in-transit" is set automatically the moment pickup
+// proof is confirmed, since it isn't a separate driver action.
+// "picked-up" isn't reachable from this dashboard (pickup proof jumps
+// straight to "in-transit"), but legacy trips written before this status
+// map existed can still be sitting in it — treat it the same as
+// "in-transit" so those trips aren't stuck with no available action.
+const photoGatedTransition: Partial<Record<TripStatus, { label: string; nextStatus: TripStatus; proofKind: "pickup" | "delivery" }>> = {
+  assigned: { label: "Mark as Collected", nextStatus: "in-transit", proofKind: "pickup" },
+  "in-transit": { label: "Mark as Delivered", nextStatus: "delivered", proofKind: "delivery" },
+  "picked-up": { label: "Mark as Delivered", nextStatus: "delivered", proofKind: "delivery" },
 }
 
 // Before collection the driver needs directions to the pickup; after, to the
 // dropoff. Returns null once there's nowhere left to navigate to (completed,
-// cancelled, or still just "pending" — i.e. not yet accepted).
+// cancelled, or still just "pending" — i.e. not yet assigned).
 function getNavStop(trip: Trip): { label: string; address: string } | null {
-  if (trip.status === "accepted") {
+  const status = normalizeStatus(trip.status)
+  if (status === "assigned") {
     return trip.pickupLocation ? { label: "pickup", address: trip.pickupLocation } : null
   }
-  if (trip.status === "in-progress" || trip.status === "picked-up") {
+  if (status === "in-transit" || status === "picked-up") {
     return trip.dropoffLocation ? { label: "dropoff", address: trip.dropoffLocation } : null
   }
+  return null
+}
+
+// Renders the action area of a trip card: the photo-gated status button
+// while a transition is available, a waiting notice once delivered (the
+// customer still needs to rate the trip before it's "completed"), or the
+// payout summary once completed. Shared by the "My Trips" and "Past" tabs.
+function renderTripAction(trip: Trip, updatingId: string | null) {
+  const status = normalizeStatus(trip.status)
+  const transition = photoGatedTransition[status]
+
+  if (transition) {
+    return (
+      <PhotoProofCapture
+        tripId={trip.id}
+        proofKind={transition.proofKind}
+        nextStatus={transition.nextStatus}
+        label={transition.label}
+        disabled={updatingId === trip.id}
+      />
+    )
+  }
+
+  if (status === "delivered") {
+    return (
+      <div className="w-full mt-4 flex items-center justify-center gap-2 bg-indigo-50 border border-indigo-200 text-indigo-700 font-semibold text-sm rounded-xl py-3">
+        <CheckCircle className="h-4 w-4" />
+        Delivered · Awaiting customer rating
+      </div>
+    )
+  }
+
+  if (status === "completed") {
+    return (
+      <div className="w-full mt-4 flex items-center justify-center gap-2 bg-green-50 border border-green-200 text-green-700 font-semibold text-sm rounded-xl py-3">
+        <CheckCircle className="h-4 w-4" />
+        Completed · Payout: {isNaN(Number(trip.price)) ? "R—" : `R${calculatePayout(trip.price).toFixed(2)}`}
+      </div>
+    )
+  }
+
   return null
 }
 
@@ -255,22 +297,10 @@ function DriverDashboardContent() {
     if (!user) return
     setUpdatingId(tripId)
     try {
-      await updateDoc(doc(db, "pickupRequests", tripId), { status: "accepted", driverId: user.uid })
+      await updateDoc(doc(db, "pickupRequests", tripId), { status: "assigned" satisfies TripStatus, driverId: user.uid })
       // onSnapshot listeners update the UI automatically
     } catch (error) {
       console.error("Error accepting trip:", error)
-    } finally {
-      setUpdatingId(null)
-    }
-  }
-
-  const handleUpdateStatus = async (tripId: string, newStatus: string) => {
-    setUpdatingId(tripId)
-    try {
-      await updateDoc(doc(db, "pickupRequests", tripId), { status: newStatus })
-      // onSnapshot listeners update the UI automatically
-    } catch (error) {
-      console.error("Error updating status:", error)
     } finally {
       setUpdatingId(null)
     }
@@ -499,23 +529,7 @@ function DriverDashboardContent() {
                           showStatus
                           showNavigate
                           driverPosition={driverPosition}
-                          action={
-                            nextStatus[trip.status] ? (
-                              <button
-                                className="w-full mt-4 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white font-semibold text-sm rounded-xl py-3 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                                onClick={() => handleUpdateStatus(trip.id, nextStatus[trip.status].value)}
-                                disabled={updatingId === trip.id}
-                              >
-                                {updatingId === trip.id ? "Updating…" : nextStatus[trip.status].label}
-                              </button>
-                            ) : trip.status === "completed" ? (
-                              <div className="w-full mt-4 flex items-center justify-center gap-2 bg-green-50 border border-green-200 text-green-700 font-semibold text-sm rounded-xl py-3">
-                                <CheckCircle className="h-4 w-4" />
-                                Completed · Payout:{" "}
-                                {isNaN(Number(trip.price)) ? "R—" : `R${(Number(trip.price) * 0.7).toFixed(2)}`}
-                              </div>
-                            ) : null
-                          }
+                          action={renderTripAction(trip, updatingId)}
                         />
                       ))
                     )}
@@ -531,15 +545,7 @@ function DriverDashboardContent() {
                           key={trip.id}
                           trip={trip}
                           showStatus
-                          action={
-                            trip.status === "completed" ? (
-                              <div className="w-full mt-4 flex items-center justify-center gap-2 bg-green-50 border border-green-200 text-green-700 font-semibold text-sm rounded-xl py-3">
-                                <CheckCircle className="h-4 w-4" />
-                                Completed · Payout:{" "}
-                                {isNaN(Number(trip.price)) ? "R—" : `R${(Number(trip.price) * 0.7).toFixed(2)}`}
-                              </div>
-                            ) : null
-                          }
+                          action={renderTripAction(trip, updatingId)}
                         />
                       ))
                     )}
@@ -589,7 +595,7 @@ function TripCard({
   showNavigate?: boolean
   driverPosition?: { lat: number; lng: number } | null
 }) {
-  const accentClass = statusAccent[trip.status] ?? "border-gray-200"
+  const accentClass = getStatusAccentClass(trip.status)
   const navStop = showNavigate ? getNavStop(trip) : null
 
   const requestLabel = trip.requestType
@@ -612,8 +618,8 @@ function TripCard({
           </div>
           <div className="flex items-center gap-2">
             {showStatus && trip.status && (
-              <span className={`text-xs font-semibold rounded-full px-2.5 py-1 ${statusBadge[trip.status] ?? "bg-gray-100 text-gray-600"}`}>
-                {trip.status.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
+              <span className={`text-xs font-semibold rounded-full px-2.5 py-1 ${getStatusBadgeClass(trip.status)}`}>
+                {getStatusLabel(trip.status)}
               </span>
             )}
             {/* Price – prominent teal */}

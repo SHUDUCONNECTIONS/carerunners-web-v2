@@ -8,15 +8,9 @@ import { CheckCircle, AlertCircle, RefreshCw, Lock } from "lucide-react"
 import { db } from "@/utils/firebase"
 import { collection, getDocs, doc, updateDoc } from "firebase/firestore"
 import { GoogleMapsLoaderProvider, useGoogleMapsLoader } from "@/components/GoogleMapsLoaderProvider"
+import { calculatePrice } from "@/lib/pricing"
 
 const SYNC_PASSWORD = "shudu-sync-2024"
-
-const calculatePrice = (distanceKm: number) => {
-  const basePrice = 32
-  const ratePerKm = 10
-  const price = distanceKm <= 1 ? basePrice : basePrice + (distanceKm - 1) * ratePerKm
-  return price.toFixed(2)
-}
 
 const getDistanceKm = (origin: string, destination: string): Promise<number | null> => {
   return new Promise((resolve) => {
@@ -115,7 +109,9 @@ function SyncPageContent() {
             continue
           }
 
-          const correctedPrice = calculatePrice(distanceKm)
+          // Trips written before service categories existed default to
+          // legal_logistics, matching their document-courier fields.
+          const correctedPrice = calculatePrice(data.serviceType || "legal_logistics", distanceKm, data.vehicleType || null)
           await updateDoc(doc(db, "pickupRequests", docSnap.id), {
             price: correctedPrice,
             distance: distanceKm.toFixed(2),

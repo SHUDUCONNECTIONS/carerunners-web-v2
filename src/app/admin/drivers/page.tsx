@@ -30,6 +30,8 @@ import {
   XCircle,
 } from "lucide-react"
 import LoadingComponent from "@/components/loader"
+import { calculatePayout } from "@/lib/pricing"
+import { getStatusBadgeClass, getStatusLabel } from "@/lib/tripStatus"
 
 type DriverApplication = {
   id: string
@@ -63,17 +65,6 @@ type DriverTrip = {
   price: string
   distance: string
   requestType: string
-}
-
-const PAYOUT_RATE = 0.7
-
-const statusBadge: Record<string, string> = {
-  pending: "bg-orange-100 text-orange-700 border border-orange-200",
-  accepted: "bg-blue-100 text-blue-700 border border-blue-200",
-  "picked-up": "bg-purple-100 text-purple-700 border border-purple-200",
-  "in-progress": "bg-yellow-100 text-yellow-700 border border-yellow-200",
-  completed: "bg-green-100 text-green-700 border border-green-200",
-  cancelled: "bg-gray-100 text-gray-500 border border-gray-200",
 }
 
 function driverStatus(d: DriverApplication): "pending" | "approved" | "rejected" {
@@ -177,7 +168,7 @@ export default function AdminDriversPage() {
   const payoutFor = (trips: DriverTrip[]) =>
     trips
       .filter((t) => t.status === "completed")
-      .reduce((sum, t) => sum + (parseFloat(t.price) || 0) * PAYOUT_RATE, 0)
+      .reduce((sum, t) => sum + calculatePayout(t.price || 0), 0)
 
   const handleDownloadTrips = (driver: DriverApplication) => {
     const trips = tripsByDriver[driver.id] || []
@@ -192,7 +183,7 @@ export default function AdminDriversPage() {
         t.distance || "",
         t.status || "",
         t.price ? Number(t.price).toFixed(2) : "",
-        t.status === "completed" && t.price ? (Number(t.price) * PAYOUT_RATE).toFixed(2) : "",
+        t.status === "completed" && t.price ? calculatePayout(t.price).toFixed(2) : "",
       ]),
     ]
     downloadCSV(`${driver.firstName}-${driver.lastName}-trips.csv`, rows)
@@ -459,8 +450,8 @@ export default function AdminDriversPage() {
                                       <td className="py-3 pr-4 max-w-[160px] truncate">{trip.pickupLocation}</td>
                                       <td className="py-3 pr-4 max-w-[160px] truncate">{trip.dropoffLocation}</td>
                                       <td className="py-3 pr-4 whitespace-nowrap">
-                                        <span className={`text-xs font-semibold rounded-full px-2.5 py-1 ${statusBadge[trip.status] ?? "bg-gray-100 text-gray-600"}`}>
-                                          {trip.status?.replace(/-/g, " ")}
+                                        <span className={`text-xs font-semibold rounded-full px-2.5 py-1 ${getStatusBadgeClass(trip.status)}`}>
+                                          {getStatusLabel(trip.status)}
                                         </span>
                                       </td>
                                       <td className="py-3 pr-4 text-right whitespace-nowrap">
@@ -468,7 +459,7 @@ export default function AdminDriversPage() {
                                       </td>
                                       <td className="py-3 text-right font-medium whitespace-nowrap">
                                         {trip.status === "completed" && !isNaN(Number(trip.price))
-                                          ? `R${(Number(trip.price) * PAYOUT_RATE).toFixed(2)}`
+                                          ? `R${calculatePayout(trip.price).toFixed(2)}`
                                           : "—"}
                                       </td>
                                     </tr>

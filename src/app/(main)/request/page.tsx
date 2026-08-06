@@ -25,19 +25,28 @@ import {
   User,
   Briefcase,
   Phone,
+  Camera,
+  X,
 } from "lucide-react";
 import {
   GoogleMap,
   Autocomplete,
   Marker,
 } from "@react-google-maps/api";
-import { db, auth, rtdb } from "@/utils/firebase";
+import { db, auth, rtdb, storage } from "@/utils/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { ref, set } from "firebase/database";
+import { ref as storageRef, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { onAuthStateChanged } from "firebase/auth";
 import LoadingComponent from "@/components/loader";
 import { StepIndicator, StepNav } from "@/components/Stepper";
 import { useGoogleMapsLoader } from "@/components/GoogleMapsLoaderProvider";
+import { ServiceCategoryPicker } from "@/components/ServiceCategoryPicker";
+import { VehiclePicker } from "@/components/VehiclePicker";
+import { SERVICE_TYPES, ServiceType, VehicleType } from "@/lib/services";
+import { calculatePrice } from "@/lib/pricing";
+import { fetchOutstandingBalance, OutstandingBalance } from "@/lib/outstandingBalance";
+import { AlertCircle } from "lucide-react";
 
 // Cache object for storing distance calculations
 const distanceCache = new Map();
@@ -60,15 +69,37 @@ export default function DocumentPickup() {
   const [distance, setDistance] = useState(null);
   const [price, setPrice] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [outstanding, setOutstanding] = useState<OutstandingBalance | null>(null);
   const router = useRouter();
   const today = new Date().toISOString().split("T")[0];
   const [pickupAutocomplete, setPickupAutocomplete] = useState(null);
   const [dropoffAutocomplete, setDropoffAutocomplete] = useState(null);
 
   // Wizard state
-  const steps = ["Trip Details", "Sender & Receiver", "Locations", "Schedule", "Document Info", "Terms"];
+  const steps = ["Service", "Trip Details", "Sender & Receiver", "Locations", "Schedule", "Item Info", "Terms"];
   const [currentStep, setCurrentStep] = useState(0);
   const [locationHint, setLocationHint] = useState("");
+  const [serviceHint, setServiceHint] = useState("");
+
+  // Item photo — required for every service except Home & Office Removal,
+  // where the vehicle picker already covers what's being moved.
+  const [itemPhoto, setItemPhoto] = useState<File | null>(null);
+  const [itemPhotoPreview, setItemPhotoPreview] = useState<string | null>(null);
+  const [itemPhotoError, setItemPhotoError] = useState("");
+
+  const handleItemPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0] ?? null;
+    setItemPhotoError("");
+    if (itemPhotoPreview) URL.revokeObjectURL(itemPhotoPreview);
+    setItemPhoto(selected);
+    setItemPhotoPreview(selected ? URL.createObjectURL(selected) : null);
+  };
+
+  const handleRemoveItemPhoto = () => {
+    if (itemPhotoPreview) URL.revokeObjectURL(itemPhotoPreview);
+    setItemPhoto(null);
+    setItemPhotoPreview(null);
+  };
 
   // Function to calculate distance using Distance Matrix API
   const calculateDistance = useCallback(async (origin, destination) => {
@@ -113,8 +144,6 @@ export default function DocumentPickup() {
         );
         if (calculatedDistance !== null) {
           setDistance(calculatedDistance.toFixed(2));
-          const calculatedPrice = calculatePrice(calculatedDistance);
-          setPrice(calculatedPrice);
         }
       }
     };
@@ -124,6 +153,8 @@ export default function DocumentPickup() {
 
   // Form setup and validation
   const defaultValues = {
+    serviceType: "" as ServiceType | "",
+    vehicleType: "" as VehicleType | "",
     attorneyName: "",
     firmName: "",
     pickupLocation: "",
@@ -149,12 +180,25 @@ export default function DocumentPickup() {
     getValues,
     reset,
     trigger,
+    watch,
   } = useForm({
     defaultValues,
   });
 
+  const serviceType = watch("serviceType");
+  const vehicleType = watch("vehicleType");
+  const itemInfo = SERVICE_TYPES[serviceType as ServiceType] ?? SERVICE_TYPES.legal_logistics;
+
+  // Recompute price whenever the distance, chosen service, or chosen vehicle changes.
+  useEffect(() => {
+    if (distance) {
+      setPrice(calculatePrice(serviceType || null, parseFloat(distance), vehicleType || null));
+    }
+  }, [distance, serviceType, vehicleType]);
+
   // Fields belonging to each wizard step, used for per-step validation
   const stepFields: (keyof typeof defaultValues)[][] = [
+    ["serviceType"],
     ["attorneyName", "firmName"],
     ["senderName", "senderNumber", "receiverName", "receiverNumber"],
     ["pickupLocation", "dropoffLocation"],
@@ -168,11 +212,31 @@ export default function DocumentPickup() {
     const valid = await trigger(fieldsToValidate);
     if (!valid) return;
 
-    if (currentStep === 2) {
+    if (currentStep === 0) {
+      if (!serviceType) {
+        setServiceHint("Please choose a service to continue.");
+        return;
+      }
+      if (serviceType === "home_office_removal" && !vehicleType) {
+        setServiceHint("Please choose a vehicle for your move.");
+        return;
+      }
+      setServiceHint("");
+    }
+
+    if (currentStep === 3) {
       if (!distance || !price) {
         setLocationHint("Please select a pickup and dropoff location to calculate the distance and price before continuing.");
         return;
       }
+    }
+
+    if (currentStep === 5) {
+      if (serviceType !== "home_office_removal" && !itemPhoto) {
+        setItemPhotoError("Please attach a photo of the item before continuing.");
+        return;
+      }
+      setItemPhotoError("");
     }
 
     setLocationHint("");
@@ -203,6 +267,11 @@ export default function DocumentPickup() {
               pickupLocation: firmData?.address || "",
             });
           }
+
+          // A customer with a completed trip they haven't paid for yet
+          // can't book another one until it's settled.
+          const balance = await fetchOutstandingBalance(user.uid);
+          if (balance.total > 0) setOutstanding(balance);
         } catch (error) {
           console.error("Error fetching user or firm data:", error);
         } finally {
@@ -229,24 +298,27 @@ export default function DocumentPickup() {
     return true;
   };
 
-  const calculatePrice = (distance) => {
-    const distanceInKm = parseFloat(distance);
-    const basePrice = 32;
-    const ratePerKm = 10;
-    const price = distanceInKm <= 1 ? basePrice : basePrice + (distanceInKm - 1) * ratePerKm;
-    return price.toFixed(2);
-  };
-
   const onSubmit = async (data: typeof defaultValues) => {
     const user = auth.currentUser;
     if (user) {
       try {
-        const calculatedPrice = calculatePrice(parseFloat(distance));
+        const calculatedPrice = calculatePrice(data.serviceType || null, parseFloat(distance), data.vehicleType || null);
         setPrice(calculatedPrice);
 
         // Everyone pays before a trip is driver-visible — it isn't "pending"
         // until check-payment-status flips it there once payment clears.
         const requestId = `${user.uid}_${Date.now()}`;
+
+        let itemPhotoUrl: string | null = null;
+        if (itemPhoto && data.serviceType !== "home_office_removal") {
+          const photoRef = storageRef(storage, `pickupRequests/${requestId}/itemPhoto.jpg`);
+          const uploadTask = uploadBytesResumable(photoRef, itemPhoto);
+          await new Promise<void>((resolve, reject) => {
+            uploadTask.on("state_changed", undefined, reject, () => resolve());
+          });
+          itemPhotoUrl = await getDownloadURL(uploadTask.snapshot.ref);
+        }
+
         const requestData = {
           ...data,
           userId: user.uid,
@@ -255,6 +327,7 @@ export default function DocumentPickup() {
           status: "awaiting-payment",
           payment_status: "unpaid",
           createdAt: new Date(),
+          ...(itemPhotoUrl ? { itemPhotoUrl } : {}),
         };
 
         await setDoc(doc(db, "pickupRequests", requestId), requestData);
@@ -274,6 +347,32 @@ export default function DocumentPickup() {
     return <LoadingComponent />;
   }
 
+  if (outstanding) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center">
+          <div className="mx-auto mb-4 h-14 w-14 rounded-full bg-amber-50 flex items-center justify-center">
+            <AlertCircle className="h-7 w-7 text-amber-500" />
+          </div>
+          <h1 className="text-xl font-bold text-gray-900 mb-2">Outstanding Balance</h1>
+          <p className="text-sm text-gray-500 mb-6 leading-relaxed">
+            You have {outstanding.trips.length} completed trip{outstanding.trips.length !== 1 ? "s" : ""} totalling{" "}
+            <span className="font-semibold text-gray-700">
+              R{outstanding.total.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>{" "}
+            that hasn&apos;t been paid yet. Please settle this balance before booking a new pickup.
+          </p>
+          <Button
+            onClick={() => router.push("/billing")}
+            className="w-full rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold"
+          >
+            Go to Billing
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <main className="container mx-auto px-4 py-8 max-w-2xl">
@@ -288,8 +387,41 @@ export default function DocumentPickup() {
 
           <StepIndicator steps={steps} currentStep={currentStep} />
 
-          {/* ── Section: Trip Details ── */}
+          {/* ── Section: Service ── */}
           {currentStep === 0 && (
+            <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+              <h2 className="text-sm font-semibold uppercase tracking-widest text-gray-400 mb-4">
+                Choose a Service
+              </h2>
+              <div className="h-px bg-gray-100 mb-5" />
+
+              <div className="space-y-5">
+                <ServiceCategoryPicker
+                  value={serviceType}
+                  onChange={(value) => setValue("serviceType", value, { shouldValidate: true })}
+                />
+
+                {serviceType === "home_office_removal" && (
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700 mb-1.5 block">
+                      Choose Your Vehicle
+                    </Label>
+                    <VehiclePicker
+                      value={vehicleType}
+                      onChange={(value) => setValue("vehicleType", value, { shouldValidate: true })}
+                    />
+                  </div>
+                )}
+
+                {serviceHint && (
+                  <p className="text-xs text-amber-600">{serviceHint}</p>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* ── Section: Trip Details ── */}
+          {currentStep === 1 && (
             <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
               <h2 className="text-sm font-semibold uppercase tracking-widest text-gray-400 mb-4">
                 Trip Details
@@ -346,7 +478,7 @@ export default function DocumentPickup() {
           )}
 
           {/* ── Section: Sender & Receiver ── */}
-          {currentStep === 1 && (
+          {currentStep === 2 && (
             <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
               <h2 className="text-sm font-semibold uppercase tracking-widest text-gray-400 mb-4">
                 Sender &amp; Receiver
@@ -448,7 +580,7 @@ export default function DocumentPickup() {
           )}
 
           {/* ── Section: Locations (Autocomplete + Map — script loaded once via GoogleMapsLoaderProvider) ── */}
-          {currentStep === 2 && (
+          {currentStep === 3 && (
             <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
               <h2 className="text-sm font-semibold uppercase tracking-widest text-gray-400 mb-4">
                 Locations
@@ -598,7 +730,7 @@ export default function DocumentPickup() {
                       <div className="w-px h-10 bg-teal-200" />
                       <div className="flex-1 text-center">
                         <p className="text-xs font-medium text-teal-600 uppercase tracking-wide mb-0.5">Estimated Price</p>
-                        <p className="text-2xl font-bold text-teal-700">R<span>{price}</span></p>
+                        <p className="text-2xl font-bold text-teal-700">R<span>{Number(price).toFixed(2)}</span></p>
                       </div>
                     </div>
                   )}
@@ -611,7 +743,7 @@ export default function DocumentPickup() {
           )}
 
           {/* ── Section: Schedule ── */}
-          {currentStep === 3 && (
+          {currentStep === 4 && (
             <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
               <h2 className="text-sm font-semibold uppercase tracking-widest text-gray-400 mb-4">
                 Schedule
@@ -675,11 +807,11 @@ export default function DocumentPickup() {
             </section>
           )}
 
-          {/* ── Section: Document Info ── */}
-          {currentStep === 4 && (
+          {/* ── Section: Item Info ── */}
+          {currentStep === 5 && (
             <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
               <h2 className="text-sm font-semibold uppercase tracking-widest text-gray-400 mb-4">
-                Document Info
+                {itemInfo.itemFieldLabel}
               </h2>
               <div className="h-px bg-gray-100 mb-5" />
 
@@ -715,18 +847,18 @@ export default function DocumentPickup() {
                   )}
                 </div>
 
-                {/* Document Description */}
+                {/* Item Description */}
                 <div>
                   <Label htmlFor="documentDescription" className="text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
                     <FileText className="h-4 w-4 text-gray-400" />
-                    Document Description
+                    {itemInfo.itemFieldLabel}
                   </Label>
                   <Textarea
                     id="documentDescription"
                     {...register("documentDescription", {
-                      required: "Document description is required",
+                      required: `${itemInfo.itemFieldLabel} is required`,
                     })}
-                    placeholder="Describe the document(s) being transported…"
+                    placeholder={itemInfo.itemFieldPlaceholder}
                     className={`rounded-xl border-gray-200 focus:ring-teal-500 focus:border-teal-500 resize-none ${errors.documentDescription ? "border-red-400" : ""}`}
                     rows={3}
                   />
@@ -750,12 +882,53 @@ export default function DocumentPickup() {
                     rows={3}
                   />
                 </div>
+
+                {/* Item Photo — not required for Home & Office Removal */}
+                {serviceType !== "home_office_removal" && (
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
+                      <Camera className="h-4 w-4 text-gray-400" />
+                      Photo of Item
+                    </Label>
+                    {itemPhotoPreview ? (
+                      <div className="relative">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={itemPhotoPreview}
+                          alt="Item preview"
+                          className="w-full h-40 object-cover rounded-xl border border-gray-200"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleRemoveItemPhoto}
+                          aria-label="Remove photo"
+                          className="absolute top-2 right-2 h-7 w-7 flex items-center justify-center rounded-full bg-white/90 text-gray-500 hover:text-gray-700 shadow-sm"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center gap-2 h-32 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 cursor-pointer text-gray-400 hover:border-teal-400 hover:text-teal-500 transition-colors">
+                        <Camera className="h-6 w-6" />
+                        <span className="text-xs font-medium">Tap to take or choose a photo</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          onChange={handleItemPhotoChange}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                    {itemPhotoError && <p className="text-xs text-red-500 mt-1">{itemPhotoError}</p>}
+                  </div>
+                )}
               </div>
             </section>
           )}
 
           {/* ── Section: Terms ── */}
-          {currentStep === 5 && (
+          {currentStep === 6 && (
             <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
               <h2 className="text-sm font-semibold uppercase tracking-widest text-gray-400 mb-4">
                 Terms

@@ -25,6 +25,7 @@ import {
   doc,
   getDoc,
 } from "firebase/firestore"
+import { fetchOutstandingBalance } from "@/lib/outstandingBalance"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -73,21 +74,9 @@ export default function Dashboard() {
 
       // Fetch outstanding balance (unpaid + completed trips)
       try {
-        const q = query(
-          collection(db, "pickupRequests"),
-          where("userId", "==", user.uid),
-          where("payment_status", "in", ["unpaid", "failed"])
-        )
-        const snapshot = await getDocs(q)
-        const completedUnpaid = snapshot.docs.filter(
-          (d) => d.data().status === "completed"
-        )
-        const total = completedUnpaid.reduce(
-          (sum, d) => sum + parseFloat(d.data().price || "0"),
-          0
-        )
+        const { trips, total } = await fetchOutstandingBalance(user.uid)
         setOutstandingAmount(total)
-        setUnpaidCount(completedUnpaid.length)
+        setUnpaidCount(trips.length)
       } catch (err) {
         console.error("Dashboard: failed to fetch outstanding balance", err)
       }

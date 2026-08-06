@@ -9,6 +9,8 @@ import { auth } from '@/utils/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { useRouter } from "next/navigation";
 import { authedFetch } from '@/utils/authedFetch';
+import { normalizeStatus, getStatusAccentClass, getStatusBadgeClass, getStatusLabel } from '@/lib/tripStatus';
+import { SERVICE_TYPES, ServiceType } from '@/lib/services';
 
 type Trip = {
   id: string;
@@ -21,30 +23,11 @@ type Trip = {
   pickupTime: string;
   documentDescription: string;
   requestType: string;
+  serviceType?: string;
 };
 
 type GroupedTrips = {
   [date: string]: Trip[];
-};
-
-// Maps a trip status to the left-border color class
-const statusBorderColor: Record<string, string> = {
-  completed: "border-l-green-500",
-  "in-progress": "border-l-yellow-400",
-  cancelled: "border-l-gray-300",
-  pending: "border-l-orange-400",
-  "waiting for driver": "border-l-blue-400",
-  "awaiting-payment": "border-l-purple-400",
-};
-
-// Pill badge styles for trip status
-const statusPillColors: Record<string, string> = {
-  completed: "bg-green-100 text-green-700 border border-green-200",
-  "in-progress": "bg-yellow-100 text-yellow-700 border border-yellow-200",
-  cancelled: "bg-gray-100 text-gray-500 border border-gray-200",
-  pending: "bg-orange-100 text-orange-700 border border-orange-200",
-  "waiting for driver": "bg-blue-100 text-blue-700 border border-blue-200",
-  "awaiting-payment": "bg-purple-100 text-purple-700 border border-purple-200",
 };
 
 // Pill badge styles for payment status
@@ -235,7 +218,7 @@ export default function UserTrips() {
   const totalTrips = allTrips.length;
   const completedTrips = allTrips.filter((t) => t.status === 'completed').length;
   const inProgressTrips = allTrips.filter((t) =>
-    ['pending', 'waiting for driver', 'in-progress'].includes(t.status)
+    ['pending', 'assigned', 'picked-up', 'in-transit', 'delivered'].includes(normalizeStatus(t.status))
   ).length;
 
   return (
@@ -306,8 +289,9 @@ export default function UserTrips() {
                 {/* Trip cards */}
                 <div className="space-y-4">
                   {trips.map((trip) => {
-                    const borderColor = statusBorderColor[trip.status] ?? "border-l-gray-300";
+                    const borderColor = getStatusAccentClass(trip.status).replace(/^border-/, "border-l-");
                     const isClickable = trip.status !== 'cancelled';
+                    const service = trip.serviceType ? SERVICE_TYPES[trip.serviceType as ServiceType] : undefined;
 
                     return (
                       <div
@@ -354,9 +338,15 @@ export default function UserTrips() {
                             </div>
                           </div>
 
-                          {/* ── Meta row: request type + description ──────── */}
-                          {(trip.requestType || trip.documentDescription) && (
+                          {/* ── Meta row: service + request type + description ──────── */}
+                          {(service || trip.requestType || trip.documentDescription) && (
                             <div className="bg-gray-50 rounded-lg px-3 py-2.5 mb-4 space-y-1.5">
+                              {service && (
+                                <div className="flex items-center gap-2 text-sm text-gray-600">
+                                  <service.icon className="h-3.5 w-3.5 text-teal-500 flex-shrink-0" aria-hidden="true" />
+                                  <span className="font-medium text-gray-700">{service.label}</span>
+                                </div>
+                              )}
                               {trip.requestType && (
                                 <div className="flex items-center gap-2 text-sm text-gray-600">
                                   <FileText className="h-3.5 w-3.5 text-teal-500 flex-shrink-0" aria-hidden="true" />
@@ -377,8 +367,8 @@ export default function UserTrips() {
                           <div className="flex items-center justify-between gap-2 flex-wrap">
                             {/* Status / payment badges */}
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${statusPillColors[trip.status] ?? "bg-gray-100 text-gray-600 border border-gray-200"}`}>
-                                {trip.status || 'pending'}
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${getStatusBadgeClass(trip.status)}`}>
+                                {getStatusLabel(trip.status)}
                               </span>
                               {trip.payment_status !== 'cancelled' && (
                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${paymentPillColors[trip.payment_status] ?? "bg-gray-100 text-gray-600 border border-gray-200"}`}>

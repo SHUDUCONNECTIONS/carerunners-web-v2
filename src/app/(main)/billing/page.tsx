@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { auth, db } from "@/utils/firebase";
+import { auth } from "@/utils/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { fetchOutstandingBalance } from "@/lib/outstandingBalance";
 import {
   Card,
   CardContent,
@@ -83,20 +83,8 @@ export default function BillingPage() {
         return;
       }
       try {
-        const q = query(
-          collection(db, "pickupRequests"),
-          where("userId", "==", user.uid),
-          where("payment_status", "in", ["unpaid", "failed"])
-        );
-        const snapshot = await getDocs(q);
-        // Only bill trips that were actually completed
-        const trips: UnpaidTrip[] = snapshot.docs
-          .filter((doc) => doc.data().status === "completed")
-          .map((doc) => ({
-            id: doc.id,
-            ...(doc.data() as Omit<UnpaidTrip, "id">),
-          }));
-        setGroups(groupByMonth(trips));
+        const { trips } = await fetchOutstandingBalance(user.uid);
+        setGroups(groupByMonth(trips as UnpaidTrip[]));
       } catch (err) {
         console.error("Billing: error fetching unpaid trips", err);
       } finally {

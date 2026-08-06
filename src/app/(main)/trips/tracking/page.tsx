@@ -8,10 +8,7 @@ import { authedFetch } from "@/utils/authedFetch";
 import { GoogleMap, Marker } from "@react-google-maps/api";
 import {
   Clock,
-  CheckCircle,
   XCircle,
-  Truck,
-  User,
   Car,
   FileText,
   Phone,
@@ -23,6 +20,14 @@ import { useSearchParams } from "next/navigation";
 import LoadingComponent from "@/components/loader";
 import Image from "next/image";
 import { useGoogleMapsLoader } from "@/components/GoogleMapsLoaderProvider";
+import {
+  TRIP_STEPS,
+  normalizeStatus,
+  getStepIndex,
+  getStatusBadgeClass,
+  getStatusLabel,
+} from "@/lib/tripStatus";
+import { RatingPrompt } from "@/components/RatingPrompt";
 
 // Updated interfaces
 interface DriverInfo {
@@ -48,50 +53,17 @@ interface DropoffLocation {
 interface Trip {
   id: string;
   driverId?: string;
-  status:
-    | "pending"
-    | "accepted"
-    | "picked-up"
-    | "in-progress"
-    | "out-for-delivery"
-    | "arrived"
-    | "completed"
-    | "cancelled";
+  status: string;
   payment_status: "paid" | "pending" | "unpaid" | "failed" | "cancelled" | "refunded";
   pickupDate: string;
   pickupLocation: string;
   dropoffLocations: DropoffLocation[];
   price: number;
+  pickupProofUrl?: string;
+  deliveryProofUrl?: string;
+  rating?: number;
+  ratingComment?: string;
 }
-
-const deliverySteps = [
-  { icon: Clock, label: "Awaiting driver", time: "Scheduled pickup time" },
-  { icon: User, label: "Driver on the way", time: "Driver has accepted your request" },
-  { icon: Truck, label: "Documents collected", time: "Driver has picked up your documents" },
-  { icon: CheckCircle, label: "Delivered", time: "Trip completed" },
-];
-
-const statusToStep = {
-  pending: 0,
-  accepted: 1,
-  "picked-up": 2,
-  "in-progress": 2,
-  "out-for-delivery": 2,
-  arrived: 2,
-  completed: 3,
-  cancelled: 0,
-};
-
-const statusColors: Record<string, string> = {
-  pending: "bg-blue-100 text-blue-800",
-  accepted: "bg-purple-100 text-purple-800",
-  "picked-up": "bg-indigo-100 text-indigo-800",
-  "in-progress": "bg-yellow-100 text-yellow-800",
-  "out-for-delivery": "bg-orange-100 text-orange-800",
-  arrived: "bg-pink-100 text-pink-800",
-  completed: "bg-green-100 text-green-800",
-  cancelled: "bg-red-100 text-red-800",
-};
 
 const paymentStatusColors: Record<string, string> = {
   paid: "bg-green-100 text-green-800",
@@ -192,8 +164,8 @@ export default function TripDetailsPage() {
   // Listen to driver live location from RTDB
   useEffect(() => {
     if (!trip?.driverId) return;
-    const activeStatuses = ["accepted", "in-progress", "picked-up"];
-    if (!activeStatuses.includes(trip.status)) {
+    const activeStatuses = ["assigned", "in-transit", "picked-up"];
+    if (!activeStatuses.includes(normalizeStatus(trip.status))) {
       setDriverLocation(null);
       return;
     }
@@ -257,7 +229,7 @@ export default function TripDetailsPage() {
     );
   }
 
-  const currentStep = statusToStep[trip.status] || 0;
+  const currentStep = getStepIndex(trip.status);
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6">
@@ -269,9 +241,9 @@ export default function TripDetailsPage() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2 flex-wrap">
               <span
-                className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold capitalize ${statusColors[trip.status] || "bg-gray-100 text-gray-700"}`}
+                className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${getStatusBadgeClass(trip.status)}`}
               >
-                {trip.status.replace(/-/g, " ")}
+                {getStatusLabel(trip.status)}
               </span>
               <span
                 className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold capitalize ${paymentStatusColors[trip.payment_status] || "bg-gray-100 text-gray-700"}`}
@@ -433,7 +405,7 @@ export default function TripDetailsPage() {
                 className="h-full bg-teal-600 rounded-full"
                 initial={{ width: "0%" }}
                 animate={{
-                  width: `${(currentStep / (deliverySteps.length - 1)) * 100}%`,
+                  width: `${(currentStep / (TRIP_STEPS.length - 1)) * 100}%`,
                 }}
                 transition={{ duration: 0.5, ease: "easeInOut" }}
               />
@@ -442,13 +414,17 @@ export default function TripDetailsPage() {
 
           {/* Steps */}
           <div className="space-y-5">
-            {deliverySteps.map((step, index) => {
+            {TRIP_STEPS.map((step, index) => {
               const isCompleted = index < currentStep;
               const isCurrent = index === currentStep;
               const isFuture = index > currentStep;
+              const proofUrl =
+                step.status === "picked-up" ? trip.pickupProofUrl :
+                step.status === "delivered" ? trip.deliveryProofUrl :
+                undefined;
 
               return (
-                <div key={index} className="flex items-start gap-4">
+                <div key={step.status} className="flex items-start gap-4">
                   {/* Step icon circle */}
                   <div className="flex-shrink-0 mt-0.5">
                     {isCompleted && (
@@ -496,6 +472,14 @@ export default function TripDetailsPage() {
                             {step.label}
                           </p>
                           <p className="text-xs text-gray-500 mt-0.5">{step.time}</p>
+                          {proofUrl && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={proofUrl}
+                              alt={step.status === "picked-up" ? "Proof of collection" : "Proof of delivery"}
+                              className="mt-2 h-20 w-20 rounded-lg object-cover border border-gray-200"
+                            />
+                          )}
                         </motion.div>
                       ) : (
                         <div>
@@ -509,6 +493,15 @@ export default function TripDetailsPage() {
             })}
           </div>
         </div>
+
+        {/* Rating prompt — shown once delivered, until the customer rates the trip */}
+        {normalizeStatus(trip.status) === "delivered" && !trip.rating && trip.driverId && (
+          <RatingPrompt
+            tripId={trip.id}
+            driverId={trip.driverId}
+            onRated={fetchTripDetails}
+          />
+        )}
 
       </div>
     </div>
