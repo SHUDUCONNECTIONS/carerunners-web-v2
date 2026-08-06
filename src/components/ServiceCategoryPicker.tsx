@@ -37,7 +37,6 @@ export function ServiceCategoryPicker({ value, onChange }: ServiceCategoryPicker
               <div className="min-w-0">
                 <p className="font-semibold text-gray-900 text-sm leading-tight">{service.label}</p>
                 <p className="text-gray-500 text-xs mt-1 leading-snug">{service.description}</p>
-                <p className="text-teal-700 text-xs font-semibold mt-2">From R{service.basePrice}</p>
               </div>
             </div>
           </button>
