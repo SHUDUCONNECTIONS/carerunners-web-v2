@@ -6,6 +6,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "@/utils/firebase"; // Adjust this import path if necessary
 import LoadingComponent from "@/components/loader";
 import Sidebar from "@/components/Sidebar";
+import { ADMIN_EMAILS } from "@/utils/adminEmails";
 
 export default function ProtectedLayout({
   children,
@@ -48,7 +49,7 @@ export default function ProtectedLayout({
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-100">
-      <Sidebar onSignOut={handleSignOut} />
+      <Sidebar onSignOut={handleSignOut} isAdmin={ADMIN_EMAILS.includes(user.email ?? "")} />
       <div className="flex flex-col flex-grow md:pl-64">
         <main className="flex-grow container mx-auto px-4 py-8">
           {children}

@@ -15,6 +15,7 @@ import {
   Car,
   Upload,
   Receipt,
+  ShieldCheck,
   type LucideIcon,
 } from "lucide-react"
 
@@ -34,6 +35,8 @@ const menuItems: MenuItem[] = [
   { icon: Upload, label: "Upload", link: "/upload" },
 ]
 
+const adminMenuItem: MenuItem = { icon: ShieldCheck, label: "Admin", link: "/admin" }
+
 function isActive(pathname: string, link: string): boolean {
   if (link === "/dashboard") {
     return pathname === "/dashboard"
@@ -43,14 +46,17 @@ function isActive(pathname: string, link: string): boolean {
 
 function SidebarNav({
   pathname,
+  isAdmin,
   onNavigate,
 }: {
   pathname: string
+  isAdmin?: boolean
   onNavigate?: () => void
 }) {
+  const items = isAdmin ? [...menuItems, adminMenuItem] : menuItems
   return (
     <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
-      {menuItems.map((item) => {
+      {items.map((item) => {
         const Icon = item.icon
         const active = isActive(pathname, item.link)
         return (
@@ -102,8 +108,10 @@ function SidebarBrand() {
 
 export default function Sidebar({
   onSignOut,
+  isAdmin,
 }: {
   onSignOut: () => void | Promise<void>
+  isAdmin?: boolean
 }) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -163,7 +171,7 @@ export default function Sidebar({
             <span className="sr-only">Close menu</span>
           </Button>
         </div>
-        <SidebarNav pathname={pathname ?? ""} onNavigate={() => setMobileOpen(false)} />
+        <SidebarNav pathname={pathname ?? ""} isAdmin={isAdmin} onNavigate={() => setMobileOpen(false)} />
         <div className="border-t border-white/10 p-3">
           <Button
             variant="ghost"
@@ -186,7 +194,7 @@ export default function Sidebar({
         <div className="border-b border-white/10">
           <SidebarBrand />
         </div>
-        <SidebarNav pathname={pathname ?? ""} />
+        <SidebarNav pathname={pathname ?? ""} isAdmin={isAdmin} />
         <div className="border-t border-white/10 p-3">
           <Button
             variant="ghost"

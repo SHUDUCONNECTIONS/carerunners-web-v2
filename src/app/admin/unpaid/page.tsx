@@ -24,8 +24,7 @@ import {
   Users,
 } from "lucide-react"
 import LoadingComponent from "@/components/loader"
-
-const ADMIN_EMAILS = ["dimakatso@shuduconnections.com", "tetelo@shuduconnections.com"]
+import { ADMIN_EMAILS } from "@/utils/adminEmails"
 
 type Trip = {
   id: string
