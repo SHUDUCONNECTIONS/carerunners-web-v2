@@ -27,7 +27,10 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Carerunners" />
-        <link rel="apple-touch-icon" href="/carerunnerlogo.png" />
+        {/* iOS only reads this tag for the home-screen icon (it ignores
+            manifest.json's icons array) — must be square and opaque, or
+            Safari squashes/blacks-out a wide or transparent source image. */}
+        <link rel="apple-touch-icon" sizes="192x192" href="/carerunnerlogo-icon-192.png" />
         {/* Sets the `dark` class on <html> before hydration to avoid a
             flash of the wrong theme. Reads localStorage, falling back to
             prefers-color-scheme. Kept as a plain inline script (no

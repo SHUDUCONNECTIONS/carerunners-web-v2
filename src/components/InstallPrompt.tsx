@@ -12,8 +12,12 @@ export default function InstallPrompt() {
   useEffect(() => {
     if (localStorage.getItem("install-dismissed")) return
 
+    // iPadOS 13+ reports a desktop Safari/Mac user agent by default (no
+    // "iPad" substring), so a plain UA check misses iPads entirely — catch
+    // that case via the touch-capable + MacIntel combo real Macs don't have.
     const isIOS =
-      /iphone|ipad|ipod/i.test(navigator.userAgent) &&
+      (/iphone|ipad|ipod/i.test(navigator.userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)) &&
       !(window.navigator as any).standalone
 
     if (isIOS) {
@@ -53,7 +57,7 @@ export default function InstallPrompt() {
     <div className="fixed bottom-4 left-4 right-4 z-50 max-w-sm mx-auto">
       <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
         <div className="flex items-start justify-between gap-3">
-          <img src="/carerunnerlogo.png" alt="Carerunners" className="h-10 w-10 rounded-lg shrink-0" />
+          <img src="/carerunnerlogo-icon-192.png" alt="Carerunners" className="h-10 w-10 rounded-lg shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-gray-900 text-sm">Install Carerunners</p>
             {showIOS ? (
