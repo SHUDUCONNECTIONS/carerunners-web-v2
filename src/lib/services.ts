@@ -37,7 +37,7 @@ export const SERVICE_TYPES: Record<ServiceType, ServiceConfig> = {
     label: "Parcel Delivery",
     description: "Send parcels safely and affordably.",
     icon: Package,
-    basePrice: 32,
+    basePrice: 25,
     ratePerKm: 10,
     itemFieldLabel: "Parcel Description",
     itemFieldPlaceholder: "Describe the parcel(s) being transported…",
@@ -47,7 +47,7 @@ export const SERVICE_TYPES: Record<ServiceType, ServiceConfig> = {
     label: "Laundry Collection & Drop-off",
     description: "We collect your laundry and deliver it back fresh and clean.",
     icon: Shirt,
-    basePrice: 32,
+    basePrice: 25,
     ratePerKm: 10,
     itemFieldLabel: "Laundry Details",
     itemFieldPlaceholder: "Describe the laundry items and any care instructions…",
@@ -57,7 +57,7 @@ export const SERVICE_TYPES: Record<ServiceType, ServiceConfig> = {
     label: "Legal Logistics & Records",
     description: "Secure collection and delivery of legal documents & records.",
     icon: Briefcase,
-    basePrice: 32,
+    basePrice: 25,
     ratePerKm: 10,
     itemFieldLabel: "Document Description",
     itemFieldPlaceholder: "Describe the document(s) being transported…",
@@ -67,7 +67,7 @@ export const SERVICE_TYPES: Record<ServiceType, ServiceConfig> = {
     label: "Home & Office Removal",
     description: "Moving made easy. Choose the right vehicle for your move.",
     icon: Truck,
-    basePrice: 32,
+    basePrice: 25,
     ratePerKm: 10,
     itemFieldLabel: "Removal Details",
     itemFieldPlaceholder: "Describe the items being moved…",
@@ -80,9 +80,9 @@ export const SERVICE_TYPE_LIST = Object.values(SERVICE_TYPES);
 // hatchback and sedan intentionally reuse the app's standard base price —
 // only the half ton bakkie has a distinct (higher) base.
 export const VEHICLE_TYPES: Record<VehicleType, VehicleConfig> = {
-  motorcycle: { id: "motorcycle", label: "Motorcycle", icon: Bike, basePrice: 32, ratePerKm: 10 },
-  hatchback: { id: "hatchback", label: "Hatchback", icon: Car, basePrice: 32, ratePerKm: 10 },
-  sedan: { id: "sedan", label: "Sedan", icon: CarFront, basePrice: 32, ratePerKm: 10 },
+  motorcycle: { id: "motorcycle", label: "Motorcycle", icon: Bike, basePrice: 25, ratePerKm: 10 },
+  hatchback: { id: "hatchback", label: "Hatchback", icon: Car, basePrice: 25, ratePerKm: 10 },
+  sedan: { id: "sedan", label: "Sedan", icon: CarFront, basePrice: 25, ratePerKm: 10 },
   half_ton_bakkie: { id: "half_ton_bakkie", label: "Half Ton Bakkie", icon: Truck, basePrice: 400, ratePerKm: 10 },
 };
 
