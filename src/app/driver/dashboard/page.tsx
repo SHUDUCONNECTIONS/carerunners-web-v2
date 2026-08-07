@@ -258,7 +258,8 @@ function DriverDashboardContent() {
               const future = trips.filter((t) => !t.pickupDate || t.pickupDate >= today)
               future.sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt))
               setAvailableTrips(future)
-            }
+            },
+            (err) => console.error("Error loading available trips (check Firestore rules for pickupRequests):", err)
           )
 
           // My trips: split into active and past
@@ -275,7 +276,8 @@ function DriverDashboardContent() {
               )
               setMyTrips(active)
               setPastTrips(past)
-            }
+            },
+            (err) => console.error("Error loading assigned trips:", err)
           )
         }
       } catch (error) {
