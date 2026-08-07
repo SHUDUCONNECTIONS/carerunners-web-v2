@@ -9,7 +9,7 @@ import { auth } from "@/utils/firebase"
 import { ADMIN_EMAILS } from "@/utils/adminEmails"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { AlertCircle, Car, DollarSign, RefreshCw, type LucideIcon } from "lucide-react"
+import { AlertCircle, Car, ClipboardList, DollarSign, RefreshCw, type LucideIcon } from "lucide-react"
 import LoadingComponent from "@/components/loader"
 
 type AdminTool = {
@@ -20,6 +20,12 @@ type AdminTool = {
 }
 
 const adminTools: AdminTool[] = [
+  {
+    icon: ClipboardList,
+    title: "Requested Trips",
+    description: "View trips customers have booked and paid for that are still waiting on a driver.",
+    href: "/admin/requests",
+  },
   {
     icon: Car,
     title: "Driver Management",

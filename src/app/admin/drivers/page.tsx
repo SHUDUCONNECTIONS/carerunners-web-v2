@@ -21,7 +21,6 @@ import {
   ChevronDown,
   ChevronUp,
   Download,
-  FileText,
   Mail,
   MapPin,
   Phone,
@@ -89,6 +88,64 @@ function downloadCSV(filename: string, rows: (string | number)[][]) {
   link.click()
   document.body.removeChild(link)
   URL.revokeObjectURL(url)
+}
+
+// Firebase Storage URLs are cross-origin, so a plain <a download> is ignored
+// by the browser — fetch the file ourselves and save the blob instead.
+function extensionFromUrl(url: string): string {
+  try {
+    const match = new URL(url).pathname.match(/\.([a-zA-Z0-9]+)$/)
+    return match ? match[1] : "pdf"
+  } catch {
+    return "pdf"
+  }
+}
+
+async function downloadDriverDoc(url: string, filename: string) {
+  try {
+    const res = await fetch(url)
+    const blob = await res.blob()
+    const blobUrl = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = blobUrl
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(blobUrl)
+  } catch (err) {
+    console.error("Admin drivers: document download failed", err)
+    window.open(url, "_blank")
+  }
+}
+
+function DriverDocumentLinks({ driver }: { driver: DriverApplication }) {
+  const docs: { url: string; label: string; key: string }[] = [
+    driver.identificationDocUrl ? { url: driver.identificationDocUrl, label: "ID Document", key: "ID" } : null,
+    driver.proofOfResidenceDocUrl ? { url: driver.proofOfResidenceDocUrl, label: "Proof of Residence", key: "ProofOfResidence" } : null,
+  ].filter(Boolean) as { url: string; label: string; key: string }[]
+
+  if (docs.length === 0) return null
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {docs.map((doc) => (
+        <Button
+          key={doc.key}
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 text-xs px-3"
+          onClick={() =>
+            downloadDriverDoc(doc.url, `${driver.firstName}-${driver.lastName}-${doc.key}.${extensionFromUrl(doc.url)}`)
+          }
+        >
+          <Download className="h-3.5 w-3.5 mr-1.5" />
+          {doc.label}
+        </Button>
+      ))}
+    </div>
+  )
 }
 
 export default function AdminDriversPage() {
@@ -334,29 +391,8 @@ export default function AdminDriversPage() {
                     </div>
                     <div className="text-gray-600">License #: {driver.licenseNumber}</div>
                     <div className="text-gray-600">Insurance: {driver.insuranceProvider} ({driver.insuranceNumber})</div>
-                    <div className="flex flex-wrap gap-3">
-                      {driver.identificationDocUrl && (
-                        <a
-                          href={driver.identificationDocUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-xs text-teal-600 hover:underline"
-                        >
-                          <FileText className="h-3.5 w-3.5" />
-                          ID Document
-                        </a>
-                      )}
-                      {driver.proofOfResidenceDocUrl && (
-                        <a
-                          href={driver.proofOfResidenceDocUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-xs text-teal-600 hover:underline"
-                        >
-                          <FileText className="h-3.5 w-3.5" />
-                          Proof of Residence
-                        </a>
-                      )}
+                    <div className="sm:col-span-2">
+                      <DriverDocumentLinks driver={driver} />
                     </div>
                   </div>
                 </CardContent>
@@ -417,7 +453,8 @@ export default function AdminDriversPage() {
                       <>
                         <Separator />
                         <div className="p-5 space-y-4">
-                          <div className="flex justify-end">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <DriverDocumentLinks driver={driver} />
                             <Button
                               variant="outline"
                               size="sm"
@@ -492,12 +529,15 @@ export default function AdminDriversPage() {
             )}
             {rejected.map((driver) => (
               <Card key={driver.id}>
-                <CardContent className="p-5 flex items-center justify-between gap-4">
-                  <div>
-                    <p className="font-semibold text-gray-900">
-                      {driver.firstName} {driver.lastName}
-                    </p>
-                    <p className="text-xs text-gray-500">{driver.email}</p>
+                <CardContent className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="space-y-2">
+                    <div>
+                      <p className="font-semibold text-gray-900">
+                        {driver.firstName} {driver.lastName}
+                      </p>
+                      <p className="text-xs text-gray-500">{driver.email}</p>
+                    </div>
+                    <DriverDocumentLinks driver={driver} />
                   </div>
                   <Button
                     variant="outline"
