@@ -1,4 +1,4 @@
-import { Package, Shirt, Briefcase, Truck, Bike, Car, CarFront } from "lucide-react";
+import { Package, Shirt, Briefcase, Truck } from "lucide-react";
 
 export type ServiceType =
   | "parcel_delivery"
@@ -6,7 +6,7 @@ export type ServiceType =
   | "legal_logistics"
   | "home_office_removal";
 
-export type VehicleType = "motorcycle" | "hatchback" | "sedan" | "half_ton_bakkie";
+export type VehicleType = "mini_van" | "small" | "medium" | "large" | "extra_large";
 
 interface ServiceConfig {
   id: ServiceType;
@@ -24,6 +24,7 @@ interface VehicleConfig {
   id: VehicleType;
   label: string;
   icon: typeof Package;
+  image: string;
   basePrice: number;
   ratePerKm: number;
 }
@@ -76,14 +77,14 @@ export const SERVICE_TYPES: Record<ServiceType, ServiceConfig> = {
 
 export const SERVICE_TYPE_LIST = Object.values(SERVICE_TYPES);
 
-// Only relevant when serviceType === "home_office_removal". Motorcycle,
-// hatchback and sedan intentionally reuse the app's standard base price —
-// only the half ton bakkie has a distinct (higher) base.
+// Only relevant when serviceType === "home_office_removal". All five tiers
+// share the same R500 base price and R10/km rate.
 export const VEHICLE_TYPES: Record<VehicleType, VehicleConfig> = {
-  motorcycle: { id: "motorcycle", label: "Motorcycle", icon: Bike, basePrice: 25, ratePerKm: 10 },
-  hatchback: { id: "hatchback", label: "Hatchback", icon: Car, basePrice: 25, ratePerKm: 10 },
-  sedan: { id: "sedan", label: "Sedan", icon: CarFront, basePrice: 25, ratePerKm: 10 },
-  half_ton_bakkie: { id: "half_ton_bakkie", label: "Half Ton Bakkie", icon: Truck, basePrice: 400, ratePerKm: 10 },
+  mini_van: { id: "mini_van", label: "Mini Van", icon: Truck, image: "/vehicles/mini-van.png", basePrice: 500, ratePerKm: 10 },
+  small: { id: "small", label: "Small", icon: Truck, image: "/vehicles/small.png", basePrice: 500, ratePerKm: 10 },
+  medium: { id: "medium", label: "Medium", icon: Truck, image: "/vehicles/medium.png", basePrice: 500, ratePerKm: 10 },
+  large: { id: "large", label: "Large", icon: Truck, image: "/vehicles/large.png", basePrice: 500, ratePerKm: 10 },
+  extra_large: { id: "extra_large", label: "Extra Large", icon: Truck, image: "/vehicles/extra-large.png", basePrice: 500, ratePerKm: 10 },
 };
 
 export const VEHICLE_TYPE_LIST = Object.values(VEHICLE_TYPES);

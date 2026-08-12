@@ -20,20 +20,15 @@ describe("calculatePrice", () => {
     expect(calculatePrice(undefined, 5)).toBe(25 + 4 * 10);
   });
 
-  it("uses the R25 base for motorcycle/hatchback/sedan removal vehicles, same as every other service", () => {
-    expect(calculatePrice("home_office_removal", 1, "motorcycle")).toBe(25);
-    expect(calculatePrice("home_office_removal", 1, "hatchback")).toBe(25);
-    expect(calculatePrice("home_office_removal", 1, "sedan")).toBe(25);
-    expect(calculatePrice("home_office_removal", 5, "sedan")).toBe(25 + 4 * 10);
-  });
-
-  it("uses the higher R400 base for the half ton bakkie, plus R10/km beyond 1km", () => {
-    expect(calculatePrice("home_office_removal", 1, "half_ton_bakkie")).toBe(400);
-    expect(calculatePrice("home_office_removal", 5, "half_ton_bakkie")).toBe(400 + 4 * 10);
+  it("uses the R500 base across every removal vehicle tier, plus R10/km beyond 1km", () => {
+    for (const vehicleType of ["mini_van", "small", "medium", "large", "extra_large"] as const) {
+      expect(calculatePrice("home_office_removal", 1, vehicleType)).toBe(500);
+      expect(calculatePrice("home_office_removal", 5, vehicleType)).toBe(500 + 4 * 10);
+    }
   });
 
   it("ignores vehicleType for services other than home_office_removal", () => {
-    expect(calculatePrice("parcel_delivery", 5, "half_ton_bakkie")).toBe(25 + 4 * 10);
+    expect(calculatePrice("parcel_delivery", 5, "extra_large")).toBe(25 + 4 * 10);
   });
 
   it("accepts distance as a string, matching how it's read off the booking form", () => {
