@@ -14,13 +14,12 @@ import {
   FileSpreadsheet,
   Car,
   Upload,
-  Receipt,
   ShieldCheck,
-  type LucideIcon,
 } from "lucide-react"
+import BadgeRandSign from "@/components/icons/BadgeRandSign"
 
 interface MenuItem {
-  icon: LucideIcon
+  icon: React.ComponentType<{ className?: string }>
   label: string
   link: string
 }
@@ -31,7 +30,7 @@ const menuItems: MenuItem[] = [
   { icon: FileSpreadsheet, label: "Records", link: "/records" },
   { icon: Truck, label: "Request Pick-up", link: "/request" },
   { icon: Car, label: "Trips", link: "/trips" },
-  { icon: Receipt, label: "Billing", link: "/billing" },
+  { icon: BadgeRandSign, label: "Billing", link: "/billing" },
   { icon: Upload, label: "Upload", link: "/upload" },
 ]
 
