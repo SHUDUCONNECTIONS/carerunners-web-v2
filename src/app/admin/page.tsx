@@ -9,7 +9,7 @@ import { auth } from "@/utils/firebase"
 import { ADMIN_EMAILS } from "@/utils/adminEmails"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { AlertCircle, Car, ClipboardList, DollarSign, RefreshCw, type LucideIcon } from "lucide-react"
+import { AlertCircle, Car, ClipboardList, DollarSign, FileText, RefreshCw, type LucideIcon } from "lucide-react"
 import LoadingComponent from "@/components/loader"
 
 type AdminTool = {
@@ -43,6 +43,12 @@ const adminTools: AdminTool[] = [
     title: "Fix Trip Prices",
     description: "Recalculate and repair trip prices across the platform.",
     href: "/admin/sync",
+  },
+  {
+    icon: FileText,
+    title: "Monthly Trip Reports",
+    description: "Download each driver's trip history for a given month.",
+    href: "/admin/reports",
   },
 ]
 

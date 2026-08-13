@@ -38,11 +38,21 @@ type RequestedTrip = {
   customerName: string
   customerEmail: string
   customerPhone: string
+  createdAt: number
 }
 
 function formatCurrency(amount: number): string {
   const value = Number(amount) || 0
   return `R${value.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+// Doc IDs are `${userId}_${Date.now()}`, so the timestamp suffix is a
+// reliable fallback for docs where the createdAt Timestamp is missing.
+function requestCreatedAt(id: string, data: any): number {
+  if (data.createdAt?.toMillis) return data.createdAt.toMillis()
+  const suffix = id.split("_").pop()
+  const parsed = Number(suffix)
+  return Number.isFinite(parsed) ? parsed : 0
 }
 
 export default function AdminRequestedTripsPage() {
@@ -110,11 +120,12 @@ export default function AdminRequestedTripsPage() {
             customerName: `${customer.firstName || ""} ${customer.lastName || ""}`.trim() || "Unknown",
             customerEmail: customer.email || firm.email || "",
             customerPhone: customer.phone || firm.phone || firm.contactNumber || "",
+            createdAt: requestCreatedAt(d.id, data),
           }
         })
 
-        // Soonest pickup first — those are the most time-sensitive to assign.
-        result.sort((a, b) => `${a.pickupDate}${a.pickupTime}`.localeCompare(`${b.pickupDate}${b.pickupTime}`))
+        // Most recently requested first.
+        result.sort((a, b) => b.createdAt - a.createdAt)
 
         setTrips(result)
         setFiltered(result)

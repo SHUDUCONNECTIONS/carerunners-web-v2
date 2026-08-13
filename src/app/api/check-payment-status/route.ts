@@ -45,6 +45,26 @@ async function sendConfirmationEmail(
   }
 }
 
+async function sendAdminTripNotification(origin: string, trip: any, customerEmail: string | null) {
+  try {
+    await fetch(`${origin}/api/send-trip-request-notification`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pickupLocation: trip?.pickupLocation,
+        dropoffLocation: trip?.dropoffLocation,
+        pickupDate: trip?.pickupDate,
+        pickupTime: trip?.pickupTime,
+        price: trip?.price,
+        customerEmail,
+        origin,
+      }),
+    });
+  } catch (err) {
+    console.error("Error sending admin trip notification:", err);
+  }
+}
+
 export async function GET(req: NextRequest) {
   const user = await requireAuth(req);
   if (!user) {
@@ -81,17 +101,19 @@ export async function GET(req: NextRequest) {
     const pending = !success && isPendingCode(code);
     const newStatus = success ? "paid" : pending ? "pending" : "failed";
 
+    let newlyRequestedTrip: FirebaseFirestore.DocumentData | undefined;
+
     if (checkout.type === "trip") {
       const update: Record<string, unknown> = { payment_status: newStatus };
       if (success) {
-        // Individual accounts create trips gated behind payment (see
-        // request/page.tsx) — only those need to transition to "pending"
-        // (driver-visible) here. Firm trips are
-        // already "pending" the moment they're created and get paid later
-        // via /billing, so leave their status alone.
+        // Every account pays upfront before a trip is driver-visible (see
+        // request/page.tsx, which always creates trips as "awaiting-payment"
+        // regardless of account type). This flips it to "pending" once
+        // payment clears.
         const tripSnap = await db.collection("pickupRequests").doc(checkout.requestId).get();
         if (tripSnap.exists && tripSnap.data()?.status === "awaiting-payment") {
           update.status = "pending";
+          newlyRequestedTrip = tripSnap.data();
         }
         // Lets cancel-trip find this payment to refund later without having
         // to search the checkouts collection for it.
@@ -123,6 +145,9 @@ export async function GET(req: NextRequest) {
 
     if (success) {
       await sendConfirmationEmail(req.nextUrl.origin, checkout, user.email, peachResult);
+      if (newlyRequestedTrip) {
+        await sendAdminTripNotification(req.nextUrl.origin, newlyRequestedTrip, user.email);
+      }
     }
 
     return NextResponse.json(peachResult);
