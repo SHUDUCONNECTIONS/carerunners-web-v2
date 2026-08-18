@@ -80,11 +80,11 @@ export const SERVICE_TYPE_LIST = Object.values(SERVICE_TYPES);
 // Only relevant when serviceType === "home_office_removal". All five tiers
 // share the same R500 base price and R10/km rate.
 export const VEHICLE_TYPES: Record<VehicleType, VehicleConfig> = {
-  mini_van: { id: "mini_van", label: "Mini Van", icon: Truck, image: "/vehicles/mini-van.png", basePrice: 500, ratePerKm: 10 },
-  small: { id: "small", label: "Small", icon: Truck, image: "/vehicles/small.png", basePrice: 500, ratePerKm: 10 },
-  medium: { id: "medium", label: "Medium", icon: Truck, image: "/vehicles/medium.png", basePrice: 500, ratePerKm: 10 },
-  large: { id: "large", label: "Large", icon: Truck, image: "/vehicles/large.png", basePrice: 500, ratePerKm: 10 },
-  extra_large: { id: "extra_large", label: "Extra Large", icon: Truck, image: "/vehicles/extra-large.png", basePrice: 500, ratePerKm: 10 },
+  mini_van: { id: "mini_van", label: "Mini Van", icon: Truck, image: "/vehicles/mini-van.svg", basePrice: 500, ratePerKm: 10 },
+  small: { id: "small", label: "Small", icon: Truck, image: "/vehicles/small.svg", basePrice: 500, ratePerKm: 10 },
+  medium: { id: "medium", label: "Medium", icon: Truck, image: "/vehicles/medium.svg", basePrice: 500, ratePerKm: 10 },
+  large: { id: "large", label: "Large", icon: Truck, image: "/vehicles/large.svg", basePrice: 500, ratePerKm: 10 },
+  extra_large: { id: "extra_large", label: "Extra Large", icon: Truck, image: "/vehicles/extra-large.svg", basePrice: 500, ratePerKm: 10 },
 };
 
 export const VEHICLE_TYPE_LIST = Object.values(VEHICLE_TYPES);

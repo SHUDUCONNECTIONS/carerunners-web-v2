@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 120">
+  <ellipse cx="122" cy="106" rx="112" ry="6" fill="#000000" opacity="0.09"/>
+  <rect x="24" y="89" width="194" height="4" fill="#1f2937" opacity="0.25"/>
+  <rect x="10" y="74" width="14" height="12" rx="3" fill="#14b8a6"/>
+  <rect x="24" y="42" width="52" height="46" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <polygon points="29,47 46,43 46,65 29,65" fill="#334155" opacity="0.85"/>
+  <rect x="52" y="47" width="16" height="18" rx="2" fill="#334155" opacity="0.85"/>
+  <line x1="52" y1="65" x2="52" y2="88" stroke="#cbd5e1" stroke-width="1.5"/>
+  <rect x="82" y="18" width="136" height="70" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <line x1="82" y1="40" x2="218" y2="40" stroke="#e2e8f0" stroke-width="1.5"/>
+  <line x1="82" y1="62" x2="218" y2="62" stroke="#e2e8f0" stroke-width="1.5"/>
+  <rect x="212" y="74" width="6" height="12" rx="2" fill="#14b8a6"/>
+  <circle cx="50" cy="94" r="15" fill="#1f2937"/>
+  <circle cx="50" cy="94" r="6" fill="#9ca3af"/>
+  <circle cx="186" cy="94" r="16" fill="#1f2937"/>
+  <circle cx="186" cy="94" r="6" fill="#9ca3af"/>
+  <circle cx="204" cy="94" r="16" fill="#1f2937"/>
+  <circle cx="204" cy="94" r="6" fill="#9ca3af"/>
+</svg>
