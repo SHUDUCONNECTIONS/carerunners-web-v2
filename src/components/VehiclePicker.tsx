@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import { VEHICLE_TYPE_LIST, VehicleType } from "@/lib/services";
 
 interface VehiclePickerProps {
@@ -30,8 +31,7 @@ export function VehiclePicker({ value, onChange }: VehiclePickerProps) {
                 selected ? "ring-1 ring-teal-500" : ""
               }`}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={vehicle.image} alt={vehicle.label} className="h-full w-full object-contain" />
+              <Image src={vehicle.image} alt={vehicle.label} fill className="object-contain" sizes="120px" />
             </span>
             <span className="text-xs font-semibold text-gray-800 text-center leading-tight">{vehicle.label}</span>
           </button>
