@@ -9,8 +9,10 @@ close that. NOTHING here is released by itself: publishing is a separate, delibe
 - `firestore.rules`: phase 1 Firestore rules (closes prices, payments, bank details, reviews, payment records).
 - `database.rules.json`: Realtime Database rules (closes `requests`, stops people writing other drivers' data).
 - `previous-live-firestore.rules`: what was live before, for rolling back.
-- `tests/scenarios.reference.mjs`: about 70 allow/deny scenarios written against `firestore.rules`.
-  Run them with the Firebase emulator (needs Java) before publishing.
+- `tests/scenarios.reference.mjs`: about 70 allow/deny scenarios written against `firestore.rules`. It posts them to
+  Google's rules test service, which the current service account is NOT allowed to use. To run them, either give the
+  account the "Firebase Rules" test permission, or port the same scenarios to the Firebase emulator (needs Java).
+  NOTHING has been run against these rules yet: do this before publishing.
 
 ## Publishing (when the scenarios pass)
 Firebase console > Firestore Database > Rules: paste `firestore.rules`, Publish.
