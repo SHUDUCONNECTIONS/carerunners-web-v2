@@ -1,5 +1,6 @@
 "use client";
 
+import { notifyOrderStatus } from "@/utils/notifyOrderStatus";
 import React, { useState } from "react";
 import { Camera, X, Loader2, CheckCircle2 } from "lucide-react";
 import { storage, db } from "@/utils/firebase";
@@ -66,6 +67,7 @@ export function PhotoProofCapture({ tripId, proofKind, nextStatus, label, disabl
         [atField]: new Date(),
       });
 
+      notifyOrderStatus(tripId);
       handleClose();
       onDone?.();
     } catch (err) {

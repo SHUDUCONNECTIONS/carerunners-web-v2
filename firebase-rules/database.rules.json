@@ -1,0 +1,16 @@
+{
+  "rules": {
+    "requests": { ".read": false, ".write": false },
+    "drivers": {
+      ".read": "auth != null",
+      "$driverId": {
+        ".write": "auth != null && (auth.uid === $driverId || auth.token.email_verified === true && (auth.token.email === 'dimakatso@shuduconnections.com' || auth.token.email === 'tetelo@shuduconnections.com' || auth.token.email === 'tshikovhitshedza9@gmail.com' || auth.token.email === 'tshedza@gmail.com' || auth.token.email === 'lucky@shuduconnections.com'))"
+      }
+    },
+    "trips": { ".read": "auth != null", ".write": "auth != null" },
+    "driverLocations": {
+      ".read": "auth != null",
+      "$driverId": { ".write": "auth != null && auth.uid === $driverId" }
+    }
+  }
+}

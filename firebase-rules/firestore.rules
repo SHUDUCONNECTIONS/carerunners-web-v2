@@ -1,0 +1,167 @@
+rules_version = '2';
+
+// Care Runners: Firestore security rules (phase 1).
+//
+// Before this file, the live rules were "any signed-in user can read and write everything".
+// That let any customer change prices, mark their own trip or order as paid, read companies'
+// bank details and read payment records. This file closes those holes while keeping every flow
+// the web app and the driver app use today working.
+//
+// Anything the server does (payments, checkout, stock, reviews, companies) goes through the Admin
+// SDK, which bypasses these rules, so those collections are closed to browsers here.
+//
+// NOT tightened yet (phase 2): who may READ trips, users and drivers. They are still readable by any
+// signed-in user because the driver app and firm accounts rely on broad queries.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+    function email() { return request.auth.token.email.lower(); }
+
+    // Same list as src/utils/adminEmails.ts. Keep the two in step.
+    function isAdmin() {
+      return signedIn()
+        && request.auth.token.email_verified == true
+        && request.auth.token.email in [
+          "dimakatso@shuduconnections.com",
+          "tetelo@shuduconnections.com",
+          "tshikovhitshedza9@gmail.com",
+          "tshedza@gmail.com",
+          "lucky@shuduconnections.com"
+        ];
+    }
+
+    function userDoc() { return get(/databases/$(database)/documents/users/$(uid())).data; }
+    function myFirmId() { return userDoc().firmId; }
+    function isDriver() { return signedIn() && exists(/databases/$(database)/documents/drivers/$(uid())); }
+
+    // Keys a request changes on an existing document.
+    function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+
+    // ── MarketPortal ───────────────────────────────────────────────────────────────────────
+    // True when the signed-in, verified email is one of the company's login emails.
+    function isCompanyLogin(companyId) {
+      return signedIn()
+        && request.auth.token.email_verified == true
+        && email() in get(/databases/$(database)/documents/marketplaceCompanies/$(companyId)).data.loginEmails;
+    }
+
+    // Companies hold bank details: admins, and the company's own login emails, only.
+    // Created and edited by the server.
+    match /marketplaceCompanies/{companyId} {
+      allow get: if isAdmin() || isCompanyLogin(companyId);
+      allow list: if isAdmin()
+        || (signedIn() && request.auth.token.email_verified == true && email() in resource.data.loginEmails);
+      allow write: if false;
+    }
+
+    // Anyone signed in can open a listing by its id (product page, cart). Browsing the catalogue goes
+    // through /api/marketplace/listings, so listing queries are only for admins and the owning company.
+    // Created by the server; admins can change status, prices and similar fields.
+    match /marketplaceListings/{listingId} {
+      allow get: if signedIn();
+      allow list: if isAdmin()
+        || (signedIn() && request.auth.token.email_verified == true && isCompanyLogin(resource.data.companyId));
+      allow create, delete: if false;
+      allow update: if isAdmin() && !changed().hasAny(["ratingSum", "ratingCount", "stock", "companyId", "sellerId"]);
+    }
+
+    // Orders: the buyer, the selling company's logins and admins can read. Admins record payouts.
+    match /marketplaceOrders/{orderId} {
+      allow get, list: if signedIn()
+        && (resource.data.buyerId == uid() || isAdmin() || isCompanyLogin(resource.data.sellerId));
+      allow create, delete: if false;
+      allow update: if isAdmin()
+        && changed().hasOnly(["sellerPaidOut", "sellerPaidOutAt", "sellerPayoutRef", "sellerPayoutMethod"]);
+    }
+
+    // Server only: private pickup details, reviews, issues, rate limits, payment records, install stats.
+    match /marketplacePickup/{id} { allow read, write: if false; }
+    match /marketplaceReviews/{id} { allow read, write: if false; }
+    match /marketplaceIssues/{id} { allow read, write: if false; }
+    match /marketplaceSettings/{id} { allow read, write: if false; }
+    match /rateLimits/{id} { allow read, write: if false; }
+    match /checkouts/{id} { allow read, write: if false; }
+    match /pwaDevices/{id} { allow read, write: if false; }
+
+    // ── Trips ──────────────────────────────────────────────────────────────────────────────
+    // The money fields (price, payment_status, MarketPortal order links) and the step out of
+    // "awaiting-payment" are written by the server only. Customers create their own unpaid trips,
+    // drivers and customers move a paid trip along, admins can correct anything.
+    match /pickupRequests/{tripId} {
+      allow read: if signedIn();   // phase 2: limit to the owner, their firm, drivers and admins
+
+      allow create: if signedIn()
+        && request.resource.data.userId == uid()
+        && request.resource.data.status == "awaiting-payment"
+        && request.resource.data.payment_status == "unpaid"
+        && !request.resource.data.keys().hasAny(["marketOrderId", "marketListingId", "marketItemAmount", "marketItems"]);
+
+      allow update: if isAdmin()
+        || (signedIn()
+            && !changed().hasAny(["userId", "price", "payment_status", "checkoutId", "marketOrderId", "marketListingId", "marketItemAmount", "marketItems"])
+            && resource.data.status != "awaiting-payment"
+            && request.resource.data.status != "awaiting-payment");
+
+      allow delete: if isAdmin();
+    }
+
+    // ── Drivers ────────────────────────────────────────────────────────────────────────────
+    // Drivers manage their own profile but cannot approve themselves or change their rating.
+    // Customers can only add one rating at a time when they rate a delivery.
+    match /drivers/{driverId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && driverId == uid()
+        && (!("isApproved" in request.resource.data) || request.resource.data.isApproved == false)
+        && (!("applicationStatus" in request.resource.data) || request.resource.data.applicationStatus != "approved");
+      allow update: if isAdmin()
+        || (signedIn() && driverId == uid() && !changed().hasAny(["isApproved", "applicationStatus", "ratingSum", "ratingCount"]))
+        || (signedIn()
+            && changed().hasOnly(["ratingSum", "ratingCount"])
+            && request.resource.data.ratingCount == resource.data.ratingCount + 1
+            && request.resource.data.ratingSum >= resource.data.ratingSum + 1
+            && request.resource.data.ratingSum <= resource.data.ratingSum + 5);
+      allow delete: if isAdmin();
+    }
+
+    // ── Accounts and firms ─────────────────────────────────────────────────────────────────
+    match /users/{userId} {
+      allow read: if signedIn();   // phase 2: limit to the person, their firm and admins
+      allow create: if signedIn() && userId == uid();
+      allow update: if signedIn() && (userId == uid() || isAdmin());
+      // A firm's admin can remove one of their team members.
+      allow delete: if isAdmin()
+        || (signedIn() && exists(/databases/$(database)/documents/firms/$(resource.data.firmId))
+            && get(/databases/$(database)/documents/firms/$(resource.data.firmId)).data.adminId == uid());
+    }
+
+    match /firms/{firmId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.adminId == uid();
+      // Payment fields on a firm are written by the server only.
+      allow update: if isAdmin()
+        || (signedIn() && resource.data.adminId == uid() && !changed().hasAny(["adminId", "paymentStatus", "lastPaymentDate"]));
+      allow delete: if isAdmin();
+
+      // Uploaded records belong to the firm: its admin, its members and Care Runners admins.
+      match /documents/{docId} {
+        allow read, write: if isAdmin()
+          || (signedIn() && (get(/databases/$(database)/documents/firms/$(firmId)).data.adminId == uid()
+                             || (exists(/databases/$(database)/documents/users/$(uid())) && myFirmId() == firmId)));
+      }
+    }
+
+    match /userInvitations/{inviteId} {
+      allow get: if signedIn();   // the invitee opens their own link by its id
+      allow list: if signedIn() && exists(/databases/$(database)/documents/users/$(uid())) && resource.data.firmId == myFirmId();
+      allow create: if signedIn() && exists(/databases/$(database)/documents/users/$(uid())) && request.resource.data.firmId == myFirmId();
+      // The invited person marks it accepted.
+      allow update: if signedIn() && resource.data.email.lower() == email();
+      allow delete: if signedIn() && exists(/databases/$(database)/documents/users/$(uid())) && resource.data.firmId == myFirmId();
+    }
+
+    // The old driver-app collection. Empty today; kept open to signed-in users so nothing breaks.
+    match /trips/{tripId} { allow read, write: if signedIn(); }
+  }
+}

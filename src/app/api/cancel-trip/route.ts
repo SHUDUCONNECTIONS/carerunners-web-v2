@@ -7,8 +7,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/utils/requireAuth";
 import { adminDb } from "@/utils/firebaseAdmin";
 import { refundPayment, isSuccessCode } from "@/utils/peach";
+import { releaseMarketplaceOrder } from "@/utils/marketplaceStock";
 
 const CANCELLABLE_STATUSES = ["pending", "waiting for driver", "awaiting-payment"];
+
+// A cancelled MarketPortal delivery cancels its order and puts the item back
+// on sale (it was reserved or marked sold when the order was placed).
+async function releaseMarketplaceItem(db: FirebaseFirestore.Firestore, trip: FirebaseFirestore.DocumentData) {
+  if (!trip.marketOrderId) return;
+  // Also gives the units back for stock-tracked items.
+  await releaseMarketplaceOrder(db, trip.marketOrderId);
+}
 
 export async function POST(req: NextRequest) {
   const user = await requireAuth(req);
@@ -51,6 +60,7 @@ export async function POST(req: NextRequest) {
     if (trip.payment_status !== "paid") {
       // Nothing was ever charged (unpaid/failed/pending) — no refund needed.
       await tripRef.update({ status: "cancelled", payment_status: "cancelled" });
+      await releaseMarketplaceItem(db, trip);
       return NextResponse.json({ status: "cancelled" });
     }
 
@@ -107,6 +117,7 @@ export async function POST(req: NextRequest) {
       refundedAt: new Date().toISOString(),
     });
     await tripRef.update({ status: "cancelled", payment_status: "refunded" });
+    await releaseMarketplaceItem(db, trip);
 
     return NextResponse.json({ status: "cancelled", payment_status: "refunded" });
   } catch (error) {

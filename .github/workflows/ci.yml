@@ -1,0 +1,40 @@
+# Runs on every push and pull request: lint, type check, tests and a production build.
+# It uses dummy keys: nothing here talks to Firebase, the payment provider or the email service.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_API_KEY: ci
+      NEXT_PUBLIC_AUTH_DOMAIN: ci.firebaseapp.com
+      NEXT_PUBLIC_DATABASE_URL: https://ci-default-rtdb.firebaseio.com
+      NEXT_PUBLIC_PROJECT_ID: ci
+      NEXT_PUBLIC_STORAGE_BUCKET: ci.appspot.com
+      NEXT_PUBLIC_MESSAGING_SENDER_ID: "0"
+      NEXT_PUBLIC_APP_ID: ci
+      NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ci
+      FIREBASE_PROJECT_ID: ci
+      FIREBASE_CLIENT_EMAIL: ci@ci.iam.gserviceaccount.com
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc --noEmit
+      - run: npm test
+      - run: npm run build
+      # The generated dark-mode colours must match the colour classes in the code.
+      - name: Dark-mode colours are up to date
+        run: |
+          node scripts/generate-dark-colors.mjs
+          git diff --exit-code -- src/app/globals.css

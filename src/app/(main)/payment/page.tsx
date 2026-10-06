@@ -1,16 +1,17 @@
 "use client";
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/utils/firebase';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { MapPin, Calendar, Clock, FileText, DollarSign, Truck, Briefcase, User } from "lucide-react";
+import { MapPin, Calendar, Clock, FileText, Truck, Briefcase, User } from "lucide-react";
+import { RandIcon } from "@/components/RandIcon";
 import LoadingComponent from '@/components/loader';
 import { authedFetch } from '@/utils/authedFetch';
 
 
-function formatCurrency(value, locale = 'en-US', currency = 'ZAR') {
+function formatCurrency(value, locale = 'en-ZA', currency = 'ZAR') {
   return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency: currency,
@@ -33,6 +34,9 @@ type TripSummaryData = {
   specialInstructions?: string;
   distance: string;
   price: string;
+  marketItemAmount?: number;
+  marketDeliveryDiscount?: number;
+  marketItems?: { title: string; quantity: number; unitPrice: number }[];
 };
 
 
@@ -42,6 +46,9 @@ export default function TripSummary() {
   const [error, setError] = useState<string | null>(null);
   const [checkoutId, setCheckoutId] = useState<string | null>(null);
   const [shopperResultUrl, setShopperResultUrl] = useState<string>("");
+  const [prepareError, setPrepareError] = useState<string | null>(null);
+  const [widgetReady, setWidgetReady] = useState(false);
+  const [widgetKey, setWidgetKey] = useState(0);
 
 
   const searchParams = useSearchParams();
@@ -80,69 +87,108 @@ export default function TripSummary() {
   }, [requestId]);
 
 
+  // Creates the Peach checkout. Runs in parallel with the trip lookup (the
+  // server validates the trip itself, so there's no need to wait for it) and
+  // at most once per page visit: React Strict Mode double-runs effects in dev,
+  // and a second checkout would swap the id under an already-initialised
+  // widget, leaving a blank form until a manual refresh.
+  const prepareStarted = useRef(false);
+
+  const prepareCheckout = useCallback(async () => {
+    if (!requestId) return;
+    setCheckoutId(null);
+    setPrepareError(null);
+    try {
+      const response = await authedFetch("/api/prepare-checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "trip", requestId }),
+      });
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(data?.message || `Failed to prepare checkout (HTTP ${response.status})`);
+      }
+
+      // Peach Payments returns a 200 with an error payload (no `id`)
+      // rather than a non-2xx status when the request itself is rejected
+      // — e.g. a missing/invalid ENTITY_ID or BEARER_TOKEN.
+      if (!data?.id) {
+        throw new Error(data?.message || "Payment gateway did not return a checkout session.");
+      }
+
+      setShopperResultUrl(`/payment/status?requestId=${requestId}`);
+      setCheckoutId(data.id);
+    } catch (err: any) {
+      console.error("Error calling API:", err);
+      setPrepareError(err?.message || "Error preparing payment checkout");
+    }
+  }, [requestId]);
+
   useEffect(() => {
-    const callApi = async () => {
-      if (!tripData) return;
+    if (!requestId || prepareStarted.current) return;
+    prepareStarted.current = true;
+    prepareCheckout();
+  }, [requestId, prepareCheckout]);
 
+  // Loads Peach's widget script for the current checkout. Any leftover widget
+  // script/global from a previous attempt is cleared first, otherwise Peach
+  // keeps the old checkout and the form never renders.
+  useEffect(() => {
+    if (!checkoutId) return;
+    setWidgetReady(false);
 
-      try {
-        const response = await authedFetch("/api/prepare-checkout", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            type: "trip",
-            requestId,
-          }),
-        });
+    document
+      .querySelectorAll('script[src*="paymentWidgets.js"]')
+      .forEach((el) => el.parentNode?.removeChild(el));
+    delete (window as any).wpwl;
 
+    const script = document.createElement("script");
+    script.src = `https://card.peachpayments.com/v1/paymentWidgets.js?checkoutId=${checkoutId}`;
+    script.async = true;
+    script.onerror = () => setPrepareError("Couldn't load the payment form. Check your connection and try again.");
+    document.body.appendChild(script);
 
-        const data = await response.json().catch(() => null);
+    // Peach builds its card form (wpwl-* elements) somewhere around the
+    // placeholder <form>, not necessarily inside it, so look for it anywhere.
+    const widgetPresent = () => document.querySelector('[class*="wpwl-"]') !== null;
 
-        if (!response.ok) {
-          throw new Error(data?.message || `Failed to prepare checkout (HTTP ${response.status})`);
-        }
+    const watchdog = window.setInterval(() => {
+      if (widgetPresent()) {
+        setWidgetReady(true);
+        window.clearInterval(watchdog);
+      }
+    }, 300);
 
-        // Peach Payments returns a 200 with an error payload (no `id`)
-        // rather than a non-2xx status when the request itself is rejected
-        // — e.g. a missing/invalid ENTITY_ID or BEARER_TOKEN.
-        if (!data?.id) {
-          throw new Error(data?.message || "Payment gateway did not return a checkout session.");
-        }
+    // Only offer a retry if the form genuinely never appeared. A form that is
+    // on screen is never replaced by an error.
+    const giveUp = window.setTimeout(() => {
+      window.clearInterval(watchdog);
+      if (widgetPresent()) {
+        setWidgetReady(true);
+      } else {
+        setPrepareError("The payment form is taking too long to load.");
+      }
+    }, 20000);
 
-        setCheckoutId(data.id);
-        setShopperResultUrl(`/payment/status?requestId=${requestId}`);
-      } catch (error: any) {
-        console.error("Error calling API:", error);
-        setError(error?.message || 'Error preparing payment checkout');
+    return () => {
+      window.clearInterval(watchdog);
+      window.clearTimeout(giveUp);
+      // The Peach Payments widget can mutate/move the DOM around this
+      // script tag once it initializes, so it may no longer be a direct
+      // child of <body> by the time this cleanup runs — removeChild would
+      // throw NotFoundError in that case.
+      if (script.parentNode) {
+        script.parentNode.removeChild(script);
       }
     };
+  }, [checkoutId, widgetKey]);
 
-
-    if (tripData?.price) {
-      callApi();
-    }
-  }, [tripData]);
-
-
-  useEffect(() => {
-    if (checkoutId) {
-      const script = document.createElement("script");
-      script.src = `https://card.peachpayments.com/v1/paymentWidgets.js?checkoutId=${checkoutId}`;
-      script.async = true;
-      document.body.appendChild(script);
-      return () => {
-        // The Peach Payments widget can mutate/move the DOM around this
-        // script tag once it initializes, so it may no longer be a direct
-        // child of <body> by the time this cleanup runs — removeChild would
-        // throw NotFoundError in that case.
-        if (script.parentNode) {
-          script.parentNode.removeChild(script);
-        }
-      };
-    }
-  }, [checkoutId]);
+  const handleRetry = () => {
+    setWidgetKey((k) => k + 1);
+    prepareCheckout();
+  };
 
 
   if (loading) {
@@ -160,7 +206,10 @@ export default function TripSummary() {
   }
 
 
-  const formattedPrice = formatCurrency(parseFloat(tripData.price));
+  const deliveryPrice = parseFloat(tripData.price);
+  const itemAmount = Number(tripData.marketItemAmount || 0);
+  const deliveryDiscount = Number(tripData.marketDeliveryDiscount || 0);
+  const formattedPrice = formatCurrency(deliveryPrice + itemAmount - deliveryDiscount);
 
 
   return (
@@ -250,27 +299,75 @@ export default function TripSummary() {
                 </div>
                 <span>{tripData.distance} km</span>
               </div>
+              {itemAmount > 0 && (
+                <>
+                  {(tripData.marketItems ?? []).map((it) => (
+                    <div key={it.title} className="flex items-start justify-between gap-3 text-sm">
+                      <span className="min-w-0">
+                        {it.quantity} x {it.title}
+                      </span>
+                      <span className="shrink-0">{formatCurrency(it.quantity * it.unitPrice)}</span>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold">Item price:</span>
+                    <span>{formatCurrency(itemAmount)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold">Care Runners delivery:</span>
+                    <span>{formatCurrency(deliveryPrice)}</span>
+                  </div>
+                  {deliveryDiscount > 0 && (
+                    <div className="flex items-center justify-between text-green-700">
+                      <span className="font-semibold">Delivery discount:</span>
+                      <span>{formatCurrency(deliveryDiscount)} off</span>
+                    </div>
+                  )}
+                </>
+              )}
               <div className="flex items-center justify-between text-lg font-bold">
                 <div className="flex items-center space-x-2">
-                  <DollarSign className="h-5 w-5 text-teal-600" />
+                  <RandIcon className="h-5 w-5 text-teal-600" />
                   <span>Total Cost:</span>
                 </div>
                 <span>{formattedPrice}</span>
               </div>
             </div>
            
-            {checkoutId && (
-              <div className="mt-8">
-                <h3 className="text-lg font-semibold mb-4">Payment</h3>
-                <div className="border border-gray-300 rounded-lg overflow-hidden">
-                  <form
-                    action={shopperResultUrl}
-                    className="paymentWidgets"
-                    data-brands="VISA MASTER AMEX"
-                  ></form>
+            <div className="mt-8">
+              <h3 className="text-lg font-semibold mb-4">Payment</h3>
+              {prepareError ? (
+                <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 space-y-3">
+                  <p>{prepareError}</p>
+                  <button
+                    type="button"
+                    onClick={handleRetry}
+                    className="rounded-lg bg-teal-600 px-4 py-2 font-semibold text-white hover:bg-teal-700"
+                  >
+                    Try again
+                  </button>
                 </div>
-              </div>
-            )}
+              ) : (
+                <>
+                  {!widgetReady && (
+                    <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+                      <span className="h-5 w-5 animate-spin rounded-full border-2 border-teal-600 border-t-transparent" />
+                      Preparing secure payment…
+                    </div>
+                  )}
+                  {checkoutId && (
+                    <div className="border border-gray-300 rounded-lg overflow-hidden">
+                      <form
+                        key={`${checkoutId}-${widgetKey}`}
+                        action={shopperResultUrl}
+                        className="paymentWidgets"
+                        data-brands="VISA MASTER AMEX"
+                      ></form>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>

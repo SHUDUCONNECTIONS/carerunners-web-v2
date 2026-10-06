@@ -18,7 +18,7 @@ function getAdminApp(): App {
 
   if (!projectId || !clientEmail || !privateKey) {
     throw new Error(
-      "Missing FIREBASE_PROJECT_ID / FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY — generate a service account key from Firebase Console > Project Settings > Service Accounts."
+      "Missing FIREBASE_PROJECT_ID / FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY. Generate a service account key from Firebase Console > Project Settings > Service Accounts."
     );
   }
 

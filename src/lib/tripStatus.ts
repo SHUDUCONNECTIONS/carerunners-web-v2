@@ -42,7 +42,7 @@ export const TRIP_STEPS: StepMeta[] = [
   { status: "assigned", label: "Runner Assigned", icon: UserCheck, time: "A runner has accepted your request" },
   { status: "picked-up", label: "Picked Up", icon: Package, time: "Runner has collected your item" },
   { status: "in-transit", label: "In Transit", icon: Navigation, time: "Your item is on the way" },
-  { status: "delivered", label: "Delivered", icon: CheckCircle, time: "Item delivered — please rate your runner" },
+  { status: "delivered", label: "Delivered", icon: CheckCircle, time: "Item delivered. Please rate your runner" },
   { status: "completed", label: "Complete", icon: Star, time: "Trip complete" },
 ];
 

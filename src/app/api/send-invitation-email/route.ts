@@ -1,65 +1,57 @@
+// app/api/send-invitation-email/route.ts
+// Emails a team invitation. The caller only says WHICH invitation to send. The recipient, company
+// name and link all come from the saved invitation, and the caller must belong to that company, so
+// this can't be used to send arbitrary mail or phishing links from our domain.
 import { NextRequest, NextResponse } from "next/server";
-import { Resend } from 'resend';
+import { requireAuth } from "@/utils/requireAuth";
+import { adminDb } from "@/utils/firebaseAdmin";
+import { sendInvitation } from "@/utils/email";
+import { isRateLimited } from "@/utils/rateLimit";
 
-// Constructing this at module scope with a missing key throws immediately,
-// which fails `next build`'s page-data collection for this route (and takes
-// the whole build down with it) rather than just this one email failing at
-// request time. Defer construction until a request actually needs it.
-let resend: Resend | null = null;
-function getResend(): Resend {
-  if (!resend) resend = new Resend(process.env.RESEND_API_KEY);
-  return resend;
-}
+export async function POST(req: NextRequest) {
+  const user = await requireAuth(req);
+  if (!user) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
-export async function POST(request: NextRequest) {
+  let invitationId = "";
   try {
-    const { email, firmName, invitationLink } = await request.json();
-
-    if (!email || typeof email !== 'string') {
-      return NextResponse.json(
-        { error: "Invalid email format" },
-        { status: 400 }
-      );
-    }
-
-    const result = await sendInvitationEmail(email, firmName, invitationLink);
-
-    if (result.status === 'success') {
-      return NextResponse.json({ success: true });
-    } else {
-      console.error(`Failed to send invitation email to ${email}:`, result.error);
-      return NextResponse.json(
-        { error: "Failed to send invitation email" },
-        { status: 500 }
-      );
-    }
-  } catch (error) {
-    console.error("Error in invitation email sending process:", error);
-    return NextResponse.json(
-      { error: "Failed to process invitation email sending" },
-      { status: 500 }
-    );
+    invitationId = String((await req.json())?.invitationId ?? "");
+  } catch {
+    return NextResponse.json({ message: "Invalid request body" }, { status: 400 });
   }
-}
+  if (!invitationId) return NextResponse.json({ message: "invitationId is required" }, { status: 400 });
 
-async function sendInvitationEmail(email: string, firmName: string, invitationLink: string) {
   try {
-    await getResend().emails.send({
-      from: 'Carerunners <no-reply@carerunners.app>',
-      to: [email],
-      subject: 'Invitation to Join Carerunners',
-      html: `
-        <p>Dear User,</p>
-        <p>You have been invited to join ${firmName} on Carerunners.</p>
-        <p>To accept this invitation and create your account, please click on the following link:</p>
-        <p><a href="${invitationLink}">${invitationLink}</a></p>
-        <p>If you have any questions or need assistance, please don't hesitate to contact our support team.</p>
-        <p>Welcome to Carerunners!</p>
-        <p>Best regards,<br/>The Carerunners Team</p>
-      `,
+    const db = adminDb();
+    if (await isRateLimited(db, `invite_${user.uid}`, 10, 60)) {
+      return NextResponse.json({ message: "Too many invitations. Please wait a minute." }, { status: 429 });
+    }
+
+    const [invitation, caller] = await Promise.all([
+      db.collection("userInvitations").doc(invitationId).get(),
+      db.collection("users").doc(user.uid).get(),
+    ]);
+    const inv = invitation.data();
+    if (!invitation.exists || !inv?.email || !inv.firmId) {
+      return NextResponse.json({ message: "Invitation not found" }, { status: 404 });
+    }
+    if (caller.data()?.firmId !== inv.firmId) {
+      return NextResponse.json({ message: "That invitation isn't for your company." }, { status: 403 });
+    }
+    if (inv.status && inv.status !== "pending") {
+      return NextResponse.json({ message: "That invitation has already been used." }, { status: 409 });
+    }
+
+    const firm = await db.collection("firms").doc(inv.firmId).get();
+    const base = process.env.NEXT_PUBLIC_SITE_URL || req.nextUrl.origin;
+    const sent = await sendInvitation({
+      email: String(inv.email),
+      firmName: firm.data()?.companyName || "your company",
+      link: `${base}/auth/accept-invitation?id=${encodeURIComponent(invitationId)}`,
     });
-    return { status: 'success' };
-  } catch (error) {
-    return { status: 'failure', error };
+    if (!sent) return NextResponse.json({ message: "Failed to send invitation email" }, { status: 500 });
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error("Error sending invitation email:", err);
+    return NextResponse.json({ message: "Failed to process invitation email sending" }, { status: 500 });
   }
 }

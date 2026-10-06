@@ -2,6 +2,8 @@
 
 
 import React, { useState } from "react";
+import { AddressAutocomplete } from "@/components/AddressAutocomplete";
+import { GoogleMapsLoaderProvider } from "@/components/GoogleMapsLoaderProvider";
 import { fetchSignInMethodsForEmail } from "firebase/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -43,7 +45,7 @@ const steps = [
 ];
 
 
-export default function DriverSignUpStepper() {
+function DriverSignUpStepper() {
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState({
     firstName: "",
@@ -442,17 +444,15 @@ export default function DriverSignUpStepper() {
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <MapPin className="h-5 w-5 text-gray-400" />
                   </div>
-                  <Input
+                  <AddressAutocomplete
                     id="baseLocation"
-                    name="baseLocation"
-                    type="text"
                     required
-                    className={`pl-10 block w-full ${
+                    className={`pl-10 block w-full text-base md:text-sm ${
                       errors.baseLocation ? "border-red-500" : ""
                     }`}
-                    placeholder="Your base location"
+                    placeholder="Search your base location…"
                     value={formData.baseLocation}
-                    onChange={handleInputChange}
+                    onChange={(value) => setFormData((prev) => ({ ...prev, baseLocation: value }))}
                   />
                 </div>
                 {errors.baseLocation && (
@@ -887,4 +887,10 @@ export default function DriverSignUpStepper() {
   );
 }
 
-
+export default function DriverSignUpPage() {
+  return (
+    <GoogleMapsLoaderProvider>
+      <DriverSignUpStepper />
+    </GoogleMapsLoaderProvider>
+  );
+}

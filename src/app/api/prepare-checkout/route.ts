@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/utils/requireAuth";
 import { adminDb } from "@/utils/firebaseAdmin";
 import { createCheckout } from "@/utils/peach";
+import { releaseMarketplaceOrder } from "@/utils/marketplaceStock";
+import { orderLines } from "@/lib/marketplace";
 
 type TripPayload = { type: "trip"; requestId: string };
 type PlanPayload = { type: "plan"; firmId: string };
@@ -45,7 +47,28 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ message: "This trip is not awaiting payment" }, { status: 409 });
       }
 
-      amount = parseFloat(trip.price);
+      // A MarketPortal order can only be paid while its order is still open and every
+      // item on it still exists. Otherwise the order is cancelled instead of charged.
+      if (trip.marketOrderId) {
+        const orderSnap = await db.collection("marketplaceOrders").doc(trip.marketOrderId).get();
+        let unavailable = !orderSnap.exists || orderSnap.data()?.status !== "awaiting-payment";
+        if (!unavailable) {
+          const lines = orderLines(orderSnap.data() as any);
+          const listings = await Promise.all(lines.map((l) => db.collection("marketplaceListings").doc(l.listingId).get()));
+          unavailable = listings.some((l) => !l.exists || l.data()?.status === "inactive" || l.data()?.status === "rejected");
+        }
+        if (unavailable) {
+          if (orderSnap.exists) await releaseMarketplaceOrder(db, trip.marketOrderId);
+          await snap.ref.update({ status: "cancelled", payment_status: "cancelled" });
+          return NextResponse.json(
+            { message: "Sorry, an item on this order is no longer available. Your order has been cancelled and you have not been charged." },
+            { status: 409 }
+          );
+        }
+      }
+
+      // MarketPortal trips also carry the item price; the buyer pays both.
+      amount = parseFloat(trip.price) + Number(trip.marketItemAmount || 0) - Number(trip.marketDeliveryDiscount || 0);
       checkoutMeta = { type: "trip", requestId };
     } else if (payload.type === "plan") {
       const { firmId } = payload;

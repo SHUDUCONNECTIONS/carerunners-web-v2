@@ -1,7 +1,9 @@
 "use client";
 
 import { Suspense, useState, useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
+import { AddressAutocomplete } from "@/components/AddressAutocomplete";
+import { GoogleMapsLoaderProvider } from "@/components/GoogleMapsLoaderProvider";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,6 +37,7 @@ function FirmRegistrationContent() {
     handleSubmit,
     formState: { errors },
     setValue,
+    control,
   } = useForm<FormData>();
 
   useEffect(() => {
@@ -158,11 +161,19 @@ function FirmRegistrationContent() {
               <Label htmlFor="address">Address</Label>
               <div className="relative">
                 <MapPin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="address"
-                  placeholder="Enter company's physical address"
-                  className={`pl-10 ${errors.address ? "border-red-500" : ""}`}
-                  {...register("address", { required: "Address is required" })}
+                <Controller
+                  name="address"
+                  control={control}
+                  rules={{ required: "Address is required" }}
+                  render={({ field }) => (
+                    <AddressAutocomplete
+                      id="address"
+                      value={field.value ?? ""}
+                      onChange={field.onChange}
+                      placeholder="Search the company's physical address…"
+                      className={`pl-10 text-base md:text-sm ${errors.address ? "border-red-500" : ""}`}
+                    />
+                  )}
                 />
               </div>
               {errors.address && (
@@ -252,8 +263,10 @@ function FirmRegistrationContent() {
 }
 export default function FirmRegistrationComponent() {
   return (
-    <Suspense fallback={<LoadingComponent />}>
-      <FirmRegistrationContent />
-    </Suspense>
+    <GoogleMapsLoaderProvider>
+      <Suspense fallback={<LoadingComponent />}>
+        <FirmRegistrationContent />
+      </Suspense>
+    </GoogleMapsLoaderProvider>
   )
 }

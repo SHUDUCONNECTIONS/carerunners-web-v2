@@ -10,59 +10,31 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/utils/requireAuth";
 import { adminDb } from "@/utils/firebaseAdmin";
 import { getPaymentStatus, isSuccessCode, isPendingCode } from "@/utils/peach";
+import { markOrderPaid } from "@/utils/marketplaceStock";
+import { sendAdminTripNotification, sendPaymentReceipt, sendPlanConfirmation } from "@/utils/email";
 
 async function sendConfirmationEmail(
-  origin: string,
   checkout: any,
   email: string | null,
-  peachResult: any
+  peachResult: any,
+  orderSummary?: string
 ) {
   if (!email) return;
   const amount = peachResult.amount;
   const date = peachResult.timestamp;
   const brand = peachResult.paymentBrand;
 
-  try {
-    if (checkout.type === "plan") {
-      await fetch(`${origin}/api/send-plan-confirmation`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, amount, date, brand, planName: checkout.plan }),
-      });
-    } else {
-      const customMessage =
-        checkout.type === "billing"
-          ? `This payment covers ${checkout.requestIds.length} trip${checkout.requestIds.length !== 1 ? "s" : ""}.`
-          : undefined;
-      await fetch(`${origin}/api/send-invoice`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, amount, date, brand, customMessage }),
-      });
-    }
-  } catch (err) {
-    console.error("Error sending payment confirmation email:", err);
+  if (checkout.type === "plan") {
+    await sendPlanConfirmation({ email, amount, date, brand, planName: checkout.plan });
+    return;
   }
-}
-
-async function sendAdminTripNotification(origin: string, trip: any, customerEmail: string | null) {
-  try {
-    await fetch(`${origin}/api/send-trip-request-notification`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        pickupLocation: trip?.pickupLocation,
-        dropoffLocation: trip?.dropoffLocation,
-        pickupDate: trip?.pickupDate,
-        pickupTime: trip?.pickupTime,
-        price: trip?.price,
-        customerEmail,
-        origin,
-      }),
-    });
-  } catch (err) {
-    console.error("Error sending admin trip notification:", err);
-  }
+  const message =
+    checkout.type === "billing"
+      ? `This payment covers ${checkout.requestIds.length} trip${checkout.requestIds.length !== 1 ? "s" : ""}.`
+      : orderSummary
+        ? `Your MarketPortal order: ${orderSummary}. The amount includes delivery.`
+        : undefined;
+  await sendPaymentReceipt({ email, amount, date, brand, message });
 }
 
 export async function GET(req: NextRequest) {
@@ -102,6 +74,7 @@ export async function GET(req: NextRequest) {
     const newStatus = success ? "paid" : pending ? "pending" : "failed";
 
     let newlyRequestedTrip: FirebaseFirestore.DocumentData | undefined;
+    let orderSummary: string | undefined;
 
     if (checkout.type === "trip") {
       const update: Record<string, unknown> = { payment_status: newStatus };
@@ -114,6 +87,10 @@ export async function GET(req: NextRequest) {
         if (tripSnap.exists && tripSnap.data()?.status === "awaiting-payment") {
           update.status = "pending";
           newlyRequestedTrip = tripSnap.data();
+          const t = tripSnap.data()!;
+          if (t.marketOrderId) {
+            orderSummary = (await markOrderPaid(db, t.marketOrderId))?.summary;
+          }
         }
         // Lets cancel-trip find this payment to refund later without having
         // to search the checkouts collection for it.
@@ -144,9 +121,17 @@ export async function GET(req: NextRequest) {
     });
 
     if (success) {
-      await sendConfirmationEmail(req.nextUrl.origin, checkout, user.email, peachResult);
+      await sendConfirmationEmail(checkout, user.email, peachResult, orderSummary);
       if (newlyRequestedTrip) {
-        await sendAdminTripNotification(req.nextUrl.origin, newlyRequestedTrip, user.email);
+        await sendAdminTripNotification({
+          pickupLocation: newlyRequestedTrip.pickupLocation,
+          dropoffLocation: newlyRequestedTrip.dropoffLocation,
+          pickupDate: newlyRequestedTrip.pickupDate,
+          pickupTime: newlyRequestedTrip.pickupTime,
+          price: newlyRequestedTrip.price,
+          customerEmail: user.email,
+          origin: req.nextUrl.origin,
+        });
       }
     }
 

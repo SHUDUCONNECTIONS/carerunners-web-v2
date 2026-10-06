@@ -186,7 +186,7 @@ export default function AdminRequestedTripsPage() {
           </CardHeader>
           <CardContent className="mt-5">
             {trips.length === 0 ? (
-              <p className="text-gray-500 text-center py-6">No open requests — every booked trip has a driver.</p>
+              <p className="text-gray-500 text-center py-6">No open requests. Every booked trip has a driver.</p>
             ) : (
               <div className="flex gap-6">
                 <div>

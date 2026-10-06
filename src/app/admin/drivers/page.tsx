@@ -387,7 +387,7 @@ export default function AdminDriversPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
                     <div className="flex items-center gap-2 text-gray-600">
                       <Car className="h-4 w-4 text-teal-600 shrink-0" />
-                      {driver.vehicleYear} {driver.vehicleColor} {driver.vehicleMake} {driver.vehicleModel} ({driver.vehicleType}) — {driver.numberPlate}
+                      {driver.vehicleYear} {driver.vehicleColor} {driver.vehicleMake} {driver.vehicleModel} ({driver.vehicleType}), {driver.numberPlate}
                     </div>
                     <div className="text-gray-600">License #: {driver.licenseNumber}</div>
                     <div className="text-gray-600">Insurance: {driver.insuranceProvider} ({driver.insuranceNumber})</div>
@@ -492,12 +492,12 @@ export default function AdminDriversPage() {
                                         </span>
                                       </td>
                                       <td className="py-3 pr-4 text-right whitespace-nowrap">
-                                        {isNaN(Number(trip.price)) ? "R—" : `R${Number(trip.price).toFixed(2)}`}
+                                        {isNaN(Number(trip.price)) ? "N/A" : `R${Number(trip.price).toFixed(2)}`}
                                       </td>
                                       <td className="py-3 text-right font-medium whitespace-nowrap">
                                         {trip.status === "completed" && !isNaN(Number(trip.price))
                                           ? `R${calculatePayout(trip.price).toFixed(2)}`
-                                          : "—"}
+                                          : "N/A"}
                                       </td>
                                     </tr>
                                   ))}

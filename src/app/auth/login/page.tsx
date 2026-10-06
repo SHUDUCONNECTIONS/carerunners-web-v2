@@ -166,12 +166,12 @@ export default function LoginPage() {
       <div className="w-full max-w-4xl flex flex-col md:flex-row rounded-2xl shadow-2xl overflow-hidden">
 
         {/* Left panel — teal brand panel */}
-        <div className="bg-teal-600 text-white flex flex-col items-center justify-center
+        <div className="relative isolate overflow-hidden bg-gradient-to-br from-teal-700 via-teal-600 to-teal-500 text-white flex flex-col items-center justify-center
                         px-6 py-8 md:py-10 md:w-1/2 shrink-0">
           <img
             src="/carerunnerlogo.png"
             alt="Carerunners Logo"
-            className="w-16 h-16 md:w-24 md:h-24 object-contain mb-3 md:mb-6"
+            className="w-16 h-16 md:w-24 md:h-24 object-contain bg-white rounded-2xl p-2 shadow-lg mb-3 md:mb-6"
           />
           <span className="text-lg md:text-2xl font-bold tracking-tight">Carerunners</span>
           <p className="mt-2 text-teal-100 text-sm text-center leading-relaxed max-w-xs hidden md:block">

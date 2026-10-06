@@ -27,6 +27,7 @@ import {
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import LoadingComponent from "@/components/loader";
+import { authedFetch } from "@/utils/authedFetch";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -248,21 +249,13 @@ export default function PricingPage() {
         createdAt: new Date(),
       });
 
-      const firmDoc = await getDoc(doc(db, "firms", firmId));
-      const firmName = firmDoc.data()?.companyName || "Your Company";
-
-      const invitationLink = `${window.location.origin}/accept-invitation?id=${invitationRef.id}`;
-
-      const response = await fetch("/api/send-invitation-email", {
+      // The server sends the email from the saved invitation (recipient, company and link).
+      const response = await authedFetch("/api/send-invitation-email", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          email: newUserEmail,
-          firmName: firmName,
-          invitationLink: invitationLink,
-        }),
+        body: JSON.stringify({ invitationId: invitationRef.id }),
       });
 
       if (!response.ok) {
@@ -350,7 +343,7 @@ export default function PricingPage() {
             </CardHeader>
             <CardContent className="mt-6 text-center space-y-4">
               <p className="text-gray-600">
-                Individual accounts don&apos;t need a monthly plan — you&apos;re billed per
+                Individual accounts don&apos;t need a monthly plan. You&apos;re billed per
                 trip when you request a pickup or delivery.
               </p>
               <p className="text-gray-500 text-sm">

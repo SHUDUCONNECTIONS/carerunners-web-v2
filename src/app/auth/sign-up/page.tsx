@@ -167,18 +167,18 @@ export default function UserRegistrationPage() {
       <div className="w-full max-w-4xl flex flex-col md:flex-row rounded-2xl shadow-2xl overflow-hidden">
 
         {/* Left panel — teal brand panel */}
-        <div className="bg-teal-600 text-white flex flex-col items-center justify-center
+        <div className="relative isolate overflow-hidden bg-gradient-to-br from-teal-700 via-teal-600 to-teal-500 text-white flex flex-col items-center justify-center
                         px-8 py-8 md:py-12 md:w-5/12 shrink-0">
           <img
             src="/carerunnerlogo.png"
             alt="Carerunners Logo"
-            className="w-20 h-20 md:w-32 md:h-32 object-contain mb-3 md:mb-6"
+            className="w-20 h-20 md:w-32 md:h-32 object-contain bg-white rounded-2xl p-2 shadow-lg mb-3 md:mb-6"
           />
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-center">
             Carerunners
           </h1>
           <p className="mt-2 text-teal-100 text-sm md:text-base text-center leading-relaxed max-w-xs hidden md:block">
-            Sign up and start managing your delivery and pickup requests — fast, secure, and built for your business.
+            Sign up and start managing your delivery and pickup requests. Fast, secure, and built for your business.
           </p>
           <p className="mt-1 text-teal-100 text-xs text-center md:hidden mb-4">
             Register

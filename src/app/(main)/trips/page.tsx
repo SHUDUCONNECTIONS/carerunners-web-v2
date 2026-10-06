@@ -235,7 +235,7 @@ export default function UserTrips() {
         {hasTrips && (
           <div className="mb-8 grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
-              <div className="w-11 h-11 rounded-xl bg-teal-50 flex items-center justify-center shrink-0">
+              <div className="flex items-center justify-center shrink-0">
                 <Car className="h-5 w-5 text-teal-600" aria-hidden="true" />
               </div>
               <div>
@@ -245,7 +245,7 @@ export default function UserTrips() {
             </div>
 
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
-              <div className="w-11 h-11 rounded-xl bg-teal-50 flex items-center justify-center shrink-0">
+              <div className="flex items-center justify-center shrink-0">
                 <ListChecks className="h-5 w-5 text-teal-600" aria-hidden="true" />
               </div>
               <div>
@@ -255,7 +255,7 @@ export default function UserTrips() {
             </div>
 
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
-              <div className="w-11 h-11 rounded-xl bg-teal-50 flex items-center justify-center shrink-0">
+              <div className="flex items-center justify-center shrink-0">
                 <Loader2 className="h-5 w-5 text-teal-600" aria-hidden="true" />
               </div>
               <div>

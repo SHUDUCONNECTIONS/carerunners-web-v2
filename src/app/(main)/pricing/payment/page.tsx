@@ -5,11 +5,12 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/utils/firebase';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Building2, User, DollarSign, Calendar, CheckCircle } from "lucide-react";
+import { Building2, User, Calendar, CheckCircle } from "lucide-react";
+import { RandIcon } from "@/components/RandIcon";
 import LoadingComponent from '@/components/loader';
 import { authedFetch } from '@/utils/authedFetch';
 
-function formatCurrency(value: number, locale = 'en-US', currency = 'ZAR') {
+function formatCurrency(value: number, locale = 'en-ZA', currency = 'ZAR') {
   return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency: currency,
@@ -224,7 +225,7 @@ export default function PlanPaymentSummary() {
               <Separator />
               <div className="flex items-center justify-between text-lg font-bold">
                 <div className="flex items-center space-x-2">
-                  <DollarSign className="h-5 w-5 text-teal-600" />
+                  <RandIcon className="h-5 w-5 text-teal-600" />
                   <span>Total Cost:</span>
                 </div>
                 <span>{formattedPrice}</span>

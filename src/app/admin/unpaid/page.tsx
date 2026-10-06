@@ -16,7 +16,6 @@ import {
   Building2,
   ChevronDown,
   ChevronUp,
-  DollarSign,
   Mail,
   Phone,
   Search,
@@ -192,7 +191,7 @@ export default function AdminUnpaidPage() {
           </CardHeader>
           <CardContent className="mt-5">
             {accounts.length === 0 ? (
-              <p className="text-gray-500 text-center py-6">All accounts are settled — no outstanding balances.</p>
+              <p className="text-gray-500 text-center py-6">All accounts are settled. No outstanding balances.</p>
             ) : (
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex gap-6">

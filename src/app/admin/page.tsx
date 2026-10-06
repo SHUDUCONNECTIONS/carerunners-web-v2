@@ -9,7 +9,8 @@ import { auth } from "@/utils/firebase"
 import { ADMIN_EMAILS } from "@/utils/adminEmails"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { AlertCircle, Car, ClipboardList, DollarSign, FileText, RefreshCw, type LucideIcon } from "lucide-react"
+import { AlertCircle, Car, ClipboardList, FileText, RefreshCw, Smartphone, Store, type LucideIcon } from "lucide-react"
+import { RandIcon } from "@/components/RandIcon"
 import LoadingComponent from "@/components/loader"
 
 type AdminTool = {
@@ -33,7 +34,7 @@ const adminTools: AdminTool[] = [
     href: "/admin/drivers",
   },
   {
-    icon: DollarSign,
+    icon: RandIcon,
     title: "Unpaid Accounts",
     description: "View customer and firm accounts with outstanding balances.",
     href: "/admin/unpaid",
@@ -43,6 +44,18 @@ const adminTools: AdminTool[] = [
     title: "Fix Trip Prices",
     description: "Recalculate and repair trip prices across the platform.",
     href: "/admin/sync",
+  },
+  {
+    icon: Smartphone,
+    title: "App installs",
+    description: "See how many devices installed the app to their home screen and how often it is opened.",
+    href: "/admin/pwa",
+  },
+  {
+    icon: Store,
+    title: "MarketPortal",
+    description: "Add companies, list items for them, and manage orders and company payouts.",
+    href: "/admin/marketplace",
   },
   {
     icon: FileText,
@@ -110,9 +123,7 @@ export default function AdminHomePage() {
               <Link key={tool.href} href={tool.href}>
                 <Card className="h-full transition-shadow hover:shadow-md">
                   <CardHeader className="flex flex-row items-center gap-3 space-y-0">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-100 text-teal-700">
-                      <Icon className="h-5 w-5" />
-                    </span>
+                    <Icon className="h-5 w-5 shrink-0 text-teal-700" />
                     <CardTitle className="text-base">{tool.title}</CardTitle>
                   </CardHeader>
                   <CardContent>

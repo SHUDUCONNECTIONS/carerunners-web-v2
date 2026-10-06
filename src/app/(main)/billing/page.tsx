@@ -167,7 +167,7 @@ export default function BillingPage() {
         {groups.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
-              <div className="w-11 h-11 rounded-xl bg-teal-50 flex items-center justify-center shrink-0">
+              <div className="flex items-center justify-center shrink-0">
                 <Wallet className="h-5 w-5 text-teal-600" aria-hidden="true" />
               </div>
               <div>
@@ -177,7 +177,7 @@ export default function BillingPage() {
             </div>
 
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
-              <div className="w-11 h-11 rounded-xl bg-teal-50 flex items-center justify-center shrink-0">
+              <div className="flex items-center justify-center shrink-0">
                 <ListChecks className="h-5 w-5 text-teal-600" aria-hidden="true" />
               </div>
               <div>
@@ -187,7 +187,7 @@ export default function BillingPage() {
             </div>
 
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
-              <div className="w-11 h-11 rounded-xl bg-teal-50 flex items-center justify-center shrink-0">
+              <div className="flex items-center justify-center shrink-0">
                 <CalendarClock className="h-5 w-5 text-teal-600" aria-hidden="true" />
               </div>
               <div>
@@ -206,7 +206,7 @@ export default function BillingPage() {
           <CardContent className="mt-6">
             {groups.length === 0 ? (
               <div className="py-10 text-center">
-                <p className="text-gray-500 text-lg">No outstanding balance — you're all caught up!</p>
+                <p className="text-gray-500 text-lg">No outstanding balance. You're all caught up!</p>
                 <Button
                   className="mt-6 w-full sm:w-auto bg-teal-600 hover:bg-teal-700 text-white focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
                   onClick={() => router.push("/dashboard")}
@@ -296,7 +296,7 @@ export default function BillingPage() {
               {/* Payment widget or action buttons */}
               {payingGroupKey === group.key && checkoutId ? (
                 <div>
-                  <h3 className="text-base font-semibold mb-4">Complete Payment — {formatCurrency(group.total)}</h3>
+                  <h3 className="text-base font-semibold mb-4">Complete Payment: {formatCurrency(group.total)}</h3>
                   <form
                     action={shopperResultUrl}
                     className="paymentWidgets"

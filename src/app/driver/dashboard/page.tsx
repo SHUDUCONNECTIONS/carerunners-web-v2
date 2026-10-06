@@ -42,6 +42,7 @@ import LoadingComponent from "@/components/loader"
 import { GoogleMapsLoaderProvider } from "@/components/GoogleMapsLoaderProvider"
 import DriverRouteMap from "@/components/DriverRouteMap"
 import { PhotoProofCapture } from "@/components/PhotoProofCapture"
+import { notifyOrderStatus } from "@/utils/notifyOrderStatus"
 import {
   TripStatus,
   normalizeStatus,
@@ -148,7 +149,7 @@ function renderTripAction(trip: Trip, updatingId: string | null) {
     return (
       <div className="w-full mt-4 flex items-center justify-center gap-2 bg-green-50 border border-green-200 text-green-700 font-semibold text-sm rounded-xl py-3">
         <CheckCircle className="h-4 w-4" />
-        Completed · Payout: {isNaN(Number(trip.price)) ? "R—" : `R${calculatePayout(trip.price).toFixed(2)}`}
+        Completed · Payout: {isNaN(Number(trip.price)) ? "N/A" : `R${calculatePayout(trip.price).toFixed(2)}`}
       </div>
     )
   }
@@ -300,6 +301,7 @@ function DriverDashboardContent() {
     setUpdatingId(tripId)
     try {
       await updateDoc(doc(db, "pickupRequests", tripId), { status: "assigned" satisfies TripStatus, driverId: user.uid })
+      notifyOrderStatus(tripId)
       // onSnapshot listeners update the UI automatically
     } catch (error) {
       console.error("Error accepting trip:", error)
@@ -431,7 +433,7 @@ function DriverDashboardContent() {
             </div>
             <h2 className="text-lg font-semibold text-gray-800">Application Under Review</h2>
             <p className="text-gray-500 text-sm max-w-xs leading-relaxed">
-              Your application is being reviewed by the Care Runners team. You will be notified by email within 3–5 business days.
+              Your application is being reviewed by the Care Runners team. You will be notified by email within 3 to 5 business days.
             </p>
           </div>
         )}
@@ -626,7 +628,7 @@ function TripCard({
             )}
             {/* Price – prominent teal */}
             <span className="text-teal-700 font-bold text-base">
-              {isNaN(Number(trip.price)) ? "R—" : `R${trip.price}`}
+              {isNaN(Number(trip.price)) ? "N/A" : `R${trip.price}`}
             </span>
           </div>
         </div>

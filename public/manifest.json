@@ -1,24 +1,62 @@
 {
-  "name": "Carerunners",
-  "short_name": "Carerunners",
-  "description": "Document and parcel pickup and delivery for businesses and individuals",
-  "start_url": "/",
+  "id": "/",
+  "name": "Care Runners",
+  "short_name": "Care Runners",
+  "description": "Pick-ups, deliveries and the MarketPortal marketplace. Fast. Safe. Reliable.",
+  "lang": "en-ZA",
+  "dir": "ltr",
+  "start_url": "/dashboard?source=pwa",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#f3f4f6",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#0d9488",
   "theme_color": "#0d9488",
-  "orientation": "portrait",
+  "categories": ["business", "productivity", "shopping"],
+  "prefer_related_applications": false,
   "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
     {
-      "src": "/carerunnerlogo-icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "name": "Request a pick-up",
+      "short_name": "Pick-up",
+      "description": "Book a new pick-up or delivery",
+      "url": "/request?source=shortcut",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
-      "src": "/carerunnerlogo-icon-512.png",
-      "sizes": "512x512",
+      "name": "My trips",
+      "short_name": "Trips",
+      "description": "Track your trips",
+      "url": "/trips?source=shortcut",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "MarketPortal",
+      "short_name": "Market",
+      "description": "Browse items for sale",
+      "url": "/marketplace?source=shortcut",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/login-mobile.png",
+      "sizes": "540x960",
       "type": "image/png",
-      "purpose": "any maskable"
+      "form_factor": "narrow",
+      "label": "Sign in to Care Runners"
+    },
+    {
+      "src": "/screenshots/login-desktop.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Sign in to Care Runners"
     }
   ]
 }

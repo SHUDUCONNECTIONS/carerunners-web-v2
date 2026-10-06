@@ -1,7 +1,8 @@
 "use client"
 
 import React, { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
+import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,6 +45,7 @@ export default function EditableProfilePage() {
     handleSubmit,
     formState: { errors },
     setValue,
+    control,
   } = useForm<FormData>();
 
   const steps = isFirmAccount ? ["Personal Details", "Company Details"] : ["Personal Details"];
@@ -295,11 +297,29 @@ export default function EditableProfilePage() {
                     message: "Please enter a valid 10-digit phone number",
                   }}
                 />
-                <InputField
-                  icon={<MapPin className="h-5 w-5 text-gray-500" aria-hidden="true" />}
-                  label="Company Address"
-                  name="companyAddress"
-                />
+                <div className="mb-4">
+                  <Label htmlFor="companyAddress" className="flex items-center space-x-2 mb-1">
+                    <MapPin className="h-5 w-5 text-gray-500" aria-hidden="true" />
+                    <span>Company Address</span>
+                  </Label>
+                  <Controller
+                    name="companyAddress"
+                    control={control}
+                    rules={{ required: "Company Address is required" }}
+                    render={({ field }) => (
+                      <AddressAutocomplete
+                        id="companyAddress"
+                        value={field.value ?? ""}
+                        onChange={field.onChange}
+                        placeholder="Search the company's address…"
+                        className={`w-full text-base md:text-sm ${errors.companyAddress ? "border-red-500" : ""}`}
+                      />
+                    )}
+                  />
+                  {errors.companyAddress && (
+                    <p className="text-red-500 text-sm mt-1">{errors.companyAddress.message}</p>
+                  )}
+                </div>
                 <div className="mb-4">
                   <Label htmlFor="companyDescription" className="flex items-center space-x-2 mb-1">
                     <FileText className="h-5 w-5 text-gray-500" aria-hidden="true" />
