@@ -65,7 +65,7 @@ export default function AdminPwaPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-4">
-      <Link href="/admin" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900">
+      <Link href="/admin" className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50">
         <ArrowLeft className="mr-1 h-4 w-4" /> Admin
       </Link>
       <div>

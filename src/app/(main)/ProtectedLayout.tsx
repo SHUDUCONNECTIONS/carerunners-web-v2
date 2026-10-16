@@ -3,12 +3,13 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import InstallButton from "@/components/InstallButton";
+import { SUPPORT_PHONE, SUPPORT_PHONE_LINK } from "@/lib/contact";
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "@/utils/firebase"; // Adjust this import path if necessary
 import LoadingComponent from "@/components/loader";
 import Sidebar from "@/components/Sidebar";
-import { ADMIN_EMAILS } from "@/utils/adminEmails";
+import { isAdminAccount } from "@/utils/isAdminAccount";
 
 export default function ProtectedLayout({
   children,
@@ -17,12 +18,15 @@ export default function ProtectedLayout({
 }) {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
+        // Only decides whether the sidebar shows the admin link; checked without holding up the page.
+        isAdminAccount(currentUser).then(setIsAdmin);
       } else {
         router.push('/auth/login'); // Adjust this path if your login page is elsewhere
       }
@@ -53,7 +57,7 @@ export default function ProtectedLayout({
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-slate-50 to-slate-100">
       <Sidebar
         onSignOut={handleSignOut}
-        isAdmin={ADMIN_EMAILS.includes(user.email ?? "")}
+        isAdmin={isAdmin}
         userName={user.displayName}
         userEmail={user.email}
       />
@@ -95,14 +99,18 @@ export default function ProtectedLayout({
               <p className="text-xs font-semibold uppercase tracking-widest text-teal-200">Legal</p>
               <ul className="space-y-2 text-sm">
                 <li><Link href="/marketplace/terms" className="text-white/80 transition-colors hover:text-white">Terms &amp; Conditions</Link></li>
+                <li><Link href="/marketplace/returns" className="text-white/80 transition-colors hover:text-white">Returns &amp; Refunds</Link></li>
               </ul>
-              <InstallButton className="text-sm font-medium text-teal-100 transition-colors hover:text-white" />
+              <InstallButton className="inline-flex items-center rounded-lg border border-white/40 bg-white/10 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-white/20" />
             </nav>
           </div>
 
           <div className="border-t border-white/10">
             <div className="container mx-auto flex flex-col items-center justify-between gap-3 px-4 py-4 text-xs text-teal-100/80 sm:flex-row">
-              <p>&copy; {new Date().getFullYear()} Care Runners. All rights reserved.</p>
+              <p>
+                &copy; {new Date().getFullYear()} Care Runners. All rights reserved. Support:{" "}
+                <a href={SUPPORT_PHONE_LINK} className="font-medium text-white hover:underline">{SUPPORT_PHONE}</a>
+              </p>
               <div className="flex items-center gap-2 rounded-full bg-white/10 py-1 pl-3 pr-1.5">
                 <span>A</span>
                 <span className="font-semibold tracking-wide text-white">SHUDU CONNECTIONS</span>

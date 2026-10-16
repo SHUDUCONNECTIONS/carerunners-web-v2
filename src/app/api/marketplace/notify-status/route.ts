@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { requireAuth } from "@/utils/requireAuth";
 import { adminAuth, adminDb } from "@/utils/firebaseAdmin";
-import { ADMIN_EMAILS } from "@/utils/adminEmails";
+import { isAdminUser } from "@/utils/requireAdmin";
 import { MARKET_ORDERS, orderLines, orderSummaryText } from "@/lib/marketplace";
 import { normalizeStatus } from "@/lib/tripStatus";
 import { sendOrderStatusEmail } from "@/utils/email";
@@ -14,6 +14,11 @@ import { sendOrderStatusEmail } from "@/utils/email";
 const MESSAGES: Record<string, string> = {
   assigned: "A Care Runners driver has accepted your delivery",
   "picked-up": "Your order has been collected and is on its way",
+  delivered: "Your order has been delivered",
+};
+// Courier orders are moved on by an admin (see admin/marketplace): sent, then delivered.
+const COURIER_MESSAGES: Record<string, string> = {
+  "in-transit": "Your order has been sent by courier",
   delivered: "Your order has been delivered",
 };
 
@@ -32,11 +37,11 @@ export async function POST(req: NextRequest) {
     const db = adminDb();
     const trip = (await db.collection("pickupRequests").doc(tripId).get()).data();
     if (!trip?.marketOrderId) return NextResponse.json({ sent: false });
-    const isAdmin = !!user.email && ADMIN_EMAILS.includes(user.email);
-    if (trip.driverId !== user.uid && !isAdmin) return NextResponse.json({ message: "Not your delivery" }, { status: 403 });
+    if (trip.driverId !== user.uid && !isAdminUser(user))return NextResponse.json({ message: "Not your delivery" }, { status: 403 });
 
     const status = normalizeStatus(trip.status);
-    const heading = MESSAGES[status];
+    const courier = trip.deliveryMethod === "courier";
+    const heading = (courier ? COURIER_MESSAGES : MESSAGES)[status];
     if (!heading) return NextResponse.json({ sent: false });
 
     const orderRef = db.collection(MARKET_ORDERS).doc(trip.marketOrderId);
@@ -56,7 +61,11 @@ export async function POST(req: NextRequest) {
     const sent = await sendOrderStatusEmail({
       email: buyer.email,
       heading,
-      lines: [`Order: ${orderSummaryText(orderLines(order as any), 300)}`, `Delivering to: ${order.deliveryAddress}`],
+      lines: [
+        `Order: ${orderSummaryText(orderLines(order as any), 300)}`,
+        `Delivering to: ${order.deliveryAddress}`,
+        ...(courier && trip.courierRef ? [`Courier tracking: ${trip.courierRef}`] : []),
+      ],
       link: `${base}/trips/tracking?tripId=${tripId}`,
     });
     // A failed send must not use up the step, so the next call can try again.

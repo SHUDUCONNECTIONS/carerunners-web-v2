@@ -6,13 +6,13 @@ import { useRouter } from "next/navigation"
 import { onAuthStateChanged } from "firebase/auth"
 import { collection, getDocs } from "firebase/firestore"
 import { auth, db } from "@/utils/firebase"
-import { ADMIN_EMAILS } from "@/utils/adminEmails"
+import { isAdminAccount } from "@/utils/isAdminAccount"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { AlertCircle, Download, FileText } from "lucide-react"
 import LoadingComponent from "@/components/loader"
-import { calculatePayout } from "@/lib/pricing"
+import { calculatePayout, earnsPayout } from "@/lib/pricing"
 import { getStatusLabel } from "@/lib/tripStatus"
 
 type Driver = {
@@ -68,7 +68,7 @@ function tripRow(driverName: string, t: DriverTrip): (string | number)[] {
     t.distance || "",
     getStatusLabel(t.status),
     t.price ? Number(t.price).toFixed(2) : "",
-    t.status === "completed" && t.price ? calculatePayout(t.price).toFixed(2) : "",
+    earnsPayout(t.status) && t.price ? calculatePayout(t.price).toFixed(2) : "",
   ]
 }
 
@@ -100,7 +100,7 @@ export default function AdminReportsPage() {
         return
       }
 
-      if (!ADMIN_EMAILS.includes(user.email ?? "")) {
+      if (!(await isAdminAccount(user))) {
         setAccessDenied(true)
         setLoading(false)
         return
@@ -136,7 +136,7 @@ export default function AdminReportsPage() {
     return drivers
       .map((driver) => {
         const trips = (tripsByDriver[driver.id] || []).filter((t) => t.pickupDate?.startsWith(month))
-        const completed = trips.filter((t) => t.status === "completed")
+        const completed = trips.filter((t) => earnsPayout(t.status))
         const payout = completed.reduce((sum, t) => sum + calculatePayout(t.price || 0), 0)
         return { driver, trips, payout }
       })
@@ -163,7 +163,7 @@ export default function AdminReportsPage() {
 
   if (accessDenied) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
+      <div className="flex items-center justify-center py-16">
         <Card className="w-full max-w-sm">
           <CardContent className="pt-8 pb-8 text-center space-y-4">
             <AlertCircle className="h-12 w-12 text-red-500 mx-auto" />
@@ -179,7 +179,7 @@ export default function AdminReportsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 py-8 px-4 sm:px-6 lg:px-8">
+    <div>
       <div className="max-w-5xl mx-auto space-y-6">
         <Card>
           <CardHeader className="bg-teal-600 text-white">

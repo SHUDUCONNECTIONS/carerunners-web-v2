@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation"
 import { auth } from "@/utils/firebase"
 import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, sendPasswordResetEmail } from "firebase/auth"
 import { getFirestore, collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore'
+import InstallButton from "@/components/InstallButton"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -42,6 +43,19 @@ export default function LoginPage() {
     }
   }
 
+  // Where to go after signing in: customers (individual or company) to their dashboard, drivers to the driver
+  // portal (they can also sign in at /auth/driver/login), or null when the login has no account here.
+  // Someone who is both lands on the customer dashboard.
+  const homeFor = async (uid: string): Promise<string | null> => {
+    if (await hasRegisteredAccount(uid)) return "/dashboard"
+    try {
+      if ((await getDoc(doc(db, "drivers", uid))).exists()) return "/driver/dashboard"
+    } catch (error) {
+      console.error("Error checking driver account:", error)
+    }
+    return null
+  }
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!email || !password) {
@@ -55,15 +69,15 @@ export default function LoginPage() {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password)
 
-      const registered = await hasRegisteredAccount(userCredential.user.uid)
+      const home = await homeFor(userCredential.user.uid)
 
-      if (!registered) {
+      if (!home) {
         await auth.signOut()
         setError("Access denied. This account isn't registered on this portal.")
         return
       }
 
-      router.push("/dashboard")
+      router.push(home)
     } catch (error: any) {
       console.error("Error during login:", error)
 
@@ -104,15 +118,15 @@ export default function LoginPage() {
       const provider = new GoogleAuthProvider()
       const result = await signInWithPopup(auth, provider)
 
-      const registered = await hasRegisteredAccount(result.user.uid)
+      const home = await homeFor(result.user.uid)
 
-      if (!registered) {
+      if (!home) {
         await auth.signOut()
         setError("Access denied. This account isn't registered on this portal.")
         return
       }
 
-      router.push("/dashboard")
+      router.push(home)
     } catch (error) {
       console.error("Error during Google login:", error)
       setError("An error occurred during Google sign-in. Please try again.")
@@ -171,7 +185,7 @@ export default function LoginPage() {
           <img
             src="/carerunnerlogo.png"
             alt="Carerunners Logo"
-            className="w-16 h-16 md:w-24 md:h-24 object-contain bg-white rounded-2xl p-2 shadow-lg mb-3 md:mb-6"
+            className="w-20 h-20 md:w-24 md:h-24 object-contain bg-white rounded-2xl p-1.5 shadow-lg mb-3 md:mb-6"
           />
           <span className="text-lg md:text-2xl font-bold tracking-tight">Carerunners</span>
           <p className="mt-2 text-teal-100 text-sm text-center leading-relaxed max-w-xs hidden md:block">
@@ -250,8 +264,8 @@ export default function LoginPage() {
                     type="button"
                     onClick={handlePasswordReset}
                     disabled={loading}
-                    className="text-xs text-teal-600 hover:text-teal-500 font-medium transition-colors
-                               disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="rounded-md border border-teal-200 bg-white px-2.5 py-1 text-xs font-medium text-teal-700
+                               transition-colors hover:bg-teal-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {loading && isResettingPassword ? "Sending…" : "Forgot password?"}
                   </button>
@@ -303,16 +317,17 @@ export default function LoginPage() {
             </form>
 
             {/* Register link */}
-            <p className="mt-6 text-center text-sm text-gray-500">
-              Don&apos;t have an account?{" "}
+            <div className="mt-6 flex flex-col items-center gap-2 text-sm text-gray-500">
+              <span>Don&apos;t have an account?</span>
               <button
                 type="button"
                 onClick={handleSignUp}
-                className="font-medium text-teal-600 hover:text-teal-500 transition-colors"
+                className="w-full rounded-lg border border-teal-600 bg-white py-3 text-sm font-medium text-teal-700 transition-colors hover:bg-teal-50"
               >
                 Register here
               </button>
-            </p>
+            </div>
+            <InstallButton className="mx-auto mt-4 flex items-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50" />
           </div>
         </div>
       </div>

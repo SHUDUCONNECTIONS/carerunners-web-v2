@@ -2,7 +2,8 @@
 import { NextRequest } from "next/server";
 import { adminAuth } from "./firebaseAdmin";
 
-export type AuthedUser = { uid: string; email: string | null };
+/** `admin`: the "admin" flag on the login, set by scripts/set-admin.mjs. */
+export type AuthedUser = { uid: string; email: string | null; emailVerified: boolean; admin?: boolean };
 
 // Verifies the Firebase ID token sent as "Authorization: Bearer <token>" by
 // the client. Returns the caller's uid/email, or null if the token is
@@ -14,7 +15,7 @@ export async function requireAuth(req: NextRequest): Promise<AuthedUser | null> 
   const idToken = header.slice("Bearer ".length);
   try {
     const decoded = await adminAuth().verifyIdToken(idToken);
-    return { uid: decoded.uid, email: decoded.email ?? null };
+    return { uid: decoded.uid, email: decoded.email ?? null, emailVerified: decoded.email_verified === true, admin: decoded.admin === true };
   } catch (err) {
     console.error("requireAuth: invalid ID token", err);
     return null;

@@ -15,18 +15,52 @@ interface PhotoProofCaptureProps {
   label: string;
   disabled?: boolean;
   onDone?: () => void;
+  /** false for trips that don't need photos (see src/lib/tripProof.ts): the button just moves the trip on. */
+  photoRequired?: boolean;
 }
 
 // Driver-facing "mark picked up / delivered" action, but gated on attaching a
 // photo first — status only advances once the photo has uploaded and the
 // Firestore doc has been updated, so there's no way to skip proof of
 // collection/delivery.
-export function PhotoProofCapture({ tripId, proofKind, nextStatus, label, disabled, onDone }: PhotoProofCaptureProps) {
+export function PhotoProofCapture({ tripId, proofKind, nextStatus, label, disabled, onDone, photoRequired = true }: PhotoProofCaptureProps) {
   const [open, setOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
+
+  const handleNoPhoto = async () => {
+    setUploading(true);
+    setError("");
+    try {
+      await updateDoc(doc(db, "pickupRequests", tripId), { status: nextStatus });
+      notifyOrderStatus(tripId);
+      onDone?.();
+    } catch (err) {
+      console.error("Error updating trip status:", err);
+      setError("Couldn't update the trip. Please try again.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  if (!photoRequired) {
+    return (
+      <>
+        <button
+          type="button"
+          onClick={handleNoPhoto}
+          disabled={disabled || uploading}
+          className="w-full mt-4 flex items-center justify-center gap-2 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white font-semibold text-sm rounded-xl py-3 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+          {label}
+        </button>
+        {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
+      </>
+    );
+  }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0] ?? null;

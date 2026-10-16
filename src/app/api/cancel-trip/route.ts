@@ -6,10 +6,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/utils/requireAuth";
 import { adminDb } from "@/utils/firebaseAdmin";
+import { isRateLimited } from "@/utils/rateLimit";
 import { refundPayment, isSuccessCode } from "@/utils/peach";
 import { releaseMarketplaceOrder } from "@/utils/marketplaceStock";
+import { sendPushToUser } from "@/utils/pushServer";
+import { mirrorTripToRtdb } from "@/utils/tripMirror";
+import { saDay } from "@/lib/saDate";
 
-const CANCELLABLE_STATUSES = ["pending", "waiting for driver", "awaiting-payment"];
+// "courier": a paid MarketPortal courier order that hasn't been dispatched yet.
+const CANCELLABLE_STATUSES = ["pending", "waiting for driver", "awaiting-payment", "courier"];
 
 // A cancelled MarketPortal delivery cancels its order and puts the item back
 // on sale (it was reserved or marked sold when the order was placed).
@@ -19,11 +24,32 @@ async function releaseMarketplaceItem(db: FirebaseFirestore.Firestore, trip: Fir
   await releaseMarketplaceOrder(db, trip.marketOrderId);
 }
 
+// If a runner had already taken the trip, tell them straight away. Best effort: the cancellation itself must
+// never fail because a notification could not be sent.
+async function alertDriverOfCancellation(trip: FirebaseFirestore.DocumentData, tripId: string, origin: string) {
+  if (!trip.driverId) return;
+  try {
+    await sendPushToUser(trip.driverId, {
+      title: "Trip cancelled",
+      body: `${trip.pickupLocation} → ${trip.dropoffLocation} was cancelled by the customer.`,
+      link: `${process.env.NEXT_PUBLIC_SITE_URL || origin}/driver/dashboard`,
+      tag: `trip-${tripId}`,
+      urgent: true,
+    });
+  } catch (err) {
+    console.error("Could not alert driver of cancellation:", err);
+  }
+}
+
 export async function POST(req: NextRequest) {
   const user = await requireAuth(req);
   if (!user) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
+  if (await isRateLimited(adminDb(), `cancel_${user.uid}`, 10, 60)) {
+    return NextResponse.json({ message: "Too many requests. Please wait a minute and try again." }, { status: 429 });
+  }
+
 
   let requestId: string;
   try {
@@ -49,8 +75,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Not your trip" }, { status: 403 });
     }
 
-    const today = new Date().toISOString().split("T")[0];
-    if (!CANCELLABLE_STATUSES.includes(trip.status) || trip.pickupDate < today) {
+    const today = saDay();
+    // A courier order's pickupDate is the order date, so it stays cancellable until dispatched.
+    if (!CANCELLABLE_STATUSES.includes(trip.status) || (trip.status !== "courier" && trip.pickupDate < today)) {
       return NextResponse.json(
         { message: "This trip can no longer be cancelled" },
         { status: 409 }
@@ -60,7 +87,9 @@ export async function POST(req: NextRequest) {
     if (trip.payment_status !== "paid") {
       // Nothing was ever charged (unpaid/failed/pending) — no refund needed.
       await tripRef.update({ status: "cancelled", payment_status: "cancelled" });
+      await mirrorTripToRtdb(requestId);
       await releaseMarketplaceItem(db, trip);
+      await alertDriverOfCancellation(trip, requestId, req.nextUrl.origin);
       return NextResponse.json({ status: "cancelled" });
     }
 
@@ -93,6 +122,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Claim the refund first so two quick cancel requests can't both refund the same payment.
+    const checkoutRef: FirebaseFirestore.DocumentReference = checkoutSnap.ref;
+    const claimed = await db.runTransaction(async (tx) => {
+      const fresh = await tx.get(checkoutRef);
+      const state = fresh.data()?.refundStatus;
+      if (state === "refunding" || state === "refunded") return false;
+      tx.update(checkoutRef, { refundStatus: "refunding" });
+      return true;
+    });
+    if (!claimed) {
+      return NextResponse.json({ message: "This trip is already being refunded." }, { status: 409 });
+    }
+
     const refundResult = await refundPayment({
       paymentId,
       amount: Number(amount).toFixed(2),
@@ -101,6 +143,7 @@ export async function POST(req: NextRequest) {
 
     if (!isSuccessCode(refundResult?.result?.code)) {
       console.error("cancel-trip: refund failed", refundResult);
+      await checkoutRef.update({ refundStatus: "failed", refundResult });
       return NextResponse.json(
         {
           message:
@@ -117,7 +160,9 @@ export async function POST(req: NextRequest) {
       refundedAt: new Date().toISOString(),
     });
     await tripRef.update({ status: "cancelled", payment_status: "refunded" });
+    await mirrorTripToRtdb(requestId);
     await releaseMarketplaceItem(db, trip);
+    await alertDriverOfCancellation(trip, requestId, req.nextUrl.origin);
 
     return NextResponse.json({ status: "cancelled", payment_status: "refunded" });
   } catch (error) {

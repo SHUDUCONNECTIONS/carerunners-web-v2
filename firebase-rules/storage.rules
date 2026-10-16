@@ -1,0 +1,87 @@
+rules_version = '2';
+
+// Care Runners: Cloud Storage security rules.
+//
+// Covers every path the web app uploads to. Anything not matched below is closed.
+// Note: files are mostly opened through download URLs (getDownloadURL), which carry their own
+// access token and skip these read rules, so whoever holds a link can open that file. These rules
+// stop people listing, overwriting or uploading into other people's folders.
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() { return request.auth != null; }
+
+    // Same as isAdmin() in firestore.rules: the "admin" flag on the login (scripts/set-admin.mjs), or, until that
+    // script has been run, a verified email on the old list (src/utils/adminEmails.ts). Keep them in step.
+    function isAdmin() {
+      return signedIn() && (request.auth.token.get("admin", false) == true || isLegacyAdmin());
+    }
+    function isLegacyAdmin() {
+      return request.auth.token.email_verified == true
+        && request.auth.token.email in [
+          "dimakatso@shuduconnections.com",
+          "tetelo@shuduconnections.com",
+          "tshikovhitshedza9@gmail.com",
+          "tshedza@gmail.com",
+          "lucky@shuduconnections.com"
+        ];
+    }
+
+    function underMb(mb) { return request.resource.size < mb * 1024 * 1024; }
+    function isImage() { return request.resource.contentType.matches('image/.*'); }
+
+    // Driver ID document and proof of residence: the driver and admins only.
+    match /drivers/{driverId}/{file} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == driverId);
+      allow write: if signedIn() && request.auth.uid == driverId && underMb(15);
+    }
+
+    // A company's uploaded records: its members and admins.
+    match /firms/{firmId}/{file} {
+      allow read, write: if isAdmin()
+        || (signedIn()
+            && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.firmId == firmId
+            && (request.resource == null || underMb(25)));
+    }
+
+    // Item photo added while booking. Trip ids start with the customer's uid.
+    match /pickupRequests/{requestId}/{file} {
+      allow read: if signedIn();
+      allow write: if signedIn() && requestId.matches(request.auth.uid + '_.*') && isImage() && underMb(10);
+    }
+
+    // Pickup/delivery proof photos: only the trip's assigned driver uploads them.
+    match /tripProofs/{tripId}/{file} {
+      allow read: if signedIn();
+      allow write: if signedIn()
+        && firestore.get(/databases/(default)/documents/pickupRequests/$(tripId)).data.driverId == request.auth.uid
+        && isImage() && underMb(10);
+    }
+
+    // Used by the driver mobile app (found in the live bucket on 2026-10-16, not uploaded by the web app):
+
+    // Profile photos (customers see their driver's on the tracking page). Everyone signed in can view; only the
+    // owner uploads or replaces their own.
+    match /profile_pictures/{uid}/{file} {
+      allow read: if signedIn();
+      allow write: if signedIn() && request.auth.uid == uid && isImage() && underMb(10);
+      allow delete: if signedIn() && request.auth.uid == uid;
+    }
+
+    // Voice notes on a trip: its customer, its driver and admins.
+    match /audio-messages/{tripId}/{file} {
+      function onTrip() {
+        let trip = firestore.get(/databases/(default)/documents/pickupRequests/$(tripId)).data;
+        return signedIn() && (trip.userId == request.auth.uid || trip.get("driverId", "") == request.auth.uid);
+      }
+      allow read, delete: if isAdmin() || onTrip();
+      allow write: if (isAdmin() || onTrip()) && request.resource.contentType.matches('audio/.*') && underMb(10);
+    }
+
+    // MarketPortal listing photos, uploaded into the uploader's own folder.
+    match /marketplace/{uid}/{file} {
+      allow read: if signedIn();
+      allow write: if (isAdmin() || (signedIn() && request.auth.uid == uid)) && isImage() && underMb(10);
+    }
+  }
+}

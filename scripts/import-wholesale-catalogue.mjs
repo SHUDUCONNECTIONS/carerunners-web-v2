@@ -1,6 +1,7 @@
 // Imports the wholesale catalogue (6 laptops + ~1,200 wholesale items) into MarketPortal
-// as live listings owned by one company, listed by the admin (no markup: delivery is
-// charged per order at checkout).
+// as live listings owned by one company, listed by the admin. Customers pay the company's price
+// plus the standard 30% Care Runners markup (same sum as src/lib/marketplaceMarkup.ts); delivery is
+// charged per order at checkout.
 //
 //   node scripts/import-wholesale-catalogue.mjs <seed-dir>            dry run, writes nothing
 //   node scripts/import-wholesale-catalogue.mjs <seed-dir> --sample   import the laptops + 10 items
@@ -36,6 +37,14 @@ for (const line of fs.readFileSync(path.join(root, ".env.local"), "utf8").split(
 }
 
 const COMPANY_ID = "carerunners-wholesale";
+
+// Same as src/lib/marketplaceMarkup.ts: company price + 30%, in cents.
+const MARKUP_RATE = 0.3;
+const cents = (n) => Math.round(n * 100) / 100;
+const priceWithMarkup = (companyPrice) => {
+  const markupAmount = cents(companyPrice * MARKUP_RATE);
+  return { markupAmount, sellingPrice: cents(companyPrice + markupAmount) };
+};
 const ID_PREFIX = "wh-";
 const STORAGE_PREFIX = "marketplace/wholesale/";
 
@@ -171,8 +180,7 @@ async function importProducts() {
       specifications: "",
       additionalInfo: "",
       askingPrice: p.price,
-      markupAmount: 0,
-      sellingPrice: p.price,
+      ...priceWithMarkup(p.price),
       stock: p.stock,
       location: company.area,
       images,

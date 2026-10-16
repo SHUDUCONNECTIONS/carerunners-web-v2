@@ -3,12 +3,11 @@
 import React, { Suspense, useEffect, useState } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
-import { doc, getDoc } from "firebase/firestore"
-import { auth, db } from "@/utils/firebase"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 import LoadingComponent from "@/components/loader"
-import { MARKET_ORDERS, MarketOrder, formatRand, orderFromDoc, orderLines } from "@/lib/marketplace"
+import { MarketOrder, formatRand, orderLines } from "@/lib/marketplace"
+import { fetchMyOrders } from "@/lib/marketplacePublicClient"
 
 export default function ReceiptPage() {
   return (
@@ -27,10 +26,7 @@ function Receipt() {
   useEffect(() => {
     const load = async () => {
       try {
-        if (id) {
-          const snap = await getDoc(doc(db, MARKET_ORDERS, id))
-          if (snap.exists() && snap.data().buyerId === auth.currentUser?.uid) setOrder(orderFromDoc(snap.id, snap.data()))
-        }
+        if (id) setOrder((await fetchMyOrders(id))[0] ?? null)
       } catch (err) {
         console.error("Error loading receipt:", err)
       } finally {
@@ -60,7 +56,7 @@ function Receipt() {
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <div className="flex items-center justify-between print:hidden">
-        <Link href="/marketplace/my-listings" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900">
+        <Link href="/marketplace/my-listings" className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50">
           <ArrowLeft className="mr-1 h-4 w-4" /> My purchases
         </Link>
         <Button variant="outline" onClick={() => window.print()}>

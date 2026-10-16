@@ -3,7 +3,26 @@
 // needs it. There are no public email endpoints: an open "send an email" URL can be used by anyone
 // to send mail from our domain.
 import { Resend } from "resend";
-import { ADMIN_EMAILS } from "@/utils/adminEmails";
+import { LEGACY_ADMIN_EMAILS } from "@/utils/adminEmails";
+import { adminDb } from "@/utils/firebaseAdmin";
+
+// Who gets the admin alerts: everyone made an admin with scripts/set-admin.mjs (the adminUsers
+// collection), or the old list until that script has been run. Re-read at most every 5 minutes.
+const ADMIN_LIST_TTL_MS = 5 * 60 * 1000;
+let adminList: { at: number; emails: string[] } | null = null;
+async function adminRecipients(): Promise<string[]> {
+  if (adminList && Date.now() - adminList.at < ADMIN_LIST_TTL_MS) return adminList.emails;
+  let emails: string[] = [];
+  try {
+    const snap = await adminDb().collection("adminUsers").get();
+    emails = snap.docs.map((d) => String(d.data().email ?? "")).filter(Boolean);
+  } catch (err) {
+    console.warn("Couldn't read adminUsers, using the old admin list:", err);
+  }
+  if (emails.length === 0) emails = LEGACY_ADMIN_EMAILS;
+  adminList = { at: Date.now(), emails };
+  return emails;
+}
 
 // Constructing this at module scope with a missing key throws immediately, which fails
 // `next build`'s page-data collection. Defer construction until an email is actually sent.
@@ -87,7 +106,7 @@ export function sendInvitation(p: { email: string; firmName: string; link: strin
   );
 }
 
-export function sendAdminTripNotification(trip: {
+export async function sendAdminTripNotification(trip: {
   pickupLocation?: string;
   dropoffLocation?: string;
   pickupDate?: string;
@@ -98,7 +117,7 @@ export function sendAdminTripNotification(trip: {
 }) {
   const link = escapeHtml(`${trip.origin ?? ""}/admin/requests`);
   return send(
-    ADMIN_EMAILS,
+    await adminRecipients(),
     "New Pickup Request Awaiting a Driver",
     `
       <p>A new trip has been booked and paid for, and is now waiting for a driver.</p>
@@ -128,10 +147,10 @@ export function sendOrderStatusEmail(p: { email: string; heading: string; lines:
   );
 }
 
-export function sendLowStockAlert(p: { items: { title: string; left: number }[]; link: string }) {
+export async function sendLowStockAlert(p: { items: { title: string; left: number }[]; link: string }) {
   const rows = p.items.map((i) => `<li>${escapeHtml(i.title)}: ${i.left === 0 ? "sold out" : `${i.left} left`}</li>`).join("");
   return send(
-    ADMIN_EMAILS,
+    await adminRecipients(),
     "MarketPortal stock is running low",
     `
       <p>These MarketPortal items have just run low:</p>
@@ -141,9 +160,9 @@ export function sendLowStockAlert(p: { items: { title: string; left: number }[];
   );
 }
 
-export function sendIssueAlert(p: { title: string; reason: string; description: string; buyerEmail: string | null; link: string }) {
+export async function sendIssueAlert(p: { title: string; reason: string; description: string; buyerEmail: string | null; link: string }) {
   return send(
-    ADMIN_EMAILS,
+    await adminRecipients(),
     "MarketPortal: a buyer reported a problem",
     `
       <p>A buyer reported a problem with an order.</p>

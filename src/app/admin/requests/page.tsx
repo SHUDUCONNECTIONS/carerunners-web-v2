@@ -20,8 +20,9 @@ import {
   User,
 } from "lucide-react"
 import LoadingComponent from "@/components/loader"
-import { ADMIN_EMAILS } from "@/utils/adminEmails"
+import { isAdminAccount } from "@/utils/isAdminAccount"
 import { SERVICE_TYPES, ServiceType } from "@/lib/services"
+import { saDay } from "@/lib/saDate"
 
 type RequestedTrip = {
   id: string
@@ -57,10 +58,10 @@ function requestCreatedAt(id: string, data: any): number {
 
 export default function AdminRequestedTripsPage() {
   const [trips, setTrips] = useState<RequestedTrip[]>([])
-  const [filtered, setFiltered] = useState<RequestedTrip[]>([])
   const [loading, setLoading] = useState(true)
   const [accessDenied, setAccessDenied] = useState(false)
   const [search, setSearch] = useState("")
+  const [showPast, setShowPast] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -70,7 +71,7 @@ export default function AdminRequestedTripsPage() {
         return
       }
 
-      if (!ADMIN_EMAILS.includes(user.email ?? "")) {
+      if (!(await isAdminAccount(user))) {
         setAccessDenied(true)
         setLoading(false)
         return
@@ -85,7 +86,6 @@ export default function AdminRequestedTripsPage() {
 
         if (tripsSnap.empty) {
           setTrips([])
-          setFiltered([])
           setLoading(false)
           return
         }
@@ -128,7 +128,6 @@ export default function AdminRequestedTripsPage() {
         result.sort((a, b) => b.createdAt - a.createdAt)
 
         setTrips(result)
-        setFiltered(result)
       } catch (err) {
         console.error("Admin requested trips: fetch error", err)
       } finally {
@@ -139,28 +138,29 @@ export default function AdminRequestedTripsPage() {
     return () => unsubscribe()
   }, [router])
 
-  useEffect(() => {
-    const q = search.toLowerCase()
-    if (!q) {
-      setFiltered(trips)
-      return
-    }
-    setFiltered(
-      trips.filter(
+  // Trips dated before today (SA time) can't be delivered any more, so they're kept apart from the open
+  // requests instead of counting as waiting for a driver.
+  const today = saDay()
+  const isPast = (t: RequestedTrip) => Boolean(t.pickupDate) && t.pickupDate < today
+  const past = trips.filter(isPast)
+  const upcoming = trips.filter((t) => !isPast(t))
+  const shown = showPast ? past : upcoming
+  const q = search.toLowerCase()
+  const filtered = !q
+    ? shown
+    : shown.filter(
         (t) =>
           t.customerName.toLowerCase().includes(q) ||
           t.customerEmail.toLowerCase().includes(q) ||
           t.pickupLocation?.toLowerCase().includes(q) ||
           t.dropoffLocation?.toLowerCase().includes(q)
       )
-    )
-  }, [search, trips])
 
   if (loading) return <LoadingComponent />
 
   if (accessDenied) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
+      <div className="flex items-center justify-center py-16">
         <Card className="w-full max-w-sm">
           <CardContent className="pt-8 pb-8 text-center space-y-4">
             <AlertCircle className="h-12 w-12 text-red-500 mx-auto" />
@@ -176,7 +176,7 @@ export default function AdminRequestedTripsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 py-8 px-4 sm:px-6 lg:px-8">
+    <div>
       <div className="max-w-5xl mx-auto space-y-6">
 
         {/* Header */}
@@ -185,27 +185,39 @@ export default function AdminRequestedTripsPage() {
             <CardTitle className="text-2xl font-bold">Requested Trips</CardTitle>
           </CardHeader>
           <CardContent className="mt-5">
-            {trips.length === 0 ? (
-              <p className="text-gray-500 text-center py-6">No open requests. Every booked trip has a driver.</p>
+            {shown.length === 0 ? (
+              <p className="text-gray-500 text-center py-6">
+                {showPast ? "No past requests." : "No open requests. Every booked trip has a driver."}
+              </p>
             ) : (
               <div className="flex gap-6">
                 <div>
-                  <p className="text-sm text-gray-500">Awaiting a Driver</p>
-                  <p className="text-2xl font-bold text-gray-800">{trips.length}</p>
+                  <p className="text-sm text-gray-500">{showPast ? "Past, never taken" : "Awaiting a Driver"}</p>
+                  <p className="text-2xl font-bold text-gray-800">{shown.length}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Total Value</p>
                   <p className="text-2xl font-bold text-teal-700">
-                    {formatCurrency(trips.reduce((sum, t) => sum + (Number(t.price) || 0), 0))}
+                    {formatCurrency(shown.reduce((sum, t) => sum + (Number(t.price) || 0), 0))}
                   </p>
                 </div>
               </div>
+            )}
+            {past.length > 0 && (
+              <button
+                onClick={() => setShowPast((v) => !v)}
+                className="mt-4 text-sm font-medium text-teal-700 hover:underline"
+              >
+                {showPast
+                  ? `Back to open requests (${upcoming.length})`
+                  : `Show ${past.length} past ${past.length === 1 ? "request" : "requests"} that never got a driver`}
+              </button>
             )}
           </CardContent>
         </Card>
 
         {/* Search */}
-        {trips.length > 0 && (
+        {shown.length > 0 && (
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
@@ -231,13 +243,13 @@ export default function AdminRequestedTripsPage() {
                         <p className="font-semibold text-gray-900">{trip.customerName}</p>
                         <div className="flex flex-wrap gap-3 mt-1">
                           {trip.customerEmail && (
-                            <a href={`mailto:${trip.customerEmail}`} className="flex items-center gap-1 text-xs text-teal-600 hover:underline">
+                            <a href={`mailto:${trip.customerEmail}`} className="flex items-center gap-1 rounded-lg border border-teal-200 bg-white px-2.5 py-1 text-xs font-medium text-teal-700 hover:bg-teal-50">
                               <Mail className="h-3 w-3" />
                               {trip.customerEmail}
                             </a>
                           )}
                           {trip.customerPhone && (
-                            <a href={`tel:${trip.customerPhone}`} className="flex items-center gap-1 text-xs text-teal-600 hover:underline">
+                            <a href={`tel:${trip.customerPhone}`} className="flex items-center gap-1 rounded-lg border border-teal-200 bg-white px-2.5 py-1 text-xs font-medium text-teal-700 hover:bg-teal-50">
                               <Phone className="h-3 w-3" />
                               {trip.customerPhone}
                             </a>
@@ -246,7 +258,11 @@ export default function AdminRequestedTripsPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
-                      <Badge className="bg-orange-100 text-orange-700 border border-orange-200">Pending</Badge>
+                      {isPast(trip) ? (
+                        <Badge className="bg-gray-100 text-gray-600 border border-gray-200">Date passed</Badge>
+                      ) : (
+                        <Badge className="bg-orange-100 text-orange-700 border border-orange-200">Pending</Badge>
+                      )}
                       <p className="text-xl font-bold text-teal-700">{formatCurrency(trip.price)}</p>
                     </div>
                   </div>
@@ -287,7 +303,7 @@ export default function AdminRequestedTripsPage() {
           })}
         </div>
 
-        {filtered.length === 0 && trips.length > 0 && (
+        {filtered.length === 0 && shown.length > 0 && (
           <p className="text-center text-gray-500 py-6">No requests match your search.</p>
         )}
       </div>

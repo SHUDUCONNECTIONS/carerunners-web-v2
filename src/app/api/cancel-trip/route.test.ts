@@ -1,18 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+vi.mock("@/utils/rateLimit", () => ({ isRateLimited: vi.fn(async () => false) }));
 vi.mock("@/utils/requireAuth", () => ({ requireAuth: vi.fn() }));
 vi.mock("@/utils/firebaseAdmin", () => ({ adminDb: vi.fn() }));
+vi.mock("@/utils/pushServer", () => ({ sendPushToUser: vi.fn() }));
 vi.mock("@/utils/peach", () => ({ refundPayment: vi.fn(), isSuccessCode: vi.fn() }));
 
 import { requireAuth } from "@/utils/requireAuth";
 import { adminDb } from "@/utils/firebaseAdmin";
 import { refundPayment, isSuccessCode } from "@/utils/peach";
+import { sendPushToUser } from "@/utils/pushServer";
 import { POST } from "./route";
 
 // ── Minimal in-memory Firestore admin fake ─────────────────────────────────
 // Supports exactly the surface cancel-trip/route.ts uses: collection(name)
-// .doc(id).get()/.update(), and collection(name).where(a).where(b).where(c)
-// .limit(n).get() for the checkoutId-less fallback lookup.
+// .doc(id).get()/.update(), collection(name).where(a).where(b).where(c)
+// .limit(n).get() for the checkoutId-less fallback lookup, and runTransaction
+// for the refund claim.
 function fakeAdminDb(seed: Record<string, Record<string, any>>) {
   const store: Record<string, Record<string, any>> = JSON.parse(JSON.stringify(seed));
 
@@ -23,6 +27,8 @@ function fakeAdminDb(seed: Record<string, Record<string, any>>) {
       id,
       data: () => store[name][id],
       ref: {
+        _name: name,
+        _id: id,
         update: async (patch: Record<string, unknown>) => {
           store[name][id] = { ...store[name][id], ...patch };
         },
@@ -32,6 +38,15 @@ function fakeAdminDb(seed: Record<string, Record<string, any>>) {
 
   return {
     _store: store,
+    // Enough of a transaction for the refund claim: reads and writes go straight to the store.
+    async runTransaction<T>(fn: (tx: any) => Promise<T>): Promise<T> {
+      return fn({
+        get: async (ref: { _name: string; _id: string }) => makeDocSnap(ref._name, ref._id),
+        update: (ref: { update: (patch: Record<string, unknown>) => Promise<void> }, patch: Record<string, unknown>) => {
+          ref.update(patch);
+        },
+      });
+    },
     collection(name: string) {
       return {
         doc(id: string) {
@@ -67,7 +82,7 @@ function fakeAdminDb(seed: Record<string, Record<string, any>>) {
 }
 
 function req(body: unknown) {
-  return { json: async () => body } as any;
+  return { json: async () => body, nextUrl: { origin: "http://localhost:3000" } } as any;
 }
 
 const AUTH_UID = "user-1";
@@ -80,9 +95,39 @@ beforeEach(() => {
   vi.mocked(adminDb).mockReset();
   vi.mocked(refundPayment).mockReset();
   vi.mocked(isSuccessCode).mockReset();
+  vi.mocked(sendPushToUser).mockReset();
 });
 
 describe("POST /api/cancel-trip", () => {
+  it("alerts the assigned driver urgently, and a failed alert doesn't undo the cancellation", async () => {
+    vi.mocked(requireAuth).mockResolvedValue({ uid: AUTH_UID, email: null, emailVerified: false });
+    vi.mocked(adminDb).mockReturnValue(
+      fakeAdminDb({
+        pickupRequests: {
+          "trip-1": { userId: AUTH_UID, driverId: "driver-9", status: "pending", payment_status: "unpaid", pickupDate: FUTURE, pickupLocation: "A", dropoffLocation: "B" },
+        },
+        checkouts: {},
+      }) as any
+    );
+    vi.mocked(sendPushToUser).mockRejectedValue(new Error("fcm down"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await POST(req({ requestId: "trip-1" }));
+    expect(res.status).toBe(200);
+    expect(sendPushToUser).toHaveBeenCalledWith("driver-9", expect.objectContaining({ title: "Trip cancelled", urgent: true }));
+  });
+
+  it("sends no alert when no driver had taken the trip", async () => {
+    vi.mocked(requireAuth).mockResolvedValue({ uid: AUTH_UID, email: null, emailVerified: false });
+    vi.mocked(adminDb).mockReturnValue(
+      fakeAdminDb({
+        pickupRequests: { "trip-1": { userId: AUTH_UID, status: "pending", payment_status: "unpaid", pickupDate: FUTURE } },
+        checkouts: {},
+      }) as any
+    );
+    expect((await POST(req({ requestId: "trip-1" }))).status).toBe(200);
+    expect(sendPushToUser).not.toHaveBeenCalled();
+  });
+
   it("rejects unauthenticated callers", async () => {
     vi.mocked(requireAuth).mockResolvedValue(null);
     const res = await POST(req({ requestId: "trip-1" }));
@@ -90,7 +135,7 @@ describe("POST /api/cancel-trip", () => {
   });
 
   it("rejects a caller who doesn't own the trip", async () => {
-    vi.mocked(requireAuth).mockResolvedValue({ uid: AUTH_UID, email: null });
+    vi.mocked(requireAuth).mockResolvedValue({ uid: AUTH_UID, email: null, emailVerified: false });
     vi.mocked(adminDb).mockReturnValue(
       fakeAdminDb({
         pickupRequests: {
@@ -104,7 +149,7 @@ describe("POST /api/cancel-trip", () => {
   });
 
   it("refuses to cancel a trip in a non-cancellable status", async () => {
-    vi.mocked(requireAuth).mockResolvedValue({ uid: AUTH_UID, email: null });
+    vi.mocked(requireAuth).mockResolvedValue({ uid: AUTH_UID, email: null, emailVerified: false });
     vi.mocked(adminDb).mockReturnValue(
       fakeAdminDb({
         pickupRequests: {
@@ -119,7 +164,7 @@ describe("POST /api/cancel-trip", () => {
   });
 
   it("refuses to cancel once the pickup date has passed", async () => {
-    vi.mocked(requireAuth).mockResolvedValue({ uid: AUTH_UID, email: null });
+    vi.mocked(requireAuth).mockResolvedValue({ uid: AUTH_UID, email: null, emailVerified: false });
     vi.mocked(adminDb).mockReturnValue(
       fakeAdminDb({
         pickupRequests: {
@@ -133,7 +178,7 @@ describe("POST /api/cancel-trip", () => {
   });
 
   it("cancels an unpaid trip with no refund call", async () => {
-    vi.mocked(requireAuth).mockResolvedValue({ uid: AUTH_UID, email: null });
+    vi.mocked(requireAuth).mockResolvedValue({ uid: AUTH_UID, email: null, emailVerified: false });
     const db = fakeAdminDb({
       pickupRequests: {
         "trip-1": { userId: AUTH_UID, status: "awaiting-payment", payment_status: "unpaid", pickupDate: FUTURE },
@@ -153,7 +198,7 @@ describe("POST /api/cancel-trip", () => {
   });
 
   it("refunds and cancels a paid trip via its stored checkoutId", async () => {
-    vi.mocked(requireAuth).mockResolvedValue({ uid: AUTH_UID, email: null });
+    vi.mocked(requireAuth).mockResolvedValue({ uid: AUTH_UID, email: null, emailVerified: false });
     const db = fakeAdminDb({
       pickupRequests: {
         "trip-1": {
@@ -190,8 +235,34 @@ describe("POST /api/cancel-trip", () => {
     expect(db._store.checkouts["chk-1"].refundStatus).toBe("refunded");
   });
 
+  it("does not refund twice when a refund is already under way", async () => {
+    vi.mocked(requireAuth).mockResolvedValue({ uid: AUTH_UID, email: null, emailVerified: false });
+    const db = fakeAdminDb({
+      pickupRequests: {
+        "trip-1": { userId: AUTH_UID, status: "pending", payment_status: "paid", pickupDate: FUTURE, checkoutId: "chk-1" },
+      },
+      checkouts: {
+        "chk-1": {
+          type: "trip",
+          requestId: "trip-1",
+          status: "paid",
+          amount: 150,
+          peachResult: { id: "PAY-123" },
+          refundStatus: "refunding",
+        },
+      },
+    });
+    vi.mocked(adminDb).mockReturnValue(db as any);
+
+    const res = await POST(req({ requestId: "trip-1" }));
+
+    expect(res.status).toBe(409);
+    expect(refundPayment).not.toHaveBeenCalled();
+    expect(db._store.pickupRequests["trip-1"].status).toBe("pending");
+  });
+
   it("falls back to querying checkouts when the trip has no checkoutId", async () => {
-    vi.mocked(requireAuth).mockResolvedValue({ uid: AUTH_UID, email: null });
+    vi.mocked(requireAuth).mockResolvedValue({ uid: AUTH_UID, email: null, emailVerified: false });
     const db = fakeAdminDb({
       pickupRequests: {
         "trip-1": { userId: AUTH_UID, status: "pending", payment_status: "paid", pickupDate: FUTURE },
@@ -217,7 +288,7 @@ describe("POST /api/cancel-trip", () => {
   });
 
   it("does NOT cancel the trip if the refund call fails", async () => {
-    vi.mocked(requireAuth).mockResolvedValue({ uid: AUTH_UID, email: null });
+    vi.mocked(requireAuth).mockResolvedValue({ uid: AUTH_UID, email: null, emailVerified: false });
     const db = fakeAdminDb({
       pickupRequests: {
         "trip-1": {
@@ -254,7 +325,7 @@ describe("POST /api/cancel-trip", () => {
   });
 
   it("fails closed (502) when the original payment can't be located", async () => {
-    vi.mocked(requireAuth).mockResolvedValue({ uid: AUTH_UID, email: null });
+    vi.mocked(requireAuth).mockResolvedValue({ uid: AUTH_UID, email: null, emailVerified: false });
     const db = fakeAdminDb({
       pickupRequests: {
         "trip-1": { userId: AUTH_UID, status: "pending", payment_status: "paid", pickupDate: FUTURE },

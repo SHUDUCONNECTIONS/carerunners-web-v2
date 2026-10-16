@@ -39,13 +39,15 @@ export async function releaseMarketplaceOrder(db: Firestore, orderId: string): P
 }
 
 // Orders that were never paid within the reservation window are cancelled so
-// abandoned checkouts don't hold stock forever.
+// abandoned checkouts don't hold stock forever. The window restarts when the buyer opens the
+// payment page (paymentStartedAt), so an order is never cancelled while it is being paid for.
 export async function releaseExpiredOrders(db: Firestore, now = Date.now()): Promise<void> {
   const open = await db.collection(MARKET_ORDERS).where("status", "==", "awaiting-payment").get();
   const cutoff = now - RESERVATION_MINUTES * 60 * 1000;
   for (const o of open.docs) {
     const createdAt = o.data().createdAt?.toMillis?.() ?? 0;
-    if (createdAt >= cutoff) continue;
+    const paymentStartedAt = Number(o.data().paymentStartedAt) || 0;
+    if (Math.max(createdAt, paymentStartedAt) >= cutoff) continue;
     await releaseMarketplaceOrder(db, o.id);
     const tripId = o.data().tripId;
     if (tripId) {

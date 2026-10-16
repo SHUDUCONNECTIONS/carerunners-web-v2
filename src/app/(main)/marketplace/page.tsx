@@ -1,13 +1,17 @@
 "use client"
 
-import React, { Suspense, useEffect, useMemo, useState } from "react"
+import React, { Suspense, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { authedFetch } from "@/utils/authedFetch"
 import { cartCount, loadCart, subscribeCart } from "@/lib/marketplaceCart"
+import { settlePendingCart } from "@/lib/marketplaceCartSync"
 import { RatingSummary } from "@/components/marketplace/Stars"
+import { DeliveryAreaNotice } from "@/components/marketplace/DeliveryAreaNotice"
 import { averageRating } from "@/lib/marketplaceReviews"
 import { loadSaved, subscribeSaved } from "@/lib/marketplaceSaved"
+import { clearSearches, loadSearches, recordSearch, subscribeSearches, SearchEntry } from "@/lib/marketplaceSearchHistory"
+import { recommend } from "@/lib/marketplaceRecommend"
 import { isListingAvailable } from "@/lib/marketplace"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,7 +22,11 @@ import {
   MARKET_CATEGORIES,
   MarketListing,
   categoryLabel,
+  categoryRank,
+  conditionBadgeClass,
   conditionLabel,
+  itemKind,
+  type ItemKind,
   formatRand,
   reservationActive,
 } from "@/lib/marketplace"
@@ -56,7 +64,20 @@ export default function MarketplacePage() {
 
 function MarketplaceContent() {
   // ?store=<company id> shows one store's products only.
-  const storeId = useSearchParams().get("store")
+  const params = useSearchParams()
+  const storeId = params.get("store")
+  // Brand-new and used items are kept apart. ?kind=new or ?kind=used keeps the choice when coming back.
+  const [kind, setKindState] = useState<"all" | ItemKind>(() => {
+    const k = params.get("kind")
+    return k === "new" || k === "used" ? k : "all"
+  })
+  const setKind = (k: "all" | ItemKind) => {
+    setKindState(k)
+    const url = new URL(window.location.href)
+    if (k === "all") url.searchParams.delete("kind")
+    else url.searchParams.set("kind", k)
+    window.history.replaceState(null, "", url)
+  }
   const [listings, setListings] = useState<MarketListing[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
@@ -73,16 +94,44 @@ function MarketplaceContent() {
     sync()
     return subscribeSaved(sync)
   }, [])
+  const [searches, setSearches] = useState<SearchEntry[]>([])
+  useEffect(() => {
+    const sync = () => setSearches(loadSearches())
+    sync()
+    return subscribeSearches(sync)
+  }, [])
+
+  // Remember a search once the buyer pauses typing, so half-typed words aren't recorded.
+  // The server only gets the words (counted for the admin), never who searched.
+  const resultCount = useRef(0)
+  const lastSent = useRef("")
+  useEffect(() => {
+    const t = setTimeout(() => {
+      recordSearch(search)
+      const term = search.trim().toLowerCase().replace(/\s+/g, " ")
+      if (term.length < 3 || term === lastSent.current) return
+      lastSent.current = term
+      authedFetch("/api/marketplace/searches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ term, resultCount: resultCount.current }),
+      }).catch(() => {})
+    }, 1500)
+    return () => clearTimeout(t)
+  }, [search])
+
   const [shown, setShown] = useState(PAGE_SIZE)
   const [inCart, setInCart] = useState(0)
 
   useEffect(() => {
     const sync = () => setInCart(cartCount(loadCart()))
     sync()
+    // Empties the cart if its order has been paid since (the count updates through subscribeCart).
+    settlePendingCart().catch(() => {})
     return subscribeCart(sync)
   }, [])
 
-  useEffect(() => setShown(PAGE_SIZE), [search, category, sort, band, inStockOnly, savedOnly])
+  useEffect(() => setShown(PAGE_SIZE), [search, category, sort, band, inStockOnly, savedOnly, kind])
 
   useEffect(() => {
     const load = async () => {
@@ -130,12 +179,18 @@ function MarketplaceContent() {
     load()
   }, [])
 
-  const counts = useMemo(() => {
-    const inStore = storeId ? listings.filter((l) => l.sellerId === storeId) : listings
-    const c: Record<string, number> = { all: inStore.length }
-    for (const l of inStore) c[l.category] = (c[l.category] ?? 0) + 1
+  const inStore = useMemo(() => (storeId ? listings.filter((l) => l.sellerId === storeId) : listings), [listings, storeId])
+  const kindCounts = useMemo(() => {
+    const c = { all: inStore.length, new: 0, used: 0 }
+    for (const l of inStore) c[itemKind(l.condition)]++
     return c
-  }, [listings, storeId])
+  }, [inStore])
+  const counts = useMemo(() => {
+    const ofKind = kind === "all" ? inStore : inStore.filter((l) => itemKind(l.condition) === kind)
+    const c: Record<string, number> = { all: ofKind.length }
+    for (const l of ofKind) c[l.category] = (c[l.category] ?? 0) + 1
+    return c
+  }, [inStore, kind])
 
   // Stores seen in the live listings (the store name is stored on each listing).
   const stores = useMemo(() => {
@@ -157,6 +212,7 @@ function MarketplaceContent() {
     const filtered = listings.filter(
       (l) =>
         (!storeId || l.sellerId === storeId) &&
+        (kind === "all" || itemKind(l.condition) === kind) &&
         (category === "all" || l.category === category) &&
         terms.every((t) => hay(l).includes(t)) &&
         (l.sellingPrice ?? 0) >= range.min &&
@@ -172,9 +228,24 @@ function MarketplaceContent() {
       if (sort === "price-asc") return price(a) - price(b)
       if (sort === "price-desc") return price(b) - price(a)
       if (sort === "rating") return stars(b) - stars(a) || (b.ratingCount ?? 0) - (a.ratingCount ?? 0)
-      return titleHits(b) - titleHits(a) || b.createdAt - a.createdAt
+      // Searching ranks by how well the title matches. Otherwise "All items" shows tech and
+      // buyer favourites first (newest first within each category), everyday items last.
+      const byCategory = category === "all" && terms.length === 0 ? categoryRank(a.category) - categoryRank(b.category) : 0
+      return titleHits(b) - titleHits(a) || byCategory || b.createdAt - a.createdAt
     })
-  }, [listings, search, category, sort, storeId, band, inStockOnly, savedOnly, saved])
+  }, [listings, search, category, sort, storeId, band, inStockOnly, savedOnly, saved, kind])
+
+  resultCount.current = visible.length
+
+  // "Picked for you": items that fit what this buyer has searched for before.
+  const recommended = useMemo(
+    () =>
+      recommend(listings, searches, {
+        exclude: (l) => !isListingAvailable(l) || (kind !== "all" && itemKind(l.condition) !== kind),
+      }),
+    [listings, searches, kind]
+  )
+  const showRecommended = recommended.length > 0 && !search.trim() && category === "all" && !storeId
 
   if (loading) return <LoadingComponent />
 
@@ -191,7 +262,7 @@ function MarketplaceContent() {
               <p className="text-sm md:text-base font-medium text-white/90">Sell. Buy. Deliver.</p>
             </div>
             <p className="max-w-xl text-sm sm:text-base text-white/90">
-              Quality pre-owned items from trusted companies. Pick what you like and Care Runners delivers it to your door.
+              Brand-new stock and quality pre-owned items from trusted companies. Pick what you like and Care Runners delivers it to your door.
             </p>
             <div className="flex flex-wrap gap-2">
               <Button
@@ -222,6 +293,8 @@ function MarketplaceContent() {
         </div>
       </section>
 
+      <DeliveryAreaNotice compact />
+
       {/* Store header (when viewing one store) */}
       {storeId && (
         <div className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
@@ -236,6 +309,39 @@ function MarketplaceContent() {
           </Button>
         </div>
       )}
+
+      {/* Brand new or used: the first choice a buyer makes */}
+      <div role="group" aria-label="Brand new or used" className="grid grid-cols-3 gap-2 rounded-2xl border border-gray-200 bg-white p-1.5 shadow-sm">
+        {(
+          [
+            { id: "all", label: "All items" },
+            { id: "new", label: "Brand new" },
+            { id: "used", label: "Used" },
+          ] as const
+        ).map((k) => {
+          const active = kind === k.id
+          return (
+            <button
+              key={k.id}
+              type="button"
+              onClick={() => setKind(k.id)}
+              aria-pressed={active}
+              className={`flex flex-col items-center justify-center rounded-xl px-2 py-2.5 text-sm font-semibold transition-colors sm:flex-row sm:gap-2 sm:text-base ${
+                active
+                  ? k.id === "used"
+                    ? "bg-amber-500 text-white shadow"
+                    : k.id === "new"
+                      ? "bg-emerald-600 text-white shadow"
+                      : "bg-[var(--brand-600)] text-white shadow"
+                  : "text-gray-700 hover:bg-gray-100"
+              }`}
+            >
+              {k.label}
+              <span className={`text-xs font-medium ${active ? "text-white/90" : "text-gray-500"}`}>{kindCounts[k.id]}</span>
+            </button>
+          )
+        })}
+      </div>
 
       {/* Search + sort */}
       <div className="flex flex-col gap-3 sm:flex-row">
@@ -334,10 +440,49 @@ function MarketplaceContent() {
           })}
       </nav>
 
+      {/* Picked for you (from this browser's past searches) */}
+      {showRecommended && (
+        <section aria-label="Picked for you" className="space-y-3">
+          <div className="flex items-end justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Picked for you</h2>
+              <p className="text-sm text-gray-500">Based on what you've searched for on this device.</p>
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={clearSearches}>
+              Clear my searches
+            </Button>
+          </div>
+          <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {recommended.map((l) => (
+              <Link
+                key={l.id}
+                href={`/marketplace/${l.id}`}
+                className="group flex w-40 shrink-0 flex-col overflow-hidden rounded-2xl border border-gray-300 bg-white shadow-sm hover:border-[var(--brand-500)] sm:w-48"
+              >
+                <div className="flex aspect-[4/3] items-center justify-center overflow-hidden bg-gray-100">
+                  {l.images[0] ? (
+                    <img src={l.images[0]} alt={l.title} loading="lazy" className="h-full w-full object-cover" />
+                  ) : (
+                    <ImageOff className="h-8 w-8 text-gray-300" />
+                  )}
+                </div>
+                <div className="space-y-0.5 p-3">
+                  <p className="line-clamp-2 text-sm font-semibold leading-snug text-gray-900">{l.title}</p>
+                  <p className="font-bold text-[var(--brand-600)]">{formatRand(l.sellingPrice)}</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Listings */}
       <section aria-label="Listings" className="space-y-3">
         <div className="flex items-end justify-between">
-          <h2 className="text-lg font-bold text-gray-900">{category === "all" ? "Latest items" : categoryLabel(category)}</h2>
+          <h2 className="text-lg font-bold text-gray-900">
+            {kind === "new" ? "Brand new: " : kind === "used" ? "Used: " : ""}
+            {category === "all" ? (kind === "all" ? "Latest items" : "all categories") : categoryLabel(category)}
+          </h2>
           <p className="text-sm text-gray-500">
             {visible.length} item{visible.length === 1 ? "" : "s"}
           </p>
@@ -351,7 +496,9 @@ function MarketplaceContent() {
             <p className="text-sm text-gray-500 max-w-sm mx-auto">
               {listings.length === 0
                 ? "New items are added regularly. Please check back soon."
-                : "No items match your search. Try another category or search term."}
+                : kind === "used" && kindCounts.used === 0
+                  ? "There are no used items right now. Have a look at the brand-new items instead."
+                  : "No items match your search. Try another category or search term."}
             </p>
           </div>
         ) : (
@@ -382,8 +529,8 @@ function MarketplaceContent() {
                       </span>
                     ) : (
                       isNew && (
-                        <span className="absolute left-2 top-2 rounded-full bg-[var(--mp-green)] px-2.5 py-0.5 text-xs font-semibold text-white shadow">
-                          New
+                        <span className="absolute left-2 top-2 rounded-full bg-[var(--brand-600)] px-2.5 py-0.5 text-xs font-semibold text-white shadow">
+                          Just added
                         </span>
                       )
                     )}
@@ -400,7 +547,7 @@ function MarketplaceContent() {
                     <p className="text-lg font-bold text-[var(--brand-600)] sm:text-xl">{formatRand(l.sellingPrice)}</p>
                     <RatingSummary average={averageRating(l.ratingSum, l.ratingCount)} count={l.ratingCount ?? 0} />
                     <div className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 text-xs">
-                      <span className="rounded-full bg-[var(--brand-50)] px-2 py-0.5 font-medium text-[var(--brand-700)]">
+                      <span className={`rounded-full px-2 py-0.5 font-semibold ${conditionBadgeClass(l.condition)}`}>
                         {conditionLabel(l.condition)}
                       </span>
                       {!reserved && (
@@ -453,11 +600,14 @@ function MarketplaceContent() {
             </li>
           ))}
         </ol>
-        <p className="text-xs text-gray-500">
-          <Link href="/marketplace/terms" className="underline">
-            Seller &amp; Buyer Terms and Conditions
-          </Link>
-        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link href="/marketplace/terms">Seller &amp; Buyer Terms and Conditions</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/marketplace/returns">Return, Refund and Exchange Policy</Link>
+          </Button>
+        </div>
       </section>
     </div>
   )

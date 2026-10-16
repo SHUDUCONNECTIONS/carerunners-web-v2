@@ -8,6 +8,7 @@ import { CheckCircle, XCircle, Clock, AlertTriangle } from "lucide-react";
 import LoadingComponent from '@/components/loader'
 import { useRouter } from "next/navigation"
 import { authedFetch } from '@/utils/authedFetch';
+import { settlePendingCart } from '@/lib/marketplaceCartSync';
 
 const INITIAL_DELAY = 2000; // 2 seconds
 
@@ -33,6 +34,8 @@ export default function PaymentStatusPage() {
       }
       const data = await res.json();
       setPaymentData(data);
+      // A paid MarketPortal order empties the cart it was placed from (unpaid ones keep it).
+      settlePendingCart().catch(() => {});
     } catch (error) {
       console.error('Error fetching payment status:', error);
       setError(error.message);

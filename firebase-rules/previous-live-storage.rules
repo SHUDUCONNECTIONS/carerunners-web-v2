@@ -1,0 +1,19 @@
+rules_version = '2';
+
+// The Storage rules that were live on 2026-10-16 (last published 2024-11-15), kept for rolling back.
+// Any signed-in user can read, write and delete any file.
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Rules for audio messages - keeping your existing structure
+    match /audio-messages/{tripId}/{audioFile} {
+      // Allow read, write, and delete only if the user is authenticated
+      allow read, write, delete: if request.auth != null;
+    }
+
+    // Rules for all other paths
+    match /{allPaths=**} {
+      // Replace the time-based rule with authentication check
+      allow read, write: if request.auth != null;
+    }
+  }
+}

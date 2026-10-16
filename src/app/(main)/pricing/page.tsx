@@ -30,14 +30,7 @@ import LoadingComponent from "@/components/loader";
 import { authedFetch } from "@/utils/authedFetch";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-
-type PlanTier = {
-  name: string;
-  price: number;
-  description: string;
-  features: string[];
-  maxUsers: number;
-};
+import { activePlan, standardPlans, premiumPlans, type PlanTier } from "@/lib/plans";
 
 type User = {
   id: string;
@@ -52,56 +45,6 @@ type PendingInvite = {
   status: "pending";
 };
 
-// Update plan definitions to include maxUsers
-const standardPlans: PlanTier[] = [
-  {
-    name: "Bronze",
-    price: 50,
-    description: "Great for getting started",
-    features: ["Basic features", "Email support", "1 user"],
-    maxUsers: 1,
-  },
-  {
-    name: "Silver",
-    price: 80,
-    description: "Perfect for small teams",
-    features: [
-      "All Bronze features",
-      "Priority support",
-      "5 users",
-      "Advanced analytics",
-    ],
-    maxUsers: 5,
-  },
-];
-
-const premiumPlans: PlanTier[] = [
-  {
-    name: "Gold",
-    price: 120,
-    description: "Best for growing businesses",
-    features: [
-      "All Silver features",
-      "24/7 phone support",
-      "10 users",
-      "Custom integrations",
-    ],
-    maxUsers: 10,
-  },
-  {
-    name: "Platinum",
-    price: 150,
-    description: "For large enterprises",
-    features: [
-      "All Gold features",
-      "Dedicated account manager",
-      "Unlimited users",
-      "Advanced security",
-    ],
-    maxUsers: Infinity,
-  },
-];
-
 export default function PricingPage() {
   const [isPremium, setIsPremium] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<PlanTier | null>(null);
@@ -111,6 +54,7 @@ export default function PricingPage() {
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]); // Updated type
   const [newUserEmail, setNewUserEmail] = useState("");
   const [isPaid, setIsPaid] = useState(false);
+  const [paidUntil, setPaidUntil] = useState<number | null>(null);
   const [firmId, setFirmId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Individuals pay per trip (see /payment, /billing) rather than a seat
@@ -163,14 +107,12 @@ export default function PricingPage() {
       const firmDoc = await getDoc(doc(db, "firms", firmId));
       if (firmDoc.exists()) {
         const firmData = firmDoc.data();
-        if (firmData.paymentStatus === "paid" && firmData.selectedPlan) {
+        // The plan the server recorded as paid for, while it lasts (not the plan last picked).
+        const active = activePlan(firmData);
+        if (active) {
           setIsPaid(true);
-          const planDetails = [...standardPlans, ...premiumPlans].find(
-            (plan) => plan.name === firmData.selectedPlan
-          );
-          if (planDetails) {
-            setCurrentPlan(planDetails);
-          }
+          setCurrentPlan(active.plan);
+          setPaidUntil(active.paidUntil);
           await fetchUsers(firmId);
         }
       }
@@ -259,7 +201,11 @@ export default function PricingPage() {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to send invitation email");
+        // The server checks the plan's user limit too; show its reason.
+        const reason = (await response.json().catch(() => null))?.message;
+        await fetchUsers(firmId);
+        setError(reason || "Failed to send invitation. Please try again.");
+        return;
       }
 
       await fetchUsers(firmId);
@@ -381,10 +327,15 @@ export default function PricingPage() {
               <p className="text-xl text-center mb-6">
                 {currentPlan.description}
               </p>
-              <div className="text-4xl font-bold text-center mb-6">
+              <div className="text-4xl font-bold text-center mb-2">
                 R{currentPlan.price}
                 <span className="text-lg font-normal">/mo</span>
               </div>
+              {paidUntil && (
+                <p className="text-center text-sm text-gray-600 mb-6">
+                  Paid until {new Date(paidUntil).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })}
+                </p>
+              )}
               <ul className="space-y-2">
                 {currentPlan.features.map((feature, index) => (
                   <li key={index} className="flex items-center">

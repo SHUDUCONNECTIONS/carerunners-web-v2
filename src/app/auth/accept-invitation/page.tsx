@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { auth, db } from "@/utils/firebase"
 import { signInWithPopup, GoogleAuthProvider, User } from "firebase/auth"
-import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore"
+import { doc, getDoc } from "firebase/firestore"
+import { authedFetch } from "@/utils/authedFetch"
 import LoadingComponent from '@/components/loader'
 
 type InvitationData = {
@@ -82,20 +83,17 @@ function AcceptInvitationPageContent() {
 
     setLoading(true)
     try {
-      // Update user profile
-      await setDoc(doc(db, "users", user.uid), {
-        email: user.email,
-        displayName: user.displayName,
-        firmId: invitationData.firmId,
-        role: 'user', // You can set a default role here
-        createdAt: new Date()
-      }, { merge: true })
-
-      // Update invitation status
-      await updateDoc(doc(db, "userInvitations", invitationId), {
-        status: 'accepted',
-        acceptedAt: new Date()
+      // The server checks the invitation is for this person's email, then joins them to the company.
+      const res = await authedFetch("/api/accept-invitation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ invitationId }),
       })
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        setError(data?.message || 'An error occurred while accepting the invitation. Please try again.')
+        return
+      }
 
       // Redirect to dashboard or another appropriate page
       router.push('/dashboard')

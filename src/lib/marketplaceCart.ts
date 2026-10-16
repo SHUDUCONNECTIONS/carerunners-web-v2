@@ -1,6 +1,6 @@
-// The shopping cart. It lives in the buyer's browser (localStorage) until
-// checkout; prices and stock are always re-read from the server when the order
-// is placed. One cart holds items from one store only, because a delivery
+// The shopping cart. It lives in the buyer's browser (localStorage) until the
+// order is PAID; prices and stock are always re-read from the server when the
+// order is placed. One cart holds items from one store only, because a delivery
 // collects from a single pickup address.
 export interface CartLine {
   listingId: string
@@ -15,6 +15,8 @@ export interface Cart {
   sellerId: string
   sellerName: string
   items: CartLine[]
+  /** The delivery trip of an order placed from this cart and not paid yet (see marketplaceCartSync). */
+  pendingRequestId?: string
 }
 
 export const EMPTY_CART: Cart = { sellerId: "", sellerName: "", items: [] }
@@ -56,7 +58,7 @@ export function addToCart(
           : i
       )
     : [...cart.items, { ...line, quantity: clampQuantity(quantity, line.stock) }]
-  return { cart: { sellerId: seller.id, sellerName: seller.name, items } }
+  return { cart: { ...cart, sellerId: seller.id, sellerName: seller.name, items } }
 }
 
 export function setLineQuantity(cart: Cart, listingId: string, quantity: number): Cart {

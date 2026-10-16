@@ -3,15 +3,18 @@
 
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
-import { collection, doc, getDoc, getDocs, query, serverTimestamp, updateDoc, where } from "firebase/firestore"
+import { collection, doc, documentId, getDocs, query, serverTimestamp, updateDoc, where } from "firebase/firestore"
 import { db } from "@/utils/firebase"
 import { useAdminGuard } from "@/utils/useAdminGuard"
+import { authedFetch } from "@/utils/authedFetch"
+import { MARKUP_RATE, priceWithMarkup } from "@/lib/marketplaceMarkup"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { AlertCircle, Building2, Download, ImageOff, Plus } from "lucide-react"
 import LoadingComponent from "@/components/loader"
 import { AdminSettings } from "@/components/marketplace/AdminSettings"
+import { zoneLabel } from "@/lib/marketplaceDeliveryDay"
 import {
   LISTING_STATUS_STYLES,
   MARKET_COMPANIES,
@@ -88,7 +91,6 @@ export default function AdminMarketplacePage() {
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState("")
-  const [markups, setMarkups] = useState({})
   const [error, setError] = useState("")
   const [search, setSearch] = useState("")
   const [range, setRange] = useState("30d")
@@ -101,31 +103,33 @@ export default function AdminMarketplacePage() {
     const load = async () => {
       try {
         const companySnap = await getDocs(collection(db, MARKET_COMPANIES))
-        setCompanyList(companySnap.docs.map((d) => companyFromDoc(d.id, d.data())))
+        const companies = companySnap.docs.map((d) => companyFromDoc(d.id, d.data()))
+        setCompanyList(companies)
+        const companyById = new Map(companies.map((c) => [c.id, c]))
         const listingSnap = await getDocs(collection(db, MARKET_LISTINGS))
         const all = listingSnap.docs.map((d) => listingFromDoc(d.id, d.data())).sort((a, b) => b.createdAt - a.createdAt)
         setListings(all)
-        // Suggested markup for each item waiting for review: 20% of the company price.
-        setMarkups(Object.fromEntries(all.filter((l) => l.status === "pending").map((l) => [l.id, String(Math.round(l.askingPrice * 0.2))])))
 
-        // Paid orders, with the live status of their delivery trip and the
-        // company's payout details.
+        // Paid orders, with the live status of their delivery trip and the company's payout details.
+        // Trips are read 30 at a time (Firestore's limit for "in") instead of one read per order.
         const orderSnap = await getDocs(query(collection(db, MARKET_ORDERS), where("status", "==", "paid")))
-        const paid = await Promise.all(
-          orderSnap.docs.map(async (d) => {
-            const o = orderFromDoc(d.id, d.data())
-            const [trip, company] = await Promise.all([
-              getDoc(doc(db, "pickupRequests", o.tripId)),
-              getDoc(doc(db, MARKET_COMPANIES, o.sellerId)),
-            ])
-            return {
-              ...o,
-              tripStatus: trip.exists() ? trip.data().status : "unknown",
-              company: company.exists() ? companyFromDoc(company.id, company.data()) : null,
-              sellerPayoutRef: d.data().sellerPayoutRef ?? "",
-            }
-          })
-        )
+        const tripIds = [...new Set(orderSnap.docs.map((d) => d.data().tripId).filter(Boolean))] as string[]
+        const trips = new Map<string, any>()
+        const chunks = Array.from({ length: Math.ceil(tripIds.length / 30) }, (_, i) => tripIds.slice(i * 30, i * 30 + 30))
+        for (const snap of await Promise.all(chunks.map((ids) => getDocs(query(collection(db, "pickupRequests"), where(documentId(), "in", ids)))))) {
+          snap.docs.forEach((t) => trips.set(t.id, t.data()))
+        }
+        const paid = orderSnap.docs.map((d) => {
+          const o = orderFromDoc(d.id, d.data())
+          const trip = trips.get(o.tripId)
+          return {
+            ...o,
+            tripStatus: trip ? trip.status : "unknown",
+            courierRef: trip?.courierRef ?? "",
+            company: companyById.get(o.sellerId) ?? null,
+            sellerPayoutRef: d.data().sellerPayoutRef ?? "",
+          }
+        })
         setOrders(paid.sort((a, b) => b.createdAt - a.createdAt))
       } catch (err) {
         console.error("Error loading MarketPortal admin data:", err)
@@ -151,27 +155,24 @@ export default function AdminMarketplacePage() {
     }
   }
 
+  // The server prices the item (company price + the standard markup) as it goes live.
   const approve = async (l) => {
-    const markup = Number(markups[l.id])
-    if (!Number.isFinite(markup) || markup < 0) {
-      setError("Enter a valid markup.")
-      return
-    }
     setBusyId(l.id)
     setError("")
     try {
-      await updateDoc(doc(db, MARKET_LISTINGS, l.id), {
-        status: "active",
-        markupAmount: markup,
-        sellingPrice: l.askingPrice + markup,
-        updatedAt: serverTimestamp(),
+      const res = await authedFetch("/api/admin/marketplace/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ listingId: l.id }),
       })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(data?.message || "Couldn't approve that item.")
       setListings((prev) =>
-        prev.map((x) => (x.id === l.id ? { ...x, status: "active", markupAmount: markup, sellingPrice: l.askingPrice + markup } : x))
+        prev.map((x) => (x.id === l.id ? { ...x, status: "active", markupAmount: data.markupAmount, sellingPrice: data.sellingPrice } : x))
       )
     } catch (err) {
       console.error("Error approving listing:", err)
-      setError("Couldn't approve that item.")
+      setError(err?.message || "Couldn't approve that item.")
     } finally {
       setBusyId("")
     }
@@ -192,6 +193,37 @@ export default function AdminMarketplacePage() {
     } catch (err) {
       console.error("Error rejecting listing:", err)
       setError("Couldn't reject that item.")
+    } finally {
+      setBusyId("")
+    }
+  }
+
+  // Courier orders never reach a driver, so an admin moves them on: sent (with the courier's
+  // tracking number), then delivered. The buyer is emailed at each step, like a driver delivery.
+  const advanceCourier = async (o) => {
+    const sending = o.tripStatus === "courier"
+    let courierRef = o.courierRef
+    if (sending) {
+      courierRef = window.prompt("Courier and tracking number (e.g. The Courier Guy, waybill 123456):")
+      if (!courierRef || !courierRef.trim()) return
+      courierRef = courierRef.trim()
+    } else if (!window.confirm("Mark this courier order as delivered?")) {
+      return
+    }
+    const status = sending ? "in-transit" : "delivered"
+    setBusyId(o.id)
+    setError("")
+    try {
+      await updateDoc(doc(db, "pickupRequests", o.tripId), sending ? { status, courierRef } : { status })
+      setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, tripStatus: status, courierRef } : x)))
+      authedFetch("/api/marketplace/notify-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tripId: o.tripId }),
+      }).catch(() => {})
+    } catch (err) {
+      console.error("Error updating courier order:", err)
+      setError("Couldn't update that order.")
     } finally {
       setBusyId("")
     }
@@ -270,6 +302,9 @@ export default function AdminMarketplacePage() {
             <Link href="/admin/marketplace/reviews">Reviews</Link>
           </Button>
           <Button asChild variant="outline">
+            <Link href="/admin/marketplace/searches">Searches</Link>
+          </Button>
+          <Button asChild variant="outline">
             <Link href="/admin/marketplace/companies">
               <Building2 className="h-4 w-4 mr-1" /> Companies
             </Link>
@@ -292,11 +327,13 @@ export default function AdminMarketplacePage() {
             !(c.bank.accountNumber && c.bank.bankId && c.bank.accountHolder) && "bank details",
           ].filter(Boolean)
           return missing.length === 0 ? null : (
-            <div key={c.id} className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-              <b>{c.name}</b> is missing its {missing.join(" and ")}. Drivers can&apos;t phone the pickup and you can&apos;t pay the company until this is filled in.{" "}
-              <Link href="/admin/marketplace/companies" className="font-semibold underline">
-                Edit company
-              </Link>
+            <div key={c.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+              <span>
+                <b>{c.name}</b> is missing its {missing.join(" and ")}. Drivers can&apos;t phone the pickup and you can&apos;t pay the company until this is filled in.
+              </span>
+              <Button asChild size="sm" variant="outline">
+                <Link href="/admin/marketplace/companies">Edit company</Link>
+              </Button>
             </div>
           )
         })}
@@ -309,7 +346,7 @@ export default function AdminMarketplacePage() {
           {listings
             .filter((l) => l.status === "pending")
             .map((l) => {
-              const markup = Number(markups[l.id]) || 0
+              const priced = priceWithMarkup(l.askingPrice)
               return (
                 <Card key={l.id} className="border-amber-200">
                   <CardContent className="p-4 space-y-3 text-sm">
@@ -342,21 +379,12 @@ export default function AdminMarketplacePage() {
                         <p className="font-bold">{formatRand(l.askingPrice)}</p>
                       </div>
                       <div>
-                        <label htmlFor={`m-${l.id}`} className="text-gray-500">
-                          Care Runners markup (R)
-                        </label>
-                        <Input
-                          id={`m-${l.id}`}
-                          type="number"
-                          min="0"
-                          className="w-32"
-                          value={markups[l.id] ?? ""}
-                          onChange={(e) => setMarkups((prev) => ({ ...prev, [l.id]: e.target.value }))}
-                        />
+                        <p className="text-gray-500">Care Runners markup ({MARKUP_RATE * 100}%)</p>
+                        <p className="font-bold">{formatRand(priced.markupAmount)}</p>
                       </div>
                       <div>
                         <p className="text-gray-500">Customers pay</p>
-                        <p className="font-bold text-[var(--brand-700)]">{formatRand(l.askingPrice + markup)}</p>
+                        <p className="font-bold text-[var(--brand-700)]">{formatRand(priced.sellingPrice)}</p>
                       </div>
                       <div className="ml-auto flex gap-2">
                         <Button variant="outline" disabled={busyId === l.id} onClick={() => reject(l)}>
@@ -493,7 +521,20 @@ export default function AdminMarketplacePage() {
                       </p>
                     ))}
                     <p className="text-gray-500 break-words">Deliver to {o.deliveryAddress}</p>
-                    <p className="text-gray-500">Delivery: {o.tripStatus}</p>
+                    <p className="text-gray-500">
+                      Delivery: {o.tripStatus}
+                      {o.deliveryMethod === "courier" && (
+                        <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                          {zoneLabel(o.deliveryZone)}
+                        </span>
+                      )}
+                    </p>
+                    {o.courierRef && <p className="text-gray-500 break-words">Courier: {o.courierRef}</p>}
+                    {o.deliveryMethod === "courier" && (o.tripStatus === "courier" || o.tripStatus === "in-transit") && (
+                      <Button size="sm" variant="outline" className="mt-2" disabled={busyId === o.id} onClick={() => advanceCourier(o)}>
+                        {o.tripStatus === "courier" ? "Mark sent with courier" : "Mark delivered"}
+                      </Button>
+                    )}
                     {o.company ? (
                       <p className="text-gray-600 break-words mt-1">
                         <b>Pay {o.company.name}:</b> {o.company.bank.accountHolder} ·{" "}

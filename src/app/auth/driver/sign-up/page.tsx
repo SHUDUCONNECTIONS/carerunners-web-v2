@@ -36,6 +36,7 @@ import { doc, setDoc } from "firebase/firestore";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { ref as dbRef, set } from "firebase/database";
 import { useRouter } from "next/navigation";
+import InstallButton from "@/components/InstallButton";
 
 
 const steps = [
@@ -217,6 +218,10 @@ function DriverSignUpStepper() {
           : null;
 
 
+        // The public profile is readable by signed-in users (customers see their runner's name,
+        // vehicle and rating). Identity documents and licence/insurance numbers go in a private
+        // sub-document that only the driver and admins can read, and are not copied to the
+        // Realtime Database.
         const driverData = {
           firstName: formData.firstName,
           lastName: formData.lastName,
@@ -229,12 +234,14 @@ function DriverSignUpStepper() {
           vehicleYear: formData.vehicleYear,
           numberPlate: formData.numberPlate,
           vehicleColor: formData.vehicleColor,
+          isApproved: false,
+        };
+        const privateDetails = {
           licenseNumber: formData.licenseNumber,
           insuranceProvider: formData.insuranceProvider,
           insuranceNumber: formData.insuranceNumber,
           identificationDocUrl: idDocUrl,
           proofOfResidenceDocUrl: residenceDocUrl,
-          isApproved: false,
         };
 
         // Write to Firestore (web portal)
@@ -242,6 +249,7 @@ function DriverSignUpStepper() {
           ...driverData,
           createdAt: new Date(),
         });
+        await setDoc(doc(db, "drivers", user.uid, "private", "details"), privateDetails);
 
         // Write to Realtime Database (driver mobile app)
         await set(dbRef(rtdb, `drivers/${user.uid}`), {
@@ -874,13 +882,14 @@ function DriverSignUpStepper() {
             <p className="text-sm text-gray-600">Already have an account?</p>
             <Button
               type="button"
-              variant="link"
-              className="text-teal-600 font-medium"
+              variant="outline"
+              className="mt-2 w-full border-teal-600 text-teal-700 hover:bg-teal-50 sm:w-auto sm:px-8"
               onClick={() => router.push("/auth/driver/login")}
             >
               Sign in to Driver Portal
             </Button>
           </div>
+          <InstallButton className="mx-auto mt-4 flex items-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50" />
         </CardContent>
       </Card>
     </div>

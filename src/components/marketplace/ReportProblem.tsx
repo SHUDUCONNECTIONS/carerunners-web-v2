@@ -62,9 +62,9 @@ export function ReportProblem({ orderId, issues, onSent }: { orderId: string; is
         </p>
       ))}
       {!hasOpen && !open && (
-        <button type="button" onClick={() => setOpen(true)} className="text-[var(--brand-700)] underline">
+        <Button type="button" size="sm" variant="outline" onClick={() => setOpen(true)}>
           Report a problem
-        </button>
+        </Button>
       )}
       {open && (
         <div className="space-y-2 rounded-xl bg-gray-50 p-3">

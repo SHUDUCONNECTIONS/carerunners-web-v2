@@ -13,6 +13,7 @@ import {
   MAX_PHOTOS,
   MIN_PHOTOS,
 } from "@/lib/marketplace";
+import { priceWithMarkup } from "@/lib/marketplaceMarkup";
 
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 
@@ -27,8 +28,6 @@ export interface ListingInput {
   specifications: string;
   additionalInfo: string;
   companyPrice: number;
-  /** Only admins set a markup. Company submissions leave it null for review. */
-  markup: number | null;
   /** Admin only. null = a one-off item. */
   stock: number | null;
   images: string[];
@@ -36,7 +35,6 @@ export interface ListingInput {
 
 export function parseListingInput(b: any, opts: { admin: boolean }): { error: string } | { data: ListingInput } {
   const companyPrice = Number(b?.companyPrice);
-  const markup = opts.admin ? Number(b?.markup) : null;
   const stockRaw = opts.admin && b?.stock !== undefined && b?.stock !== null && b?.stock !== "" ? Number(b.stock) : null;
   const images: string[] = Array.isArray(b?.images) ? b.images.filter((u: unknown) => typeof u === "string") : [];
 
@@ -46,7 +44,6 @@ export function parseListingInput(b: any, opts: { admin: boolean }): { error: st
     : !CONDITIONS.some((c) => c.id === b?.condition) ? "Choose a condition."
     : !str(b?.defects) ? 'Describe any defects or damage (write "None" if there are none).'
     : !Number.isFinite(companyPrice) || companyPrice <= 0 ? "Enter the company's price."
-    : opts.admin && (!Number.isFinite(markup as number) || (markup as number) < 0) ? "Enter a valid markup."
     : stockRaw !== null && (!Number.isInteger(stockRaw) || stockRaw < 1 || stockRaw > 100000) ? "Enter a valid quantity in stock."
     : images.length < MIN_PHOTOS || images.length > MAX_PHOTOS ? `Upload ${MIN_PHOTOS} to ${MAX_PHOTOS} photos.`
     : "";
@@ -64,7 +61,6 @@ export function parseListingInput(b: any, opts: { admin: boolean }): { error: st
       specifications: str(b.specifications),
       additionalInfo: str(b.additionalInfo),
       companyPrice,
-      markup,
       stock: stockRaw,
       images,
     },
@@ -72,7 +68,8 @@ export function parseListingInput(b: any, opts: { admin: boolean }): { error: st
 }
 
 // Creates the listing and its private pickup record from the company's own
-// details (never from the request). `status: "active"` needs a markup.
+// details (never from the request). A live listing is priced at the company price plus the
+// standard markup (src/lib/marketplaceMarkup.ts); a pending one gets its price when approved.
 export async function createListing(
   db: Firestore,
   input: ListingInput,
@@ -86,7 +83,8 @@ export async function createListing(
   }
 
   const listingRef = db.collection(MARKET_LISTINGS).doc();
-  const live = status === "active" && input.markup !== null;
+  const live = status === "active";
+  const priced = priceWithMarkup(input.companyPrice);
   const batch = db.batch();
   batch.set(listingRef, {
     sellerId: companySnap.id,
@@ -101,8 +99,8 @@ export async function createListing(
     specifications: input.specifications,
     additionalInfo: input.additionalInfo,
     askingPrice: input.companyPrice,
-    markupAmount: live ? input.markup : null,
-    sellingPrice: live ? input.companyPrice + (input.markup as number) : null,
+    markupAmount: live ? priced.markupAmount : null,
+    sellingPrice: live ? priced.sellingPrice : null,
     ...(input.stock !== null ? { stock: input.stock } : {}),
     location: company.area,
     images: input.images,

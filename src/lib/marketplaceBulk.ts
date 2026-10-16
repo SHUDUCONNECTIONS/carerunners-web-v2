@@ -1,8 +1,9 @@
 // Validation for the admin's bulk price/stock changes (used by the API route and its tests).
+// There is no markup to send: the customer price is always the company price plus the standard
+// markup (src/lib/marketplaceMarkup.ts).
 export interface BulkChange {
   id: string;
   companyPrice?: number;
-  markup?: number;
   stock?: number;
 }
 
@@ -13,11 +14,6 @@ export function validateChange(c: any): { error: string } | { change: BulkChange
     const v = Number(c.companyPrice);
     if (!Number.isFinite(v) || v <= 0 || v > 1_000_000) return { error: "A price must be more than 0." };
     out.companyPrice = Math.round(v * 100) / 100;
-  }
-  if (c.markup !== undefined) {
-    const v = Number(c.markup);
-    if (!Number.isFinite(v) || v < 0 || v > 1_000_000) return { error: "A markup can't be negative." };
-    out.markup = Math.round(v * 100) / 100;
   }
   if (c.stock !== undefined) {
     const v = Number(c.stock);

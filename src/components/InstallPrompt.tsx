@@ -4,12 +4,12 @@ import { useEffect, useState } from "react"
 import { X, Download, Share } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PWA_TRACK_EVENT, type PwaEventType } from "@/lib/pwa"
+import { INSTALL_STEPS, SHOW_STEPS_UNASKED, installHelpFor, type InstallHelp } from "@/lib/installHelp"
 
 const DISMISSED_KEY = "install-dismissed-at"
 const SNOOZE_DAYS = 14
 
-// Shared with the footer's "Install app" button (see InstallButton).
-export const INSTALL_AVAILABLE_EVENT = "carerunners:install-available"
+// Sent by the "Install app" buttons (see InstallButton).
 export const INSTALL_REQUEST_EVENT = "carerunners:install"
 
 declare global {
@@ -45,15 +45,17 @@ function snoozed(): boolean {
 
 export default function InstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
-  const [showAndroid, setShowAndroid] = useState(false)
-  const [showIOS, setShowIOS] = useState(false)
+  // The browser's own install prompt is ready (Chrome, Edge, Samsung Internet...): the banner shows an Install button.
+  const [showNative, setShowNative] = useState(false)
+  // Otherwise the banner shows the steps for this browser (see src/lib/installHelp.ts).
+  const [steps, setSteps] = useState<InstallHelp | null>(null)
 
   const install = async (prompt: any) => {
     prompt.prompt()
     const { outcome } = await prompt.userChoice
     if (outcome === "accepted") {
       track("prompt_accepted")
-      setShowAndroid(false)
+      setShowNative(false)
     }
     window.__installPrompt = undefined
     setDeferredPrompt(null)
@@ -62,29 +64,27 @@ export default function InstallPrompt() {
   useEffect(() => {
     if (isStandalone()) return // already installed and running as an app
 
-    // iOS never fires beforeinstallprompt; it needs manual instructions.
-    if (isIOS() && !snoozed()) setShowIOS(true)
+    const help = installHelpFor(navigator.userAgent, navigator.platform, navigator.maxTouchPoints)
+    // Phones that never offer an install prompt get the steps straight away.
+    if (SHOW_STEPS_UNASKED.includes(help) && !snoozed()) setSteps(help)
 
     const onPrompt = (e: Event) => {
       e.preventDefault()
       window.__installPrompt = e
       setDeferredPrompt(e)
-      window.dispatchEvent(new Event(INSTALL_AVAILABLE_EVENT))
-      if (!snoozed()) setShowAndroid(true)
+      setSteps(null)
+      if (!snoozed()) setShowNative(true)
     }
     const onInstalled = () => {
       window.__installPrompt = undefined
       setDeferredPrompt(null)
-      setShowAndroid(false)
-      setShowIOS(false)
+      setShowNative(false)
+      setSteps(null)
     }
-    // The footer's "Install app" button asks for the prompt (or the iOS steps).
+    // An "Install app" button asks: the browser's prompt if it has one, otherwise the steps.
     const onRequest = () => {
-      if (window.__installPrompt) {
-        install(window.__installPrompt)
-      } else if (isIOS()) {
-        setShowIOS(true)
-      }
+      if (window.__installPrompt) install(window.__installPrompt)
+      else setSteps(installHelpFor(navigator.userAgent, navigator.platform, navigator.maxTouchPoints))
     }
 
     if (window.__installPrompt) setDeferredPrompt(window.__installPrompt)
@@ -105,12 +105,12 @@ export default function InstallPrompt() {
     } catch {
       // Private mode etc.: the prompt just reappears next visit.
     }
-    setShowAndroid(false)
-    setShowIOS(false)
+    setShowNative(false)
+    setSteps(null)
   }
 
   // Count each device once when the banner is first shown to it.
-  const visible = showAndroid || showIOS
+  const visible = showNative || steps !== null
   useEffect(() => {
     if (visible) track("prompt_shown")
   }, [visible])
@@ -118,16 +118,17 @@ export default function InstallPrompt() {
   if (!visible) return null
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-sm">
-      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-lg">
+    // Sits above the round theme button in the bottom-right corner (bottom-4, 44px tall) so neither covers the other.
+    <div className="fixed left-4 right-4 z-50 mx-auto max-w-sm" style={{ bottom: "calc(4.25rem + env(safe-area-inset-bottom))" }}>
+      <div role="dialog" aria-label="Install Care Runners" className="rounded-xl border border-gray-200 bg-white p-4 shadow-lg">
         <div className="flex items-start justify-between gap-3">
           <img src="/icons/icon-192.png" alt="Care Runners" className="h-10 w-10 shrink-0 rounded-lg border border-gray-100" />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-gray-900">Install Care Runners</p>
-            {showIOS ? (
-              <p className="mt-0.5 text-xs text-gray-500">
-                Tap <Share className="mx-0.5 inline h-3.5 w-3.5 text-blue-500" /> then <strong>Add to Home Screen</strong> to
-                install.
+            {steps ? (
+              <p className="mt-0.5 text-xs text-gray-600">
+                {steps === "ios" && <Share className="mr-1 inline h-3.5 w-3.5 text-blue-500" aria-hidden="true" />}
+                {INSTALL_STEPS[steps]}
               </p>
             ) : (
               <p className="mt-0.5 text-xs text-gray-500">Add it to your home screen for quick access, even faster than the browser.</p>
@@ -137,7 +138,7 @@ export default function InstallPrompt() {
             <X className="h-4 w-4" />
           </button>
         </div>
-        {showAndroid && deferredPrompt && (
+        {showNative && deferredPrompt && !steps && (
           <Button onClick={() => install(deferredPrompt)} size="sm" className="mt-3 w-full">
             <Download className="mr-1.5 h-4 w-4" /> Install
           </Button>

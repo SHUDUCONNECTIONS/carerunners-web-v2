@@ -1,10 +1,13 @@
 "use client"
 
+import { DeliveryDayPicker } from "@/components/DeliveryDayPicker"
+import { defaultDeliveryDate, deliveryFeeForDate, type DeliveryZone } from "@/lib/marketplaceDeliveryDay"
+import { CourierDelivery, DeliveryAreaNotice } from "@/components/marketplace/DeliveryAreaNotice"
 import React, { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { doc, getDoc } from "firebase/firestore"
-import { auth, db } from "@/utils/firebase"
+import { auth } from "@/utils/firebase"
+import { fetchPublicListing } from "@/lib/marketplacePublicClient"
 import { authedFetch } from "@/utils/authedFetch"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,7 +17,7 @@ import { AddressAutocomplete, PickedPlace } from "@/components/AddressAutocomple
 import { BUYER_ACCEPTANCE } from "@/lib/marketplaceTerms"
 import { ArrowLeft, ImageOff, Trash2 } from "lucide-react"
 import LoadingComponent from "@/components/loader"
-import { MARKET_LISTINGS, formatRand, isListingAvailable, listingFromDoc } from "@/lib/marketplace"
+import { formatRand, isListingAvailable } from "@/lib/marketplace"
 import { belowMinimum, deliveryCharge } from "@/lib/marketplaceSettings"
 import { useMarketSettings } from "@/lib/useMarketSettings"
 import {
@@ -29,6 +32,7 @@ import {
   setLineQuantity,
   subscribeCart,
 } from "@/lib/marketplaceCart"
+import { cancelUnpaidOrder, settlePendingCart } from "@/lib/marketplaceCartSync"
 
 export default function CartPage() {
   const router = useRouter()
@@ -38,16 +42,23 @@ export default function CartPage() {
   const [unavailable, setUnavailable] = useState<Record<string, string>>({})
   const [address, setAddress] = useState("")
   const [phone, setPhone] = useState("")
+  const [deliveryDate, setDeliveryDate] = useState(() => defaultDeliveryDate())
   const [dropoff, setDropoff] = useState<PickedPlace | null>(null)
-  const [quote, setQuote] = useState<{ km: number; fee: number } | null>(null)
+  const [quote, setQuote] = useState<{ km: number; zone: DeliveryZone; surcharge: number; courierFee: number | null } | null>(null)
   const [quoting, setQuoting] = useState(false)
   const [buying, setBuying] = useState(false)
   const [accepted, setAccepted] = useState<boolean[]>(BUYER_ACCEPTANCE.map(() => false))
   const [error, setError] = useState("")
+  // An order was placed from this cart but hasn't been paid yet.
+  const [pendingUnpaid, setPendingUnpaid] = useState(false)
   const settings = useMarketSettings()
 
   // Re-read every line from the server so the buyer sees today's price and stock.
   const refresh = useCallback(async () => {
+    // The listings come from the server, which needs the user's token: wait for sign-in after a refresh.
+    await auth.authStateReady()
+    // An order placed from this cart earlier: empty the cart if it's been paid since.
+    setPendingUnpaid((await settlePendingCart()) === "unpaid")
     const current = loadCart()
     setCart(current)
     const bad: Record<string, string> = {}
@@ -55,12 +66,11 @@ export default function CartPage() {
     await Promise.all(
       current.items.map(async (line) => {
         try {
-          const snap = await getDoc(doc(db, MARKET_LISTINGS, line.listingId))
-          if (!snap.exists()) {
+          const l = await fetchPublicListing(line.listingId)
+          if (!l) {
             bad[line.listingId] = "No longer listed"
             return
           }
-          const l = listingFromDoc(snap.id, snap.data())
           if (!isListingAvailable(l)) {
             bad[line.listingId] = l.stock === 0 || l.status === "sold" ? "Sold out" : "Not available"
             return
@@ -94,7 +104,10 @@ export default function CartPage() {
   const lines = cart.items
   const buyable = lines.filter((l) => !unavailable[l.listingId])
   const subtotal = cartSubtotal({ ...cart, items: buyable })
-  const charge = deliveryCharge(settings, subtotal, quote?.fee ?? 0)
+  // Beyond the driver area the quote carries a flat courier fee instead of the day price.
+  const courierFee = quote?.zone === "courier" ? quote.courierFee : null
+  const surcharge = quote?.surcharge ?? 0
+  const charge = deliveryCharge(settings, subtotal, courierFee ?? (deliveryFeeForDate(deliveryDate) ?? 0) + surcharge)
   const deliveryFee = charge.charged
   const total = subtotal + deliveryFee
   const allAccepted = accepted.every(Boolean)
@@ -114,7 +127,7 @@ export default function CartPage() {
       const res = await authedFetch(`/api/marketplace/quote?listingId=${buyable[0].listingId}&lat=${place.lat}&lng=${place.lng}`)
       const data = await res.json().catch(() => null)
       if (!res.ok) throw new Error(data?.message || "Couldn't calculate delivery.")
-      setQuote({ km: data.km, fee: data.fee })
+      setQuote({ km: data.km, zone: data.zone ?? "driver", surcharge: Number(data.surcharge) || 0, courierFee: data.courierFee ?? null })
     } catch (err: any) {
       setError(err?.message || "Couldn't calculate the delivery fee.")
     } finally {
@@ -141,11 +154,19 @@ export default function CartPage() {
       return
     }
     if (!allAccepted) {
-      setError("Please confirm every buyer statement to continue.")
+      setError("Please accept the Terms and Conditions to continue.")
       return
     }
     setBuying(true)
     try {
+      // An earlier unpaid order from this cart is replaced by this one, so its stock isn't held twice.
+      if ((await settlePendingCart()) === "unpaid") {
+        await cancelUnpaidOrder(loadCart().pendingRequestId!)
+      } else if (loadCart().items.length === 0) {
+        setError("This order has already been paid. You'll find it under My Trips.")
+        refresh()
+        return
+      }
       const res = await authedFetch("/api/marketplace/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -155,6 +176,7 @@ export default function CartPage() {
           deliveryLat: dropoff.lat,
           deliveryLng: dropoff.lng,
           phone: phone.trim(),
+          deliveryDate,
           termsAccepted: true,
         }),
       })
@@ -164,7 +186,8 @@ export default function CartPage() {
         refresh()
         return
       }
-      saveCart(EMPTY_CART)
+      // The cart is only emptied once this order is paid (see marketplaceCartSync).
+      saveCart({ ...loadCart(), pendingRequestId: data.requestId })
       router.push(`/payment?requestId=${data.requestId}`)
     } catch (err) {
       console.error("Error placing order:", err)
@@ -175,10 +198,12 @@ export default function CartPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-4">
-      <Link href="/marketplace" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900">
-        <ArrowLeft className="mr-1 h-4 w-4" /> Keep shopping
-      </Link>
+    <div className="mx-auto max-w-3xl space-y-4">
+      <Button asChild variant="outline" size="sm">
+        <Link href="/marketplace">
+          <ArrowLeft className="mr-1 h-4 w-4" /> Keep shopping
+        </Link>
+      </Button>
       <h1 className="text-2xl font-bold text-gray-900">
         Your cart{cart.sellerName ? <span className="text-base font-medium text-gray-500"> from {cart.sellerName}</span> : null}
       </h1>
@@ -192,8 +217,16 @@ export default function CartPage() {
           </Button>
         </div>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-5">
-          <div className="space-y-3 lg:col-span-3">
+        <div className="space-y-6">
+          {pendingUnpaid && cart.pendingRequestId && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+              <span>You placed this order but haven&apos;t paid yet. Your items stay here until you do.</span>
+              <Button asChild size="sm" className="bg-[var(--mp-green)] text-white hover:bg-[var(--mp-green-dark)]">
+                <Link href={`/payment?requestId=${cart.pendingRequestId}`}>Pay now</Link>
+              </Button>
+            </div>
+          )}
+          <div className="space-y-3">
             {lines.map((l) => {
               const problem = unavailable[l.listingId]
               return (
@@ -238,13 +271,14 @@ export default function CartPage() {
                 </div>
               )
             })}
-            <button type="button" onClick={() => update(EMPTY_CART)} className="text-sm text-gray-500 underline">
-              Empty cart
-            </button>
+            <Button type="button" variant="outline" size="sm" onClick={() => update(EMPTY_CART)}>
+              <Trash2 className="mr-1 h-4 w-4" /> Empty cart
+            </Button>
           </div>
 
-          <div className="lg:col-span-2">
-            <div className="space-y-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm lg:sticky lg:top-6">
+          <div>
+            <div className="space-y-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+              <h2 className="text-lg font-bold text-gray-900">Delivery &amp; payment</h2>
               <div className="space-y-2">
                 <Label htmlFor="address">Delivery address</Label>
                 <AddressAutocomplete
@@ -260,13 +294,20 @@ export default function CartPage() {
                   onPick={handlePick}
                   placeholder="Search your delivery address…"
                 />
-                <p className="text-xs text-gray-500">One delivery for the whole order, collected and delivered by Care Runners.</p>
+                <p className="text-xs text-gray-500">One delivery fee for the whole order.</p>
+                <DeliveryAreaNotice />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="phone">Contact number</Label>
                 <Input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="082 555 1234" />
               </div>
+
+              {courierFee !== null ? (
+                <CourierDelivery fee={courierFee} />
+              ) : (
+                <DeliveryDayPicker value={deliveryDate} onChange={setDeliveryDate} surcharge={surcharge} />
+              )}
 
               <div className="space-y-1.5 rounded-xl bg-gray-50 p-4 text-sm">
                 <div className="flex justify-between">
@@ -276,7 +317,7 @@ export default function CartPage() {
                   <span>{formatRand(subtotal)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Delivery{quote ? ` (~${quote.km} km)` : ""}</span>
+                  <span className="text-gray-600">Delivery{courierFee !== null ? " (courier)" : ""}</span>
                   <span>{quoting ? "Calculating…" : quote ? formatRand(deliveryFee) : "Enter address"}</span>
                 </div>
                 <div className="flex justify-between border-t pt-2 text-base font-bold">
@@ -299,34 +340,25 @@ export default function CartPage() {
                   </p>
                 )}
 
-              <div className="space-y-1 rounded-xl border border-blue-100 bg-blue-50/60 p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs text-blue-900">
-                    Please read the{" "}
-                    <Link href="/marketplace/terms" target="_blank" className="font-medium underline">
-                      Terms and Conditions
-                    </Link>{" "}
-                    and confirm:
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setAccepted(BUYER_ACCEPTANCE.map(() => !allAccepted))}
-                    className="shrink-0 text-xs font-medium text-[var(--brand-700)] underline"
-                  >
-                    {allAccepted ? "Clear all" : "Tick all"}
-                  </button>
-                </div>
-                {BUYER_ACCEPTANCE.map((text, i) => (
-                  <label key={text} className="flex items-start gap-3 py-1 text-sm text-blue-950">
-                    <Checkbox
-                      className="mt-0.5"
-                      checked={accepted[i]}
-                      onCheckedChange={(v) => setAccepted((prev) => prev.map((x, j) => (j === i ? v === true : x)))}
-                    />
-                    <span className="leading-snug">{text}</span>
-                  </label>
-                ))}
-              </div>
+              {/* One box covers every buyer statement in BUYER_ACCEPTANCE (same as the product page). */}
+              <label className="flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-blue-950">
+                <Checkbox
+                  className="mt-0.5"
+                  checked={allAccepted}
+                  onCheckedChange={(v) => setAccepted(BUYER_ACCEPTANCE.map(() => v === true))}
+                />
+                <span className="leading-snug">
+                  I have read and agree to the{" "}
+                  <Link href="/marketplace/terms" target="_blank" className="font-medium underline">
+                    Terms and Conditions
+                  </Link>
+                  {" "}and{" "}
+                  <Link href="/marketplace/returns" target="_blank" className="font-medium underline">
+                    Return Policy
+                  </Link>
+                  , including the item descriptions, condition and delivery terms.
+                </span>
+              </label>
 
               {error && (
                 <p role="alert" className="text-sm text-red-600">

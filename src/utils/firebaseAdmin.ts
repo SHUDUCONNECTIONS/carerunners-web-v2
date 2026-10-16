@@ -5,6 +5,7 @@
 import { cert, getApps, initializeApp, type App } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
+import { getDatabase } from "firebase-admin/database";
 
 function getAdminApp(): App {
   if (getApps().length) return getApps()[0];
@@ -24,8 +25,10 @@ function getAdminApp(): App {
 
   return initializeApp({
     credential: cert({ projectId, clientEmail, privateKey }),
+    databaseURL: process.env.NEXT_PUBLIC_DATABASE_URL,
   });
 }
 
 export const adminAuth = () => getAuth(getAdminApp());
 export const adminDb = () => getFirestore(getAdminApp());
+export const adminRtdb = () => getDatabase(getAdminApp());

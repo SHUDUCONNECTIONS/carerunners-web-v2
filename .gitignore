@@ -34,3 +34,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Firebase emulator logs and Playwright output
+*-debug.log
+/test-results/
+/playwright-report/

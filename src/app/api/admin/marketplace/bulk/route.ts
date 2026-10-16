@@ -1,12 +1,13 @@
 // app/api/admin/marketplace/bulk/route.ts
-// Admin-only: change prices, markup and stock on many listings at once.
-// The customer price is always company price + markup, worked out here, never sent by the browser.
+// Admin-only: change company prices and stock on many listings at once.
+// The customer price is always company price + the standard markup, worked out here, never sent by the browser.
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { requireAdmin } from "@/utils/requireAdmin";
 import { adminDb } from "@/utils/firebaseAdmin";
 import { MARKET_LISTINGS } from "@/lib/marketplace";
 import { validateChange, type BulkChange as Change } from "@/lib/marketplaceBulk";
+import { priceWithMarkup } from "@/lib/marketplaceMarkup";
 
 const MAX_CHANGES = 400;
 
@@ -43,13 +44,10 @@ export async function POST(req: NextRequest) {
         skipped.push(c.id);
         return;
       }
-      const asking = c.companyPrice ?? Number(l.askingPrice);
-      const markup = c.markup ?? Number(l.markupAmount ?? 0);
       const update: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
-      if (c.companyPrice !== undefined || c.markup !== undefined) {
-        update.askingPrice = asking;
-        update.markupAmount = markup;
-        update.sellingPrice = Math.round((asking + markup) * 100) / 100;
+      if (c.companyPrice !== undefined) {
+        update.askingPrice = c.companyPrice;
+        Object.assign(update, priceWithMarkup(c.companyPrice));
       }
       // Stock only applies to items sold by quantity. Restocking a sold-out item puts it back on sale.
       if (c.stock !== undefined && typeof l.stock === "number") {

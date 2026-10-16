@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation"
 import { auth } from "@/utils/firebase"
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth"
 import { getFirestore, doc, getDoc } from "firebase/firestore"
+import InstallButton from "@/components/InstallButton"
 
 export default function DriverLoginPage() {
   const [email, setEmail] = useState("")
@@ -102,16 +103,17 @@ export default function DriverLoginPage() {
 
         {/* Right panel — login form */}
         <Card className="rounded-none border-0 flex-1 shadow-none">
-        <CardHeader className="bg-teal-700 text-white">
-          <CardTitle className="text-2xl font-bold text-center">Driver Portal Login</CardTitle>
+        <CardHeader>
+          <CardTitle className="text-2xl font-semibold text-gray-900">Welcome back</CardTitle>
+          <p className="text-sm text-gray-500">Sign in to your driver account.</p>
         </CardHeader>
-        <CardContent className="mt-6">
+        <CardContent>
           <form onSubmit={handleLogin} className="space-y-6">
             <div>
               <Label htmlFor="email" className="block text-sm font-medium text-gray-700">Email</Label>
               <div className="mt-1 relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <User aria-hidden="true" />
+                  <User aria-hidden="true" className="h-4 w-4 text-gray-400" />
                 </div>
                 <Input
                   id="email"
@@ -130,7 +132,7 @@ export default function DriverLoginPage() {
               <Label htmlFor="password" className="block text-sm font-medium text-gray-700">Password</Label>
               <div className="mt-1 relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock aria-hidden="true" />
+                  <Lock aria-hidden="true" className="h-4 w-4 text-gray-400" />
                 </div>
                 <Input
                   id="password"
@@ -164,25 +166,27 @@ export default function DriverLoginPage() {
             </Button>
           </form>
 
-          <div className="mt-4 space-y-2 text-center">
+          <div className="mt-4 space-y-3">
             <Button
-              variant="link"
+              type="button"
+              variant="outline"
               onClick={handlePasswordReset}
-              className="text-sm text-teal-600"
+              className="w-full"
               disabled={resetting}
             >
               {resetting ? "Sending..." : "Forgot your password?"}
             </Button>
-            <div>
-              <Button
-                variant="link"
-                onClick={() => router.push("/auth/driver/sign-up")}
-                className="text-sm text-teal-600"
-              >
-                Don&apos;t have an account? Register as a driver
-              </Button>
-            </div>
+            <p className="text-center text-sm text-gray-500">Don&apos;t have an account?</p>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.push("/auth/driver/sign-up")}
+              className="w-full border-teal-600 text-teal-700 hover:bg-teal-50"
+            >
+              Register as a driver
+            </Button>
           </div>
+          <InstallButton className="mx-auto mt-4 flex items-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50" />
         </CardContent>
         </Card>
       </div>

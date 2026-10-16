@@ -12,12 +12,12 @@ import { Input } from "@/components/ui/input"
 import { AlertCircle, ArrowLeft } from "lucide-react"
 import LoadingComponent from "@/components/loader"
 import { MARKET_LISTINGS, MarketListing, formatRand, listingFromDoc } from "@/lib/marketplace"
+import { MARKUP_RATE, priceWithMarkup } from "@/lib/marketplaceMarkup"
 
 const PAGE = 40
 
 interface Edit {
   companyPrice?: string
-  markup?: string
   stock?: string
 }
 
@@ -53,13 +53,12 @@ export default function AdminStockPage() {
 
   // Only boxes that differ from what is saved count as changes.
   const changes = useMemo(() => {
-    const out: { id: string; companyPrice?: number; markup?: number; stock?: number }[] = []
+    const out: { id: string; companyPrice?: number; stock?: number }[] = []
     for (const l of listings) {
       const e = edits[l.id]
       if (!e) continue
-      const c: { id: string; companyPrice?: number; markup?: number; stock?: number } = { id: l.id }
+      const c: { id: string; companyPrice?: number; stock?: number } = { id: l.id }
       if (e.companyPrice !== undefined && e.companyPrice !== "" && Number(e.companyPrice) !== l.askingPrice) c.companyPrice = Number(e.companyPrice)
-      if (e.markup !== undefined && e.markup !== "" && Number(e.markup) !== (l.markupAmount ?? 0)) c.markup = Number(e.markup)
       if (e.stock !== undefined && e.stock !== "" && l.stock !== null && Number(e.stock) !== l.stock) c.stock = Number(e.stock)
       if (Object.keys(c).length > 1) out.push(c)
     }
@@ -85,13 +84,10 @@ export default function AdminStockPage() {
         prev.map((l) => {
           const c = changes.find((x) => x.id === l.id)
           if (!c) return l
-          const asking = c.companyPrice ?? l.askingPrice
-          const markup = c.markup ?? (l.markupAmount ?? 0)
+          const priced = c.companyPrice !== undefined ? { askingPrice: c.companyPrice, ...priceWithMarkup(c.companyPrice) } : {}
           return {
             ...l,
-            askingPrice: asking,
-            markupAmount: markup,
-            sellingPrice: Math.round((asking + markup) * 100) / 100,
+            ...priced,
             stock: c.stock ?? l.stock,
             status: c.stock !== undefined && c.stock > 0 && l.status === "sold" ? "active" : l.status,
           }
@@ -119,12 +115,12 @@ export default function AdminStockPage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-4 p-4">
-      <Link href="/admin/marketplace" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900">
+      <Link href="/admin/marketplace" className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50">
         <ArrowLeft className="h-4 w-4 mr-1" /> MarketPortal admin
       </Link>
       <h1 className="text-2xl font-bold">Prices and stock</h1>
       <p className="text-sm text-gray-600">
-        The customer price is the company price plus your markup. Stock only applies to items sold by quantity. Adding stock to a sold-out item puts it back on sale.
+        The customer price is the company price plus the {MARKUP_RATE * 100}% Care Runners markup. Stock only applies to items sold by quantity. Adding stock to a sold-out item puts it back on sale.
       </p>
 
       <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 bg-[var(--background)] py-2">
@@ -171,10 +167,10 @@ export default function AdminStockPage() {
                     <span className="text-xs text-gray-500">Company price</span>
                     <Input type="number" min="0" inputMode="decimal" value={e.companyPrice ?? String(l.askingPrice)} onChange={(ev) => setEdit(l.id, "companyPrice", ev.target.value)} />
                   </label>
-                  <label className="space-y-1">
-                    <span className="text-xs text-gray-500">Markup</span>
-                    <Input type="number" min="0" inputMode="decimal" value={e.markup ?? String(l.markupAmount ?? 0)} onChange={(ev) => setEdit(l.id, "markup", ev.target.value)} />
-                  </label>
+                  <div className="space-y-1">
+                    <span className="text-xs text-gray-500">Markup ({MARKUP_RATE * 100}%)</span>
+                    <p className="pt-2">{formatRand(priceWithMarkup(Number(e.companyPrice ?? l.askingPrice) || 0).markupAmount)}</p>
+                  </div>
                   <label className="space-y-1">
                     <span className="text-xs text-gray-500">Stock</span>
                     {l.stock === null ? (

@@ -28,6 +28,7 @@ import {
   getStatusLabel,
 } from "@/lib/tripStatus";
 import { RatingPrompt } from "@/components/RatingPrompt";
+import { saDay } from "@/lib/saDate";
 
 // Updated interfaces
 interface DriverInfo {
@@ -76,8 +77,10 @@ const paymentStatusColors: Record<string, string> = {
 // Mirrors the cancellable-status rule on the trips list page: only before a
 // driver has accepted, and only for a pickup that hasn't happened yet.
 const isCancellable = (trip: Trip): boolean => {
+  // A courier order (MarketPortal) stays cancellable until an admin dispatches it.
+  if (trip.status === "courier") return true;
   const cancellableStatuses = ["pending", "waiting for driver", "awaiting-payment"];
-  const today = new Date().toISOString().split("T")[0];
+  const today = saDay();
   return cancellableStatuses.includes(trip.status) && trip.pickupDate >= today;
 };
 

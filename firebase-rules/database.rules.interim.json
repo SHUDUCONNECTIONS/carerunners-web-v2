@@ -1,0 +1,20 @@
+{
+  "rules": {
+    "requests": {
+      ".read": false,
+      ".write": false
+    },
+    "drivers": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "trips": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "driverLocations": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    }
+  }
+}

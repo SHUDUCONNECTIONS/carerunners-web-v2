@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Building2, User, Calendar, CheckCircle } from "lucide-react";
 import { RandIcon } from "@/components/RandIcon";
 import LoadingComponent from '@/components/loader';
+import { findPlan } from "@/lib/plans";
 import { authedFetch } from '@/utils/authedFetch';
 
 function formatCurrency(value: number, locale = 'en-ZA', currency = 'ZAR') {
@@ -38,11 +39,12 @@ export default function PlanPaymentSummary() {
   const searchParams = useSearchParams();
   const firmId = searchParams.get('firmId');
   const planName = searchParams.get('plan');
-  const planPrice = searchParams.get('price');
+  // The price shown (and charged, see /api/prepare-checkout) comes from the plan table, never the URL.
+  const planPrice = findPlan(planName)?.price;
 
   useEffect(() => {
     const fetchFirmData = async () => {
-      if (!firmId || !planName || !planPrice) {
+      if (!firmId || !planName || planPrice === undefined) {
         setError('Missing required parameters');
         setLoading(false);
         return;
@@ -73,7 +75,7 @@ export default function PlanPaymentSummary() {
             companyName,
             adminName,
             planName: planName,
-            planPrice: parseFloat(planPrice),
+            planPrice,
             planFeatures: getPlanFeatures(planName),
             billingCycle: 'Monthly', // Assuming monthly by default
           });

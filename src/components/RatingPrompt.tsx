@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { Star, Loader2 } from "lucide-react";
 import { db } from "@/utils/firebase";
-import { doc, updateDoc, increment } from "firebase/firestore";
+import { doc, writeBatch, increment } from "firebase/firestore";
 
 interface RatingPromptProps {
   tripId: string;
@@ -29,16 +29,21 @@ export function RatingPrompt({ tripId, driverId, onRated }: RatingPromptProps) {
     setSubmitting(true);
     setError("");
     try {
-      await updateDoc(doc(db, "pickupRequests", tripId), {
+      // One batch, so the security rules can check the driver's new rating against this trip
+      // (yours, delivered by this driver, not rated before): a rating can't be added any other way.
+      const batch = writeBatch(db);
+      batch.update(doc(db, "pickupRequests", tripId), {
         status: "completed",
         rating,
         ratingComment: comment.trim(),
         ratedAt: new Date(),
       });
-      await updateDoc(doc(db, "drivers", driverId), {
+      batch.update(doc(db, "drivers", driverId), {
         ratingSum: increment(rating),
         ratingCount: increment(1),
+        lastRatedTripId: tripId,
       });
+      await batch.commit();
       onRated();
     } catch (err) {
       console.error("Error submitting rating:", err);

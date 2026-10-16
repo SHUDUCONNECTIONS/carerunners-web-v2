@@ -4,10 +4,22 @@
     "drivers": {
       ".read": "auth != null",
       "$driverId": {
-        ".write": "auth != null && (auth.uid === $driverId || auth.token.email_verified === true && (auth.token.email === 'dimakatso@shuduconnections.com' || auth.token.email === 'tetelo@shuduconnections.com' || auth.token.email === 'tshikovhitshedza9@gmail.com' || auth.token.email === 'tshedza@gmail.com' || auth.token.email === 'lucky@shuduconnections.com'))"
+        ".write": "auth != null && (auth.uid === $driverId || auth.token.email_verified === true && (auth.token.email === 'dimakatso@shuduconnections.com' || auth.token.email === 'tetelo@shuduconnections.com' || auth.token.email === 'tshikovhitshedza9@gmail.com' || auth.token.email === 'tshedza@gmail.com' || auth.token.email === 'lucky@shuduconnections.com'))",
+        "isApproved": {
+          ".validate": "(auth.token.email_verified === true && (auth.token.email === 'dimakatso@shuduconnections.com' || auth.token.email === 'tetelo@shuduconnections.com' || auth.token.email === 'tshikovhitshedza9@gmail.com' || auth.token.email === 'tshedza@gmail.com' || auth.token.email === 'lucky@shuduconnections.com')) || newData.val() === data.val() || (!data.exists() && newData.val() === false)"
+        },
+        "applicationStatus": {
+          ".validate": "(auth.token.email_verified === true && (auth.token.email === 'dimakatso@shuduconnections.com' || auth.token.email === 'tetelo@shuduconnections.com' || auth.token.email === 'tshikovhitshedza9@gmail.com' || auth.token.email === 'tshedza@gmail.com' || auth.token.email === 'lucky@shuduconnections.com')) || newData.val() === data.val() || newData.val() !== 'approved'"
+        }
       }
     },
-    "trips": { ".read": "auth != null", ".write": "auth != null" },
+    "trips": {
+      ".read": "auth != null",
+      "$tripId": {
+        ".write": "auth != null && ((!data.exists() && newData.child('userId').val() === auth.uid) || data.child('userId').val() === auth.uid || data.child('driverId').val() === auth.uid || (!data.child('driverId').exists() && newData.child('driverId').val() === auth.uid && root.child('drivers').child(auth.uid).child('isApproved').val() === true) || (auth.token.email_verified === true && (auth.token.email === 'dimakatso@shuduconnections.com' || auth.token.email === 'tetelo@shuduconnections.com' || auth.token.email === 'tshikovhitshedza9@gmail.com' || auth.token.email === 'tshedza@gmail.com' || auth.token.email === 'lucky@shuduconnections.com')))",
+        "userId": { ".validate": "!data.exists() || newData.val() === data.val()" }
+      }
+    },
     "driverLocations": {
       ".read": "auth != null",
       "$driverId": { ".write": "auth != null && auth.uid === $driverId" }

@@ -3,8 +3,9 @@
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore"
+import { collection, getDocs, query, where } from "firebase/firestore"
 import { auth, db } from "@/utils/firebase"
+import { fetchMyOrders, fetchPublicListing } from "@/lib/marketplacePublicClient"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -62,10 +63,8 @@ export default function MyMarketPortalPage() {
         return
       }
       try {
-        const purchaseSnap = await getDocs(query(collection(db, MARKET_ORDERS), where("buyerId", "==", user.uid)))
         setPurchases(
-          purchaseSnap.docs
-            .map((d) => orderFromDoc(d.id, d.data()))
+          (await fetchMyOrders())
             .filter((o) => o.status !== "cancelled")
             .sort((a, b) => b.createdAt - a.createdAt)
         )
@@ -112,8 +111,7 @@ export default function MyMarketPortalPage() {
     const skipped: string[] = []
     for (const line of orderLines(o)) {
       try {
-        const snap = await getDoc(doc(db, MARKET_LISTINGS, line.listingId))
-        const l = snap.exists() ? listingFromDoc(snap.id, snap.data()) : null
+        const l = await fetchPublicListing(line.listingId)
         if (!l || !isListingAvailable(l)) {
           skipped.push(line.title)
           continue
@@ -144,9 +142,11 @@ export default function MyMarketPortalPage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-4">
-      <Link href="/marketplace" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900">
-        <ArrowLeft className="h-4 w-4 mr-1" /> MarketPortal
-      </Link>
+      <Button asChild variant="outline" size="sm">
+        <Link href="/marketplace">
+          <ArrowLeft className="h-4 w-4 mr-1" /> MarketPortal
+        </Link>
+      </Button>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">My MarketPortal</h1>
@@ -204,9 +204,9 @@ export default function MyMarketPortalPage() {
                           <p className="text-sm text-red-600">Reason: {l.rejectionReason}</p>
                         )}
                         {l.status === "active" && (
-                          <Link href={`/marketplace/${l.id}`} className="text-sm text-[var(--brand-700)] underline">
-                            View listing
-                          </Link>
+                          <Button asChild size="sm" variant="outline" className="mt-2">
+                            <Link href={`/marketplace/${l.id}`}>View listing</Link>
+                          </Button>
                         )}
                       </div>
                     </CardContent>
@@ -249,10 +249,10 @@ export default function MyMarketPortalPage() {
           {purchases.length === 0 ? (
             <Card>
               <CardContent className="py-10 text-center text-gray-500">
-                You haven&apos;t bought anything yet.{" "}
-                <Link href="/marketplace" className="underline">
-                  Browse MarketPortal
-                </Link>
+                <p>You haven&apos;t bought anything yet.</p>
+                <Button asChild size="sm" className="mt-3">
+                  <Link href="/marketplace">Browse MarketPortal</Link>
+                </Button>
               </CardContent>
             </Card>
           ) : (
@@ -276,30 +276,34 @@ export default function MyMarketPortalPage() {
                       Total {formatRand(o.totalAmount)} (item {formatRand(o.itemPrice)} + delivery {formatRand(o.deliveryCharged ?? o.deliveryFee)})
                     </p>
                     <p className="text-gray-500 break-words">Delivering to {o.deliveryAddress}</p>
-                    {o.status !== "awaiting-payment" && (
-                      <button type="button" onClick={() => buyAgain(o)} className="mr-3 inline-block text-[var(--brand-700)] underline">
-                        Buy again
-                      </button>
-                    )}
-                    <Link href={`/marketplace/receipt?id=${o.id}`} className="mr-3 inline-block text-[var(--brand-700)] underline">
-                      Receipt
-                    </Link>
-                    {o.status !== "awaiting-payment" &&
-                      orderLines(o).map((line) => (
-                        <Link key={line.listingId} href={`/marketplace/${line.listingId}#reviews`} className="mr-3 inline-block text-[var(--brand-700)] underline">
-                          Rate {orderLines(o).length > 1 ? line.title : "this item"}
-                        </Link>
-                      ))}
-                    {o.status === "paid" && <ReportProblem orderId={o.id} issues={issues} onSent={loadIssues} />}
-                    {o.status === "awaiting-payment" ? (
-                      <Button asChild size="sm" className="mt-1">
-                        <Link href={`/payment?requestId=${o.tripId}`}>Complete payment</Link>
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      {o.status === "awaiting-payment" ? (
+                        <Button asChild size="sm">
+                          <Link href={`/payment?requestId=${o.tripId}`}>Complete payment</Link>
+                        </Button>
+                      ) : (
+                        <Button asChild size="sm">
+                          <Link href={`/trips/tracking?tripId=${o.tripId}`}>Track delivery</Link>
+                        </Button>
+                      )}
+                      {o.status !== "awaiting-payment" && (
+                        <Button type="button" size="sm" variant="outline" onClick={() => buyAgain(o)}>
+                          Buy again
+                        </Button>
+                      )}
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/marketplace/receipt?id=${o.id}`}>Receipt</Link>
                       </Button>
-                    ) : (
-                      <Link href={`/trips/tracking?tripId=${o.tripId}`} className="text-[var(--brand-700)] underline">
-                        Track delivery
-                      </Link>
-                    )}
+                      {o.status !== "awaiting-payment" &&
+                        orderLines(o).map((line) => (
+                          <Button key={line.listingId} asChild size="sm" variant="outline">
+                            <Link href={`/marketplace/${line.listingId}#reviews`}>
+                              Rate {orderLines(o).length > 1 ? line.title : "this item"}
+                            </Link>
+                          </Button>
+                        ))}
+                    </div>
+                    {o.status === "paid" && <ReportProblem orderId={o.id} issues={issues} onSent={loadIssues} />}
                   </div>
                 </CardContent>
               </Card>

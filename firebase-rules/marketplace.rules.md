@@ -55,12 +55,9 @@ match /marketplaceCompanies/{companyId} {
 }
 
 match /marketplaceListings/{listingId} {
-  // Browse: anyone signed in sees live/reserved/sold items. Admins and the
-  // owning company's logins see every status.
-  allow get, list: if signedIn()
-    && (resource.data.status in ["active", "reserved", "sold"]
-        || isAdmin()
-        || isCompanyLogin(resource.data.companyId));
+  // Holds the company's price and the markup: admins and the owning company only.
+  // Buyers read listings through /api/marketplace/listings and /api/marketplace/listings/{id}.
+  allow get, list: if isAdmin() || isCompanyLogin(resource.data.companyId);
 
   // Created by the server only. Admins can take down / put live from the browser.
   allow create, delete: if false;
@@ -75,10 +72,8 @@ match /marketplacePickup/{listingId} {
 }
 
 match /marketplaceOrders/{orderId} {
-  allow get, list: if signedIn()
-    && (resource.data.buyerId == request.auth.uid
-        || isAdmin()
-        || isCompanyLogin(resource.data.sellerId));
+  // Buyers read their own orders through /api/marketplace/orders (no company price or markup).
+  allow get, list: if isAdmin() || isCompanyLogin(resource.data.sellerId);
   // Created and moved to paid/cancelled by the server only.
   // Admin can record that the company was paid out.
   allow update: if isAdmin()

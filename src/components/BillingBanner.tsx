@@ -50,7 +50,10 @@ export default function BillingBanner() {
           You have <strong>R{totalOwed.toFixed(2)}</strong> outstanding this month.
         </span>
       </div>
-      <Link href="/billing" className="text-sm font-semibold text-teal-700 underline hover:text-teal-900">
+      <Link
+        href="/billing"
+        className="shrink-0 rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700"
+      >
         View Statement
       </Link>
     </div>

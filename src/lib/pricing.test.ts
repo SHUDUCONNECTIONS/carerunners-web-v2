@@ -1,3 +1,4 @@
+import { earnsPayout } from "./pricing";
 import { describe, it, expect } from "vitest";
 import { calculatePrice, calculatePayout, PAYOUT_RATE } from "@/lib/pricing";
 
@@ -41,5 +42,18 @@ describe("calculatePayout", () => {
     expect(PAYOUT_RATE).toBe(0.7);
     expect(calculatePayout(100)).toBe(70);
     expect(calculatePayout("42.00")).toBeCloseTo(29.4);
+  });
+});
+
+describe("earnsPayout", () => {
+  it("pays the driver once the item is delivered, rated or not", () => {
+    expect(earnsPayout("delivered")).toBe(true);
+    expect(earnsPayout("completed")).toBe(true);
+  });
+
+  it("pays nothing before delivery or for a cancelled trip", () => {
+    for (const s of ["awaiting-payment", "pending", "assigned", "picked-up", "in-transit", "cancelled", undefined]) {
+      expect(earnsPayout(s)).toBe(false);
+    }
   });
 });

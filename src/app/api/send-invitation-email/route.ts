@@ -7,6 +7,11 @@ import { requireAuth } from "@/utils/requireAuth";
 import { adminDb } from "@/utils/firebaseAdmin";
 import { sendInvitation } from "@/utils/email";
 import { isRateLimited } from "@/utils/rateLimit";
+import { FieldValue } from "firebase-admin/firestore";
+import { checkSeats } from "@/utils/firmSeats";
+
+const MAX_SENDS_PER_INVITATION = 3;
+const MAX_INVITES_PER_FIRM_PER_DAY = 20;
 
 export async function POST(req: NextRequest) {
   const user = await requireAuth(req);
@@ -40,6 +45,22 @@ export async function POST(req: NextRequest) {
     if (inv.status && inv.status !== "pending") {
       return NextResponse.json({ message: "That invitation has already been used." }, { status: 409 });
     }
+    // Stops a sign-up being used to mail strangers in bulk: one address can't be emailed over and
+    // over, and a company can only invite so many people a day.
+    if ((Number(inv.sentCount) || 0) >= MAX_SENDS_PER_INVITATION) {
+      return NextResponse.json({ message: "This invitation has already been emailed several times. Ask them to check their spam folder." }, { status: 429 });
+    }
+    if (await isRateLimited(db, `invite_firm_${inv.firmId}`, MAX_INVITES_PER_FIRM_PER_DAY, 24 * 60 * 60)) {
+      return NextResponse.json({ message: "Your company has sent the most invitations allowed for today. Please try again tomorrow." }, { status: 429 });
+    }
+
+    // The plan's user limit, checked here because the invitation itself is saved from the browser.
+    const noRoom = await checkSeats(db, inv.firmId, { countPendingInvites: true });
+    if (noRoom) {
+      // An invitation that was never emailed is removed, so it doesn't keep using up a seat.
+      if (!inv.sentCount) await invitation.ref.delete().catch(() => {});
+      return NextResponse.json({ message: noRoom }, { status: 409 });
+    }
 
     const firm = await db.collection("firms").doc(inv.firmId).get();
     const base = process.env.NEXT_PUBLIC_SITE_URL || req.nextUrl.origin;
@@ -49,6 +70,7 @@ export async function POST(req: NextRequest) {
       link: `${base}/auth/accept-invitation?id=${encodeURIComponent(invitationId)}`,
     });
     if (!sent) return NextResponse.json({ message: "Failed to send invitation email" }, { status: 500 });
+    await invitation.ref.update({ sentCount: FieldValue.increment(1), lastSentAt: FieldValue.serverTimestamp() });
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("Error sending invitation email:", err);

@@ -93,6 +93,8 @@ export default function TripSummary() {
   // and a second checkout would swap the id under an already-initialised
   // widget, leaving a blank form until a manual refresh.
   const prepareStarted = useRef(false);
+  // What the server is charging. It re-prices the trip, so this wins over the saved trip price.
+  const [chargedAmount, setChargedAmount] = useState<number | null>(null);
 
   const prepareCheckout = useCallback(async () => {
     if (!requestId) return;
@@ -119,6 +121,7 @@ export default function TripSummary() {
       }
 
       setShopperResultUrl(`/payment/status?requestId=${requestId}`);
+      if (Number.isFinite(data.amount)) setChargedAmount(data.amount);
       setCheckoutId(data.id);
     } catch (err: any) {
       console.error("Error calling API:", err);
@@ -209,7 +212,7 @@ export default function TripSummary() {
   const deliveryPrice = parseFloat(tripData.price);
   const itemAmount = Number(tripData.marketItemAmount || 0);
   const deliveryDiscount = Number(tripData.marketDeliveryDiscount || 0);
-  const formattedPrice = formatCurrency(deliveryPrice + itemAmount - deliveryDiscount);
+  const formattedPrice = formatCurrency(chargedAmount ?? deliveryPrice + itemAmount - deliveryDiscount);
 
 
   return (

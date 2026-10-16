@@ -4,10 +4,10 @@
 import React, { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { onAuthStateChanged } from "firebase/auth"
-import { collection, doc, getDocs, updateDoc } from "firebase/firestore"
+import { collection, doc, getDoc, getDocs, updateDoc } from "firebase/firestore"
 import { ref as dbRef, update as dbUpdate } from "firebase/database"
 import { auth, db, rtdb } from "@/utils/firebase"
-import { ADMIN_EMAILS } from "@/utils/adminEmails"
+import { isAdminAccount } from "@/utils/isAdminAccount"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -29,7 +29,7 @@ import {
   XCircle,
 } from "lucide-react"
 import LoadingComponent from "@/components/loader"
-import { calculatePayout } from "@/lib/pricing"
+import { calculatePayout, earnsPayout } from "@/lib/pricing"
 import { getStatusBadgeClass, getStatusLabel } from "@/lib/tripStatus"
 
 type DriverApplication = {
@@ -165,7 +165,7 @@ export default function AdminDriversPage() {
         return
       }
 
-      if (!ADMIN_EMAILS.includes(user.email ?? "")) {
+      if (!(await isAdminAccount(user))) {
         setAccessDenied(true)
         setLoading(false)
         return
@@ -177,7 +177,14 @@ export default function AdminDriversPage() {
           getDocs(collection(db, "pickupRequests")),
         ])
 
-        setDrivers(driversSnap.docs.map((d) => ({ id: d.id, ...d.data() } as DriverApplication)))
+        // ID documents, licence and insurance numbers are kept in a private sub-document only the
+        // driver and admins can read (older drivers may still have them on the main record).
+        const privateSnaps = await Promise.all(
+          driversSnap.docs.map((d) => getDoc(doc(db, "drivers", d.id, "private", "details")).catch(() => null))
+        )
+        setDrivers(
+          driversSnap.docs.map((d, i) => ({ id: d.id, ...d.data(), ...(privateSnaps[i]?.data() ?? {}) } as DriverApplication))
+        )
 
         const byDriver: Record<string, DriverTrip[]> = {}
         tripsSnap.docs.forEach((d) => {
@@ -224,7 +231,7 @@ export default function AdminDriversPage() {
 
   const payoutFor = (trips: DriverTrip[]) =>
     trips
-      .filter((t) => t.status === "completed")
+      .filter((t) => earnsPayout(t.status))
       .reduce((sum, t) => sum + calculatePayout(t.price || 0), 0)
 
   const handleDownloadTrips = (driver: DriverApplication) => {
@@ -240,7 +247,7 @@ export default function AdminDriversPage() {
         t.distance || "",
         t.status || "",
         t.price ? Number(t.price).toFixed(2) : "",
-        t.status === "completed" && t.price ? calculatePayout(t.price).toFixed(2) : "",
+        earnsPayout(t.status) && t.price ? calculatePayout(t.price).toFixed(2) : "",
       ]),
     ]
     downloadCSV(`${driver.firstName}-${driver.lastName}-trips.csv`, rows)
@@ -250,7 +257,7 @@ export default function AdminDriversPage() {
 
   if (accessDenied) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
+      <div className="flex items-center justify-center py-16">
         <Card className="w-full max-w-sm">
           <CardContent className="pt-8 pb-8 text-center space-y-4">
             <AlertCircle className="h-12 w-12 text-red-500 mx-auto" />
@@ -277,7 +284,7 @@ export default function AdminDriversPage() {
   const rejected = drivers.filter((d) => driverStatus(d) === "rejected" && matches(d))
 
   return (
-    <div className="min-h-screen bg-gray-100 py-8 px-4 sm:px-6 lg:px-8">
+    <div>
       <div className="max-w-5xl mx-auto space-y-6">
         <Card>
           <CardHeader className="bg-teal-600 text-white">
@@ -341,13 +348,13 @@ export default function AdminDriversPage() {
                         </p>
                         <div className="flex flex-wrap gap-3 mt-1">
                           {driver.email && (
-                            <a href={`mailto:${driver.email}`} className="flex items-center gap-1 text-xs text-teal-600 hover:underline">
+                            <a href={`mailto:${driver.email}`} className="flex items-center gap-1 rounded-lg border border-teal-200 bg-white px-2.5 py-1 text-xs font-medium text-teal-700 hover:bg-teal-50">
                               <Mail className="h-3 w-3" />
                               {driver.email}
                             </a>
                           )}
                           {driver.phone && (
-                            <a href={`tel:${driver.phone}`} className="flex items-center gap-1 text-xs text-teal-600 hover:underline">
+                            <a href={`tel:${driver.phone}`} className="flex items-center gap-1 rounded-lg border border-teal-200 bg-white px-2.5 py-1 text-xs font-medium text-teal-700 hover:bg-teal-50">
                               <Phone className="h-3 w-3" />
                               {driver.phone}
                             </a>
@@ -495,7 +502,7 @@ export default function AdminDriversPage() {
                                         {isNaN(Number(trip.price)) ? "N/A" : `R${Number(trip.price).toFixed(2)}`}
                                       </td>
                                       <td className="py-3 text-right font-medium whitespace-nowrap">
-                                        {trip.status === "completed" && !isNaN(Number(trip.price))
+                                        {earnsPayout(trip.status) && !isNaN(Number(trip.price))
                                           ? `R${calculatePayout(trip.price).toFixed(2)}`
                                           : "N/A"}
                                       </td>

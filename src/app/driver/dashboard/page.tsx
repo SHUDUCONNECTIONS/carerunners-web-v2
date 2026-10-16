@@ -33,16 +33,21 @@ import {
   where,
   doc,
   getDoc,
-  updateDoc,
+  runTransaction,
 } from "firebase/firestore"
 import { ref, set, remove } from "firebase/database"
 import { onAuthStateChanged, signOut } from "firebase/auth"
 import { useRouter } from "next/navigation"
 import LoadingComponent from "@/components/loader"
 import { GoogleMapsLoaderProvider } from "@/components/GoogleMapsLoaderProvider"
-import DriverRouteMap from "@/components/DriverRouteMap"
+import dynamic from "next/dynamic"
+
+// The map library is large and only needed once a driver starts navigating to a stop.
+const DriverRouteMap = dynamic(() => import("@/components/DriverRouteMap"), { ssr: false })
 import { PhotoProofCapture } from "@/components/PhotoProofCapture"
 import { notifyOrderStatus } from "@/utils/notifyOrderStatus"
+import { playAlert } from "@/utils/alertSound"
+import PushOptIn from "@/components/PushOptIn"
 import {
   TripStatus,
   normalizeStatus,
@@ -51,6 +56,9 @@ import {
   getStatusLabel,
 } from "@/lib/tripStatus"
 import { calculatePayout } from "@/lib/pricing"
+import { saDay } from "@/lib/saDate"
+import { needsPhotoProof } from "@/lib/tripProof"
+import { ThemeToggle } from "@/components/ThemeToggle"
 
 interface Driver {
   firstName: string
@@ -96,6 +104,9 @@ interface Trip {
 // straight to "in-transit"), but legacy trips written before this status
 // map existed can still be sitting in it — treat it the same as
 // "in-transit" so those trips aren't stuck with no available action.
+// Trip steps during which the driver's live location is shared with the customer.
+const ON_THE_ROAD: TripStatus[] = ["assigned", "picked-up", "in-transit"]
+
 const photoGatedTransition: Partial<Record<TripStatus, { label: string; nextStatus: TripStatus; proofKind: "pickup" | "delivery" }>> = {
   assigned: { label: "Mark as Collected", nextStatus: "in-transit", proofKind: "pickup" },
   "in-transit": { label: "Mark as Delivered", nextStatus: "delivered", proofKind: "delivery" },
@@ -117,9 +128,9 @@ function getNavStop(trip: Trip): { label: string; address: string } | null {
 }
 
 // Renders the action area of a trip card: the photo-gated status button
-// while a transition is available, a waiting notice once delivered (the
-// customer still needs to rate the trip before it's "completed"), or the
-// payout summary once completed. Shared by the "My Trips" and "Past" tabs.
+// while a transition is available, or the payout once delivered (earned on
+// delivery; the customer's rating, which makes it "completed", is optional).
+// Shared by the "My Trips" and "Past" tabs.
 function renderTripAction(trip: Trip, updatingId: string | null) {
   const status = normalizeStatus(trip.status)
   const transition = photoGatedTransition[status]
@@ -132,6 +143,7 @@ function renderTripAction(trip: Trip, updatingId: string | null) {
         nextStatus={transition.nextStatus}
         label={transition.label}
         disabled={updatingId === trip.id}
+        photoRequired={needsPhotoProof(trip)}
       />
     )
   }
@@ -140,7 +152,7 @@ function renderTripAction(trip: Trip, updatingId: string | null) {
     return (
       <div className="w-full mt-4 flex items-center justify-center gap-2 bg-indigo-50 border border-indigo-200 text-indigo-700 font-semibold text-sm rounded-xl py-3">
         <CheckCircle className="h-4 w-4" />
-        Delivered · Awaiting customer rating
+        Delivered · Payout: {isNaN(Number(trip.price)) ? "N/A" : `R${calculatePayout(trip.price).toFixed(2)}`}
       </div>
     )
   }
@@ -193,16 +205,19 @@ function DriverDashboardContent() {
   const [myTrips, setMyTrips] = useState<Trip[]>([])
   const [pastTrips, setPastTrips] = useState<Trip[]>([])
   const [loading, setLoading] = useState(true)
+  const [cancelledAlert, setCancelledAlert] = useState<Trip | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [takenNotice, setTakenNotice] = useState("")
   const [driverPosition, setDriverPosition] = useState<{ lat: number; lng: number } | null>(null)
   const router = useRouter()
 
-  // Broadcast live location to RTDB while driver has an active trip
+  // Broadcast live location to RTDB only while on the road with a trip, not for a delivered trip that is
+  // still waiting for the customer's rating.
+  const onTheRoad = myTrips.some((t) => ON_THE_ROAD.includes(normalizeStatus(t.status)))
   useEffect(() => {
     const user = auth.currentUser
     if (!user) return
-    const hasActiveTrip = myTrips.length > 0
-    if (!hasActiveTrip) {
+    if (!onTheRoad) {
       setDriverPosition(null)
       remove(ref(rtdb, `driverLocations/${user.uid}`))
       return
@@ -227,7 +242,7 @@ function DriverDashboardContent() {
       navigator.geolocation.clearWatch(watchId)
       remove(ref(rtdb, `driverLocations/${user.uid}`))
     }
-  }, [myTrips])
+  }, [onTheRoad])
 
   useEffect(() => {
     let unsubscribeAvailable: (() => void) | null = null
@@ -249,7 +264,7 @@ function DriverDashboardContent() {
         setDriver(driverData)
 
         if (driverData.isApproved) {
-          const today = new Date().toISOString().split("T")[0]
+          const today = saDay()
 
           // Available: pending trips with today or future pickup date
           unsubscribeAvailable = onSnapshot(
@@ -267,6 +282,14 @@ function DriverDashboardContent() {
           unsubscribeMyTrips = onSnapshot(
             query(collection(db, "pickupRequests"), where("driverId", "==", user.uid)),
             (snap) => {
+              // A trip that turns "cancelled" while the driver is looking: sound the alarm and show a banner.
+              // (The first snapshot reports everything as "added", so only later changes count.)
+              snap.docChanges().forEach((change) => {
+                if (change.type === "modified" && change.doc.data().status === "cancelled") {
+                  setCancelledAlert({ id: change.doc.id, ...change.doc.data() } as Trip)
+                  playAlert()
+                }
+              })
               const trips = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Trip))
               trips.sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt))
               const active = trips.filter(
@@ -299,8 +322,21 @@ function DriverDashboardContent() {
     const user = auth.currentUser
     if (!user) return
     setUpdatingId(tripId)
+    setTakenNotice("")
     try {
-      await updateDoc(doc(db, "pickupRequests", tripId), { status: "assigned" satisfies TripStatus, driverId: user.uid })
+      // In a transaction, so when two drivers tap Accept at once only the first gets the trip.
+      const taken = await runTransaction(db, async (tx) => {
+        const ref = doc(db, "pickupRequests", tripId)
+        const snap = await tx.get(ref)
+        const t = snap.data()
+        if (!t || t.status !== "pending" || t.driverId) return true
+        tx.update(ref, { status: "assigned" satisfies TripStatus, driverId: user.uid })
+        return false
+      })
+      if (taken) {
+        setTakenNotice("Another driver accepted that trip first.")
+        return
+      }
       notifyOrderStatus(tripId)
       // onSnapshot listeners update the UI automatically
     } catch (error) {
@@ -336,6 +372,8 @@ function DriverDashboardContent() {
             <span className="text-xl font-bold tracking-tight">Carerunners</span>
           </div>
 
+          <div className="flex items-center gap-2">
+          <ThemeToggle inline className="bg-teal-700 text-white shadow-none ring-0 hover:bg-teal-800 dark:bg-teal-700 dark:hover:bg-teal-800" />
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-3">
             <span className="text-teal-100 text-sm font-medium">
@@ -370,10 +408,30 @@ function DriverDashboardContent() {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
+          </div>
         </div>
       </header>
 
       <main className="flex-grow container mx-auto px-4 py-6 max-w-3xl space-y-5">
+        {cancelledAlert && (
+          <div role="alert" className="flex items-start justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 p-4">
+            <div>
+              <p className="text-sm font-semibold text-red-800">A trip was cancelled</p>
+              <p className="text-sm text-red-700">
+                {cancelledAlert.pickupLocation} → {cancelledAlert.dropoffLocation}
+                {cancelledAlert.pickupDate ? ` (${cancelledAlert.pickupDate})` : ""}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCancelledAlert(null)}
+              className="shrink-0 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-sm font-semibold text-red-800 hover:bg-red-100"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+        <PushOptIn audience="driver" className="" />
         {/* ── Driver Profile Card ── */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 relative overflow-hidden">
           {/* subtle top-right decorative gradient blob */}
@@ -500,6 +558,11 @@ function DriverDashboardContent() {
 
                   {/* ── Available Trips ── */}
                   <TabsContent value="available" className="space-y-3 mt-4">
+                    {takenNotice && (
+                      <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                        {takenNotice}
+                      </p>
+                    )}
                     {viewAvailable.length === 0 ? (
                       <EmptyState icon={<ClipboardList className="h-10 w-10 text-gray-300" />} message="No available trips at the moment." />
                     ) : (

@@ -1,4 +1,3 @@
-import { calculatePrice } from "@/lib/pricing"
 import {
   Armchair,
   Baby,
@@ -15,6 +14,7 @@ import {
   WashingMachine,
   Wrench,
 } from "lucide-react"
+import type { DeliveryZone } from "@/lib/marketplaceDeliveryDay"
 
 export type MarketCategoryId =
   | "furniture"
@@ -53,6 +53,30 @@ export const MARKET_CATEGORIES: {
   { id: "other", label: "Other", icon: MoreHorizontal },
 ]
 
+// The order categories are shown in when browsing "All items": tech and the things buyers
+// want most come first, everyday and low-interest items last. Lower number = nearer the top.
+const CATEGORY_ORDER: MarketCategoryId[] = [
+  "computers_phones",
+  "electronics",
+  "appliances",
+  "cars_accessories",
+  "tools",
+  "sports_equipment",
+  "furniture",
+  "home_decor",
+  "baby_items",
+  "clothing",
+  "toys_games",
+  "home_kitchen",
+  "stationery_craft",
+  "other",
+]
+
+export function categoryRank(id: string): number {
+  const i = CATEGORY_ORDER.indexOf(id as MarketCategoryId)
+  return i === -1 ? CATEGORY_ORDER.length : i
+}
+
 export function categoryLabel(id: string): string {
   return MARKET_CATEGORIES.find((c) => c.id === id)?.label ?? "Other"
 }
@@ -61,7 +85,7 @@ export type ListingStatus = "pending" | "active" | "reserved" | "sold" | "reject
 export type ItemCondition = "new" | "used_excellent" | "used_good" | "used_fair" | "for_parts"
 
 export const CONDITIONS: { id: ItemCondition; label: string }[] = [
-  { id: "new", label: "New" },
+  { id: "new", label: "Brand new" },
   { id: "used_excellent", label: "Used (Excellent)" },
   { id: "used_good", label: "Used (Good)" },
   { id: "used_fair", label: "Used (Fair)" },
@@ -71,6 +95,22 @@ export const CONDITIONS: { id: ItemCondition; label: string }[] = [
 export function conditionLabel(id: string): string {
   // Listings created before the grades existed stored plain "used".
   return CONDITIONS.find((c) => c.id === id)?.label ?? (id === "used" ? "Used" : id)
+}
+
+// MarketPortal keeps brand-new and pre-owned items apart: every condition except "new" counts as used
+// (including "for parts" and older listings that stored plain "used").
+export type ItemKind = "new" | "used"
+export const itemKind = (condition: string): ItemKind => (condition === "new" ? "new" : "used")
+
+// A brand-new item whose seller disclosed no defects ("None" or blank) and no known issues: the product
+// page shows a calm "Brand new" note instead of the defects warning.
+export function brandNewNothingToDisclose(l: Pick<MarketListing, "condition" | "defects" | "knownIssues">): boolean {
+  return itemKind(l.condition) === "new" && /^\s*(none\.?)?\s*$/i.test(l.defects ?? "") && (l.knownIssues ?? []).length === 0
+}
+
+// The coloured condition pill on cards and the product page: green for brand new, amber for used.
+export function conditionBadgeClass(condition: string): string {
+  return itemKind(condition) === "new" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-900"
 }
 
 // Issues a seller must disclose if known (listing terms: "Item Condition").
@@ -139,6 +179,9 @@ export interface MarketOrder {
   buyerPhone: string
   sellerId: string
   deliveryOption: "delivery"
+  /** Missing on orders placed before courier delivery existed (= "driver"). */
+  deliveryMethod?: "driver" | "courier"
+  deliveryZone?: DeliveryZone
   deliveryAddress: string
   /** Units bought in total. Missing on orders placed before stock existed (= 1). */
   quantity?: number
@@ -245,10 +288,6 @@ export function estimateDeliveryKm(a: LatLng, b: LatLng): number {
   return Math.round(km * 10) / 10
 }
 
-export function deliveryFeeForKm(km: number): number {
-  return calculatePrice("parcel_delivery", km)
-}
-
 export const MIN_PHOTOS = 1
 export const MAX_PHOTOS = 5
 
@@ -271,9 +310,11 @@ export function isListingAvailable(
   return l.status === "active" || (l.status === "reserved" && !reservationActive(l, now))
 }
 
+// Whole amounts show no cents ("R24"); anything else always shows two decimals ("R62,40", not "R62,4").
 export function formatRand(amount: number | null | undefined): string {
-  const value = Number(amount) || 0
-  return `R${value.toLocaleString("en-ZA", { maximumFractionDigits: 2 })}`
+  const value = Math.round((Number(amount) || 0) * 100) / 100
+  const digits = Number.isInteger(value) ? 0 : 2
+  return `R${value.toLocaleString("en-ZA", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`
 }
 
 export function toMillis(value: any): number {

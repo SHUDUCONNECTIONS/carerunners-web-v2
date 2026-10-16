@@ -19,10 +19,13 @@ service cloud.firestore {
     function uid() { return request.auth.uid; }
     function email() { return request.auth.token.email.lower(); }
 
-    // Same list as src/utils/adminEmails.ts. Keep the two in step.
+    // An admin has the "admin" flag on their login (scripts/set-admin.mjs). The email list is the old
+    // way, the same as src/utils/adminEmails.ts: remove it from both once the script has been run.
     function isAdmin() {
-      return signedIn()
-        && request.auth.token.email_verified == true
+      return signedIn() && (request.auth.token.get("admin", false) == true || isLegacyAdmin());
+    }
+    function isLegacyAdmin() {
+      return request.auth.token.email_verified == true
         && request.auth.token.email in [
           "dimakatso@shuduconnections.com",
           "tetelo@shuduconnections.com",
@@ -34,7 +37,14 @@ service cloud.firestore {
 
     function userDoc() { return get(/databases/$(database)/documents/users/$(uid())).data; }
     function myFirmId() { return userDoc().firmId; }
-    function isDriver() { return signedIn() && exists(/databases/$(database)/documents/drivers/$(uid())); }
+    function isApprovedDriver() {
+      return signedIn() && get(/databases/$(database)/documents/drivers/$(uid())).data.get("isApproved", false) == true;
+    }
+
+    // A trip's proof photo: a link to a file in that trip's own tripProofs folder.
+    function proofFor(data, field, tripId) {
+      return data.get(field, "") is string && data.get(field, "").matches(".*tripProofs%2F" + tripId + "%2F.*");
+    }
 
     // Keys a request changes on an existing document.
     function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
@@ -56,21 +66,23 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Anyone signed in can open a listing by its id (product page, cart). Browsing the catalogue goes
-    // through /api/marketplace/listings, so listing queries are only for admins and the owning company.
-    // Created by the server; admins can change status, prices and similar fields.
+    // Listings hold the company's price and the markup, so only admins and the owning company read
+    // them here. Buyers go through /api/marketplace/listings (browse) and /api/marketplace/listings/{id}
+    // (product page, cart), which only return the selling price.
+    // Created by the server; admins can change status and similar fields. Prices are always the company
+    // price plus the standard 30% markup, set by the server (bulk price changes, approving an item).
     match /marketplaceListings/{listingId} {
-      allow get: if signedIn();
+      allow get: if isAdmin() || isCompanyLogin(resource.data.companyId);
       allow list: if isAdmin()
         || (signedIn() && request.auth.token.email_verified == true && isCompanyLogin(resource.data.companyId));
       allow create, delete: if false;
-      allow update: if isAdmin() && !changed().hasAny(["ratingSum", "ratingCount", "stock", "companyId", "sellerId"]);
+      allow update: if isAdmin() && !changed().hasAny(["ratingSum", "ratingCount", "stock", "companyId", "sellerId", "askingPrice", "markupAmount", "sellingPrice"]);
     }
 
-    // Orders: the buyer, the selling company's logins and admins can read. Admins record payouts.
+    // Orders: the selling company's logins and admins can read. Buyers read their own orders through
+    // /api/marketplace/orders, which leaves out the company's price and the markup. Admins record payouts.
     match /marketplaceOrders/{orderId} {
-      allow get, list: if signedIn()
-        && (resource.data.buyerId == uid() || isAdmin() || isCompanyLogin(resource.data.sellerId));
+      allow get, list: if isAdmin() || isCompanyLogin(resource.data.sellerId);
       allow create, delete: if false;
       allow update: if isAdmin()
         && changed().hasOnly(["sellerPaidOut", "sellerPaidOutAt", "sellerPayoutRef", "sellerPayoutMethod"]);
@@ -80,15 +92,20 @@ service cloud.firestore {
     match /marketplacePickup/{id} { allow read, write: if false; }
     match /marketplaceReviews/{id} { allow read, write: if false; }
     match /marketplaceIssues/{id} { allow read, write: if false; }
+    match /marketplaceSearches/{id} { allow read, write: if false; }
     match /marketplaceSettings/{id} { allow read, write: if false; }
     match /rateLimits/{id} { allow read, write: if false; }
     match /checkouts/{id} { allow read, write: if false; }
     match /pwaDevices/{id} { allow read, write: if false; }
+    match /adminUsers/{id} { allow read, write: if false; }
+    match /pushTokens/{id} { allow read, write: if false; }
 
     // ── Trips ──────────────────────────────────────────────────────────────────────────────
-    // The money fields (price, payment_status, MarketPortal order links) and the step out of
-    // "awaiting-payment" are written by the server only. Customers create their own unpaid trips,
-    // drivers and customers move a paid trip along, admins can correct anything.
+    // Customers create their own unpaid trips. The server re-prices a trip before charging it
+    // (/api/prepare-checkout), and writes payment fields and the step out of "awaiting-payment".
+    // After that only three people can change a trip: an approved driver taking it, the driver
+    // it's assigned to moving it along, and its customer rating it. Cancelling goes through
+    // /api/cancel-trip. Admins can correct anything.
     match /pickupRequests/{tripId} {
       allow read: if signedIn();   // phase 2: limit to the owner, their firm, drivers and admins
 
@@ -96,40 +113,105 @@ service cloud.firestore {
         && request.resource.data.userId == uid()
         && request.resource.data.status == "awaiting-payment"
         && request.resource.data.payment_status == "unpaid"
-        && !request.resource.data.keys().hasAny(["marketOrderId", "marketListingId", "marketItemAmount", "marketItems"]);
+        && !request.resource.data.keys().hasAny([
+             "marketOrderId", "marketListingId", "marketItemAmount", "marketItems", "marketDeliveryDiscount",
+             "checkoutId", "driverId", "rating", "ratingComment", "ratedAt",
+             "pickupProofUrl", "pickupProofAt", "deliveryProofUrl", "deliveryProofAt",
+             // MarketPortal delivery fields are set by /api/marketplace/checkout only: a "courier" trip
+             // never reaches the drivers.
+             "deliveryMethod", "deliveryZone", "courierRef"]);
 
       allow update: if isAdmin()
+        // An approved driver takes a paid trip nobody has taken yet.
+        || (isApprovedDriver()
+            && resource.data.status == "pending"
+            && resource.data.get("driverId", null) == null
+            && changed().hasOnly(["status", "driverId", "acceptedAt"])   // the mobile app also saves acceptedAt
+            && request.resource.data.status in ["assigned", "accepted"]
+            && request.resource.data.driverId == uid())
+        // The assigned driver moves it along (the driver mobile app also uses an "arrived" step and finishes
+        // trips as "completed"). Parcels, laundry and removals need photos, uploaded to this trip's tripProofs
+        // folder: one at collection before the trip can move past it, and one at delivery before it can be
+        // delivered or completed. Legal runs (and older bookings with no service) need none. The same list is
+        // in src/lib/tripProof.ts.
         || (signedIn()
-            && !changed().hasAny(["userId", "price", "payment_status", "checkoutId", "marketOrderId", "marketListingId", "marketItemAmount", "marketItems"])
-            && resource.data.status != "awaiting-payment"
-            && request.resource.data.status != "awaiting-payment");
+            && resource.data.get("driverId", null) == uid()
+            && resource.data.status in ["assigned", "picked-up", "in-transit", "accepted", "in-progress", "out-for-delivery", "arrived"]
+            && changed().hasOnly(["status", "pickupProofUrl", "pickupProofAt", "deliveryProofUrl", "deliveryProofAt"])
+            && request.resource.data.status in ["assigned", "accepted", "picked-up", "in-transit", "in-progress", "out-for-delivery", "arrived", "delivered", "completed"]
+            && (!(resource.data.get("serviceType", "") in ["parcel_delivery", "laundry", "home_office_removal"])
+                || request.resource.data.status in ["assigned", "accepted"]
+                || (proofFor(request.resource.data, "pickupProofUrl", tripId)
+                    && (!(request.resource.data.status in ["delivered", "completed"])
+                        || proofFor(request.resource.data, "deliveryProofUrl", tripId)))))
+        // The customer rates a delivered trip, which completes it.
+        || (signedIn()
+            && resource.data.userId == uid()
+            && resource.data.status == "delivered"
+            && !("rating" in resource.data)
+            && changed().hasOnly(["status", "rating", "ratingComment", "ratedAt"])
+            && request.resource.data.status == "completed"
+            && request.resource.data.rating is int
+            && request.resource.data.rating >= 1 && request.resource.data.rating <= 5
+            && request.resource.data.ratingComment is string
+            && request.resource.data.ratingComment.size() <= 1000);
 
       allow delete: if isAdmin();
     }
 
     // ── Drivers ────────────────────────────────────────────────────────────────────────────
     // Drivers manage their own profile but cannot approve themselves or change their rating.
-    // Customers can only add one rating at a time when they rate a delivery.
+    // A rating is only accepted in the same batch as the customer rating their own delivered
+    // trip by this driver (see RatingPrompt), and only once per trip.
+    function isRatingFor(driverId) {
+      let tripPath = /databases/$(database)/documents/pickupRequests/$(request.resource.data.lastRatedTripId);
+      let before = get(tripPath).data;
+      let after = getAfter(tripPath).data;
+      return signedIn()
+        && changed().hasOnly(["ratingSum", "ratingCount", "lastRatedTripId"])
+        && before.userId == uid()
+        && before.get("driverId", null) == driverId
+        && before.status == "delivered"
+        && !("rating" in before)
+        && after.rating is int
+        && request.resource.data.ratingCount == resource.data.get("ratingCount", 0) + 1
+        && request.resource.data.ratingSum == resource.data.get("ratingSum", 0) + after.rating;
+    }
+
     match /drivers/{driverId} {
-      allow read: if signedIn();
+      allow read: if signedIn();   // public profile only: ID documents etc. live in /private below
       allow create: if signedIn() && driverId == uid()
         && (!("isApproved" in request.resource.data) || request.resource.data.isApproved == false)
-        && (!("applicationStatus" in request.resource.data) || request.resource.data.applicationStatus != "approved");
+        && (!("applicationStatus" in request.resource.data) || request.resource.data.applicationStatus != "approved")
+        && !request.resource.data.keys().hasAny(["ratingSum", "ratingCount", "lastRatedTripId"]);
       allow update: if isAdmin()
-        || (signedIn() && driverId == uid() && !changed().hasAny(["isApproved", "applicationStatus", "ratingSum", "ratingCount"]))
-        || (signedIn()
-            && changed().hasOnly(["ratingSum", "ratingCount"])
-            && request.resource.data.ratingCount == resource.data.ratingCount + 1
-            && request.resource.data.ratingSum >= resource.data.ratingSum + 1
-            && request.resource.data.ratingSum <= resource.data.ratingSum + 5);
+        || (signedIn() && driverId == uid() && !changed().hasAny(["isApproved", "applicationStatus", "ratingSum", "ratingCount", "lastRatedTripId"]))
+        || isRatingFor(driverId);
       allow delete: if isAdmin();
+
+      // ID document, proof of residence, licence and insurance numbers: the driver and admins only.
+      match /private/{docId} {
+        allow read: if isAdmin() || (signedIn() && driverId == uid());
+        allow create, update: if isAdmin() || (signedIn() && driverId == uid());
+        allow delete: if isAdmin();
+      }
     }
 
     // ── Accounts and firms ─────────────────────────────────────────────────────────────────
+    // A profile can only point at a company the person runs (sign-up creates the firm first).
+    // Joining someone else's company goes through /api/accept-invitation, which checks the
+    // invitation was sent to the person's verified email.
+    function adminsFirm(firmId) {
+      return firmId is string && get(/databases/$(database)/documents/firms/$(firmId)).data.adminId == uid();
+    }
+
     match /users/{userId} {
       allow read: if signedIn();   // phase 2: limit to the person, their firm and admins
-      allow create: if signedIn() && userId == uid();
-      allow update: if signedIn() && (userId == uid() || isAdmin());
+      allow create: if signedIn() && userId == uid()
+        && (!("firmId" in request.resource.data) || request.resource.data.firmId == null || adminsFirm(request.resource.data.firmId));
+      allow update: if isAdmin()
+        || (signedIn() && userId == uid()
+            && (!changed().hasAny(["firmId"]) || request.resource.data.firmId == null || adminsFirm(request.resource.data.firmId)));
       // A firm's admin can remove one of their team members.
       allow delete: if isAdmin()
         || (signedIn() && exists(/databases/$(database)/documents/firms/$(resource.data.firmId))
@@ -138,10 +220,14 @@ service cloud.firestore {
 
     match /firms/{firmId} {
       allow read: if signedIn();
-      allow create: if signedIn() && request.resource.data.adminId == uid();
-      // Payment fields on a firm are written by the server only.
+      // Payment fields on a firm are written by the server only (the plan price charged comes from
+      // src/lib/plans.ts, not from planPrice here). paidPlan/paidUntil are what was actually paid for;
+      // selectedPlan is only the plan picked before paying.
+      allow create: if signedIn() && request.resource.data.adminId == uid()
+        && !request.resource.data.keys().hasAny(["paymentStatus", "lastPaymentDate", "paidPlan", "paidUntil"]);
       allow update: if isAdmin()
-        || (signedIn() && resource.data.adminId == uid() && !changed().hasAny(["adminId", "paymentStatus", "lastPaymentDate"]));
+        || (signedIn() && resource.data.adminId == uid()
+            && !changed().hasAny(["adminId", "paymentStatus", "lastPaymentDate", "paidPlan", "paidUntil"]));
       allow delete: if isAdmin();
 
       // Uploaded records belong to the firm: its admin, its members and Care Runners admins.
@@ -155,13 +241,16 @@ service cloud.firestore {
     match /userInvitations/{inviteId} {
       allow get: if signedIn();   // the invitee opens their own link by its id
       allow list: if signedIn() && exists(/databases/$(database)/documents/users/$(uid())) && resource.data.firmId == myFirmId();
-      allow create: if signedIn() && exists(/databases/$(database)/documents/users/$(uid())) && request.resource.data.firmId == myFirmId();
-      // The invited person marks it accepted.
-      allow update: if signedIn() && resource.data.email.lower() == email();
+      allow create: if signedIn() && exists(/databases/$(database)/documents/users/$(uid())) && request.resource.data.firmId == myFirmId()
+        && !request.resource.data.keys().hasAny(["sentCount", "lastSentAt"]);   // counted by /api/send-invitation-email
+      // Accepting happens on the server (/api/accept-invitation).
+      allow update: if isAdmin();
       allow delete: if signedIn() && exists(/databases/$(database)/documents/users/$(uid())) && resource.data.firmId == myFirmId();
     }
 
     // The old driver-app collection. Empty today; kept open to signed-in users so nothing breaks.
+    // TODO: close it (read: admins, write: nobody) once the driver mobile app (not in this repo) is
+    // confirmed not to read or write it. Until then anyone signed in can store data here.
     match /trips/{tripId} { allow read, write: if signedIn(); }
   }
 }

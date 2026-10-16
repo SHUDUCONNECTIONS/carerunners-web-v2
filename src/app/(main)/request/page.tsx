@@ -47,6 +47,7 @@ import { SERVICE_TYPES, ServiceType, VehicleType } from "@/lib/services";
 import { calculatePrice } from "@/lib/pricing";
 import { fetchOutstandingBalance, OutstandingBalance } from "@/lib/outstandingBalance";
 import { AlertCircle } from "lucide-react";
+import { saDay } from "@/lib/saDate";
 
 // Cache object for storing distance calculations
 const distanceCache = new Map();
@@ -71,7 +72,7 @@ export default function DocumentPickup() {
   const [loading, setLoading] = useState(true);
   const [outstanding, setOutstanding] = useState<OutstandingBalance | null>(null);
   const router = useRouter();
-  const today = new Date().toISOString().split("T")[0];
+  const today = saDay();
   const [pickupAutocomplete, setPickupAutocomplete] = useState(null);
   const [dropoffAutocomplete, setDropoffAutocomplete] = useState(null);
 

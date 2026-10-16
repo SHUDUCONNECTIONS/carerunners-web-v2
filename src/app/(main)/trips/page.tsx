@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import { authedFetch } from '@/utils/authedFetch';
 import { normalizeStatus, getStatusAccentClass, getStatusBadgeClass, getStatusLabel } from '@/lib/tripStatus';
 import { SERVICE_TYPES, ServiceType } from '@/lib/services';
+import { saDay } from "@/lib/saDate";
 
 type Trip = {
   id: string;
@@ -40,8 +41,10 @@ const paymentPillColors: Record<string, string> = {
 };
 
 const isCancellable = (trip: Trip): boolean => {
+  // A courier order (MarketPortal) stays cancellable until an admin dispatches it.
+  if (trip.status === 'courier') return true;
   const cancellableStatuses = ['pending', 'waiting for driver', 'awaiting-payment'];
-  const today = new Date().toISOString().split('T')[0];
+  const today = saDay();
   return cancellableStatuses.includes(trip.status) && trip.pickupDate >= today;
 };
 

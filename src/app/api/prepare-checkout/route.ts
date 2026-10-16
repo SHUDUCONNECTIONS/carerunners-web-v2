@@ -2,9 +2,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/utils/requireAuth";
 import { adminDb } from "@/utils/firebaseAdmin";
+import { isRateLimited } from "@/utils/rateLimit";
 import { createCheckout } from "@/utils/peach";
 import { releaseMarketplaceOrder } from "@/utils/marketplaceStock";
 import { orderLines } from "@/lib/marketplace";
+import { findPlan } from "@/lib/plans";
+import { priceTrip } from "@/utils/tripPricing";
 
 type TripPayload = { type: "trip"; requestId: string };
 type PlanPayload = { type: "plan"; firmId: string };
@@ -19,6 +22,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
   const { uid } = user;
+  if (await isRateLimited(adminDb(), `prepare_${user.uid}`, 10, 60)) {
+    return NextResponse.json({ message: "Too many payment attempts. Please wait a minute and try again." }, { status: 429 });
+  }
+
 
   let payload: Payload;
   try {
@@ -47,11 +54,16 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ message: "This trip is not awaiting payment" }, { status: 409 });
       }
 
+      let orderSnap: FirebaseFirestore.DocumentSnapshot | null = null;
       // A MarketPortal order can only be paid while its order is still open and every
       // item on it still exists. Otherwise the order is cancelled instead of charged.
       if (trip.marketOrderId) {
-        const orderSnap = await db.collection("marketplaceOrders").doc(trip.marketOrderId).get();
-        let unavailable = !orderSnap.exists || orderSnap.data()?.status !== "awaiting-payment";
+        orderSnap = await db.collection("marketplaceOrders").doc(trip.marketOrderId).get();
+        const order = orderSnap.data();
+        if (order && (order.buyerId !== uid || order.tripId !== requestId)) {
+          return NextResponse.json({ message: "This order doesn't belong to this trip" }, { status: 403 });
+        }
+        let unavailable = !orderSnap.exists || order?.status !== "awaiting-payment";
         if (!unavailable) {
           const lines = orderLines(orderSnap.data() as any);
           const listings = await Promise.all(lines.map((l) => db.collection("marketplaceListings").doc(l.listingId).get()));
@@ -67,8 +79,21 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // MarketPortal trips also carry the item price; the buyer pays both.
-      amount = parseFloat(trip.price) + Number(trip.marketItemAmount || 0) - Number(trip.marketDeliveryDiscount || 0);
+      if (trip.marketOrderId) {
+        // MarketPortal: items + delivery, as worked out by the server when the order was placed.
+        // Read from the order (server-written), never from money fields on the trip.
+        amount = Number(orderSnap?.data()?.totalAmount);
+        // The buyer is about to pay: keep the order's stock held for a full payment window from now,
+        // so the expiry clean-up can't cancel it while they're on the payment page.
+        await orderSnap!.ref.update({ paymentStartedAt: Date.now() });
+      } else {
+        // The trip and its price were written by the browser, so work the price out again from
+        // the addresses before charging, and save it so every screen shows what was charged.
+        const priced = await priceTrip(trip);
+        if ("error" in priced) return NextResponse.json({ message: priced.error }, { status: 422 });
+        amount = priced.price;
+        await snap.ref.update({ price: priced.price, distance: priced.distanceKm.toFixed(2) });
+      }
       checkoutMeta = { type: "trip", requestId };
     } else if (payload.type === "plan") {
       const { firmId } = payload;
@@ -82,11 +107,13 @@ export async function POST(req: NextRequest) {
       const firmSnap = await db.collection("firms").doc(firmId).get();
       if (!firmSnap.exists) return NextResponse.json({ message: "Company account not found" }, { status: 404 });
       const firm = firmSnap.data()!;
-      if (!firm.planPrice || !firm.selectedPlan) {
+      // The firm document is editable by the company's admin, so the price comes from the plan table.
+      const plan = findPlan(firm.selectedPlan);
+      if (!plan) {
         return NextResponse.json({ message: "No plan selected for this company account" }, { status: 409 });
       }
 
-      amount = Number(firm.planPrice);
+      amount = plan.price;
       checkoutMeta = { type: "plan", firmId, plan: firm.selectedPlan };
     } else if (payload.type === "billing") {
       const { requestIds } = payload;
@@ -94,8 +121,12 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ message: "requestIds is required" }, { status: 400 });
       }
 
+      const uniqueIds = Array.from(new Set(requestIds.map(String)));
+      if (uniqueIds.length > 100) {
+        return NextResponse.json({ message: "Too many trips in one payment" }, { status: 400 });
+      }
       const snaps = await Promise.all(
-        requestIds.map((id) => db.collection("pickupRequests").doc(id).get())
+        uniqueIds.map((id) => db.collection("pickupRequests").doc(id).get())
       );
 
       let total = 0;
@@ -108,16 +139,23 @@ export async function POST(req: NextRequest) {
         if (trip.status !== "completed" || !UNPAID_STATUSES.includes(trip.payment_status)) {
           return NextResponse.json({ message: `Trip ${snap.id} is not billable` }, { status: 409 });
         }
-        total += parseFloat(trip.price || "0");
+        if (trip.marketOrderId) {
+          return NextResponse.json({ message: `Trip ${snap.id} is not billable` }, { status: 409 });
+        }
+        // Same as a single trip: never charge the browser-written price.
+        const priced = await priceTrip(trip);
+        if ("error" in priced) return NextResponse.json({ message: `Trip ${snap.id}: ${priced.error}` }, { status: 422 });
+        await snap.ref.update({ price: priced.price, distance: priced.distanceKm.toFixed(2) });
+        total += priced.price;
       }
 
-      amount = total;
-      checkoutMeta = { type: "billing", requestIds };
+      amount = Math.round(total * 100) / 100;
+      checkoutMeta = { type: "billing", requestIds: uniqueIds };
     } else {
       return NextResponse.json({ message: "Invalid payload type" }, { status: 400 });
     }
 
-    if (!amount || amount <= 0) {
+    if (!Number.isFinite(amount) || amount <= 0) {
       return NextResponse.json({ message: "Nothing to charge" }, { status: 409 });
     }
 
@@ -142,7 +180,7 @@ export async function POST(req: NextRequest) {
       ...checkoutMeta,
     });
 
-    return NextResponse.json({ id: result.id }, { status: 200 });
+    return NextResponse.json({ id: result.id, amount }, { status: 200 });
   } catch (error) {
     console.error("Error preparing checkout:", error);
     return NextResponse.json({ message: "Internal Server Error" }, { status: 500 });

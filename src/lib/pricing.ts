@@ -27,6 +27,12 @@ export function calculatePrice(
   return Number(price.toFixed(2));
 }
 
+// A driver has earned their payout once the item is delivered. The customer's rating (which moves the
+// trip on to "completed") is optional, so a payout must never wait for it.
+export function earnsPayout(status: string | null | undefined): boolean {
+  return status === "delivered" || status === "completed";
+}
+
 export function calculatePayout(price: number | string): number {
   const value = typeof price === "string" ? parseFloat(price) : price;
   return Number((value * PAYOUT_RATE).toFixed(2));

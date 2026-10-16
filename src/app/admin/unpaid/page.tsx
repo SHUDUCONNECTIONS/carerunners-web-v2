@@ -23,7 +23,7 @@ import {
   Users,
 } from "lucide-react"
 import LoadingComponent from "@/components/loader"
-import { ADMIN_EMAILS } from "@/utils/adminEmails"
+import { isAdminAccount } from "@/utils/isAdminAccount"
 
 type Trip = {
   id: string
@@ -63,7 +63,7 @@ export default function AdminUnpaidPage() {
         return
       }
 
-      if (!ADMIN_EMAILS.includes(user.email ?? "")) {
+      if (!(await isAdminAccount(user))) {
         setAccessDenied(true)
         setLoading(false)
         return
@@ -162,7 +162,7 @@ export default function AdminUnpaidPage() {
 
   if (accessDenied) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
+      <div className="flex items-center justify-center py-16">
         <Card className="w-full max-w-sm">
           <CardContent className="pt-8 pb-8 text-center space-y-4">
             <AlertCircle className="h-12 w-12 text-red-500 mx-auto" />
@@ -181,7 +181,7 @@ export default function AdminUnpaidPage() {
   const totalTrips = accounts.reduce((n, a) => n + a.trips.length, 0)
 
   return (
-    <div className="min-h-screen bg-gray-100 py-8 px-4 sm:px-6 lg:px-8">
+    <div>
       <div className="max-w-5xl mx-auto space-y-6">
 
         {/* Header */}
@@ -255,7 +255,7 @@ export default function AdminUnpaidPage() {
                         {account.email && (
                           <a
                             href={`mailto:${account.email}`}
-                            className="flex items-center gap-1 text-xs text-teal-600 hover:underline"
+                            className="flex items-center gap-1 rounded-lg border border-teal-200 bg-white px-2.5 py-1 text-xs font-medium text-teal-700 hover:bg-teal-50"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <Mail className="h-3 w-3" />
@@ -265,7 +265,7 @@ export default function AdminUnpaidPage() {
                         {account.phone && (
                           <a
                             href={`tel:${account.phone}`}
-                            className="flex items-center gap-1 text-xs text-teal-600 hover:underline"
+                            className="flex items-center gap-1 rounded-lg border border-teal-200 bg-white px-2.5 py-1 text-xs font-medium text-teal-700 hover:bg-teal-50"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <Phone className="h-3 w-3" />

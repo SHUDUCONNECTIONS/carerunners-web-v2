@@ -23,6 +23,13 @@ export async function createCheckout({
     currency,
     paymentType: "DB",
   });
+  // Tells Peach where to send its server-to-server notification (api/peach-webhook).
+  // Only sent when the site's public URL is known; the Peach dashboard can hold the same URL instead.
+  const site = process.env.NEXT_PUBLIC_SITE_URL;
+  if (site) {
+    const token = process.env.PEACH_WEBHOOK_TOKEN;
+    body.set("notificationUrl", `${site.replace(/\/$/, "")}/api/peach-webhook${token ? `?token=${encodeURIComponent(token)}` : ""}`);
+  }
 
   const res = await fetch(`https://${PEACH_HOST}/v1/checkouts`, {
     method: "POST",

@@ -9,6 +9,7 @@ import { auth, db } from "@/utils/firebase" // Adjust this import path if necess
 import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from "firebase/auth"
 import { doc, setDoc, collection } from "firebase/firestore"
 import { StepIndicator, StepNav } from "@/components/Stepper"
+import InstallButton from "@/components/InstallButton"
 
 type AccountType = "individual" | "firm"
 
@@ -445,15 +446,16 @@ export default function UserRegistrationPage() {
             </form>
 
             {/* Login link */}
-            <p className="mt-6 text-center text-sm text-gray-500">
-              Already have an account?{" "}
+            <div className="mt-6 flex flex-col items-center gap-2 text-sm text-gray-500">
+              <span>Already have an account?</span>
               <a
                 href="/auth/login"
-                className="font-medium text-teal-600 hover:text-teal-500 transition-colors"
+                className="w-full rounded-lg border border-teal-600 bg-white py-3 text-center text-sm font-medium text-teal-700 transition-colors hover:bg-teal-50"
               >
                 Sign in
               </a>
-            </p>
+            </div>
+            <InstallButton className="mx-auto mt-4 flex items-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50" />
           </div>
         </div>
       </div>

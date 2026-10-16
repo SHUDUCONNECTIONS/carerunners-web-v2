@@ -26,6 +26,7 @@ import {
   getDoc,
 } from "firebase/firestore"
 import { fetchOutstandingBalance } from "@/lib/outstandingBalance"
+import PushOptIn from "@/components/PushOptIn"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -161,6 +162,8 @@ export default function Dashboard() {
           </p>
         </div>
 
+        <PushOptIn />
+
         {/* ── Quick stats row ──────────────────────────────────────────── */}
         <div className="mb-8 grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
@@ -264,7 +267,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* CTA */}
-                <span className="text-sm font-semibold text-teal-600 group-hover:underline">
+                <span className="inline-flex w-fit items-center rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition-colors group-hover:bg-teal-700">
                   Open &rarr;
                 </span>
               </div>

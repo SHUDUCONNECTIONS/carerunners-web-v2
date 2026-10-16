@@ -3,9 +3,12 @@ import { Clock, UserCheck, Package, Navigation, CheckCircle, Star } from "lucide
 // Canonical trip lifecycle. "awaiting-payment" precedes step 1 (set by the
 // booking wizard before checkout) and "cancelled" is a terminal state
 // reachable from anywhere — neither appears in the numbered 6-step flow.
+// "courier" is a paid MarketPortal order going by courier: it never goes to
+// drivers, and an admin moves it on to "in-transit" and "delivered".
 export type TripStatus =
   | "awaiting-payment"
   | "pending"
+  | "courier"
   | "assigned"
   | "picked-up"
   | "in-transit"
@@ -49,6 +52,7 @@ export const TRIP_STEPS: StepMeta[] = [
 const STATUS_TO_STEP_INDEX: Record<TripStatus, number> = {
   "awaiting-payment": 0,
   pending: 0,
+  courier: 0,
   assigned: 1,
   "picked-up": 2,
   "in-transit": 3,
@@ -64,6 +68,7 @@ export function getStepIndex(rawStatus: string | null | undefined): number {
 export const STATUS_LABEL: Record<TripStatus, string> = {
   "awaiting-payment": "Awaiting Payment",
   pending: "Pending",
+  courier: "Awaiting Courier",
   assigned: "Assigned",
   "picked-up": "Picked Up",
   "in-transit": "In Transit",
@@ -80,6 +85,7 @@ export function getStatusLabel(rawStatus: string | null | undefined): string {
 export const STATUS_BADGE_CLASS: Record<TripStatus, string> = {
   "awaiting-payment": "bg-gray-100 text-gray-500 border border-gray-200",
   pending: "bg-orange-100 text-orange-700 border border-orange-200",
+  courier: "bg-orange-100 text-orange-700 border border-orange-200",
   assigned: "bg-blue-100 text-blue-700 border border-blue-200",
   "picked-up": "bg-purple-100 text-purple-700 border border-purple-200",
   "in-transit": "bg-yellow-100 text-yellow-700 border border-yellow-200",
@@ -96,6 +102,7 @@ export function getStatusBadgeClass(rawStatus: string | null | undefined): strin
 export const STATUS_ACCENT_CLASS: Record<TripStatus, string> = {
   "awaiting-payment": "border-gray-300",
   pending: "border-orange-400",
+  courier: "border-orange-400",
   assigned: "border-blue-500",
   "picked-up": "border-purple-500",
   "in-transit": "border-yellow-400",

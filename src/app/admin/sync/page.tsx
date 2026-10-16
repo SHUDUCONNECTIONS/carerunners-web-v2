@@ -3,14 +3,14 @@
 import React, { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { CheckCircle, AlertCircle, RefreshCw, Lock } from "lucide-react"
+import { CheckCircle, AlertCircle, RefreshCw } from "lucide-react"
 import { db } from "@/utils/firebase"
 import { collection, getDocs, doc, updateDoc } from "firebase/firestore"
 import { GoogleMapsLoaderProvider, useGoogleMapsLoader } from "@/components/GoogleMapsLoaderProvider"
 import { calculatePrice } from "@/lib/pricing"
+import { useAdminGuard } from "@/utils/useAdminGuard"
+import LoadingComponent from "@/components/loader"
 
-const SYNC_PASSWORD = "shudu-sync-2024"
 
 const getDistanceKm = (origin: string, destination: string): Promise<number | null> => {
   return new Promise((resolve) => {
@@ -46,22 +46,13 @@ export default function SyncPage() {
 }
 
 function SyncPageContent() {
-  const [password, setPassword] = useState("")
-  const [unlocked, setUnlocked] = useState(false)
+  // Admins only (the Firestore rules also only let admins change trip prices).
+  const { loading: authLoading, denied } = useAdminGuard()
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<{ fixed: number; skipped: number; errors: number } | null>(null)
   const [error, setError] = useState("")
 
   const { isLoaded } = useGoogleMapsLoader()
-
-  const handleUnlock = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (password === SYNC_PASSWORD) {
-      setUnlocked(true)
-    } else {
-      setError("Incorrect password.")
-    }
-  }
 
   const handleSync = async () => {
     if (!isLoaded) {
@@ -131,30 +122,16 @@ function SyncPageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
+    <div className="flex items-center justify-center py-16">
       <Card className="w-full max-w-md">
         <CardHeader className="bg-teal-600 text-white">
           <CardTitle className="text-xl font-bold text-center">Fix Trip Prices</CardTitle>
         </CardHeader>
         <CardContent className="mt-6 space-y-4">
-          {!unlocked ? (
-            <form onSubmit={handleUnlock} className="space-y-4">
-              <p className="text-sm text-gray-600 text-center">Enter the sync password to continue.</p>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  type="password"
-                  placeholder="Password"
-                  className="pl-9"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-              {error && <p className="text-red-600 text-sm">{error}</p>}
-              <Button type="submit" className="w-full bg-teal-600 hover:bg-teal-700 text-white">
-                Unlock
-              </Button>
-            </form>
+          {authLoading ? (
+            <LoadingComponent />
+          ) : denied ? (
+            <p className="text-sm text-red-600 text-center">You don&apos;t have access to this page.</p>
           ) : (
             <>
               <p className="text-gray-600 text-sm text-center">

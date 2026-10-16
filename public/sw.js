@@ -83,3 +83,50 @@ async function staleWhileRevalidate(request) {
     .catch(() => hit)
   return hit || refresh
 }
+
+// ── Push alerts (Firebase Cloud Messaging) ────────────────────────────────────
+// The server sends data-only messages ({ title, body, link, tag }), so every browser shows the same notification.
+self.addEventListener("push", (event) => {
+  let data = {}
+  try {
+    // FCM delivers data-only messages as { data: {...} }; accept a flat object too.
+    const payload = event.data ? event.data.json() : {}
+    data = payload.data || payload
+  } catch {
+    return
+  }
+  if (!data.title) return
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body || "",
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      tag: data.tag || undefined,
+      data: { link: data.link || "/" },
+      // Urgent alerts (a cancelled trip) stay on screen until dismissed and buzz hard. The sound is the phone's own
+      // notification sound: web pages can't pick a custom one.
+      ...(data.urgent ? { requireInteraction: true, renotify: !!data.tag, vibrate: [300, 150, 300, 150, 600] } : { vibrate: [200] }),
+    })
+  )
+})
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close()
+  const target = new URL(event.notification.data?.link || "/", self.location.origin)
+  // Only ever open our own pages, whatever the message says.
+  const link = target.origin === self.location.origin ? target.href : self.location.origin
+  event.waitUntil(
+    (async () => {
+      const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true })
+      for (const client of windows) {
+        if (client.url === link && "focus" in client) return client.focus()
+      }
+      const existing = windows[0]
+      if (existing && "navigate" in existing) {
+        await existing.navigate(link)
+        return existing.focus()
+      }
+      return self.clients.openWindow(link)
+    })()
+  )
+})

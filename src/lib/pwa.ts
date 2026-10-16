@@ -3,6 +3,9 @@
 // iPhone launch screens in public/splash, generated for light and dark mode.
 // [pixel width, pixel height, css device-width, css device-height, pixel ratio]
 export const IOS_SPLASH: [number, number, number, number, number][] = [
+  [1320, 2868, 440, 956, 3], // iPhone 16 Pro Max
+  [1206, 2622, 402, 874, 3], // iPhone 16 Pro
+  [1080, 2340, 360, 780, 3], // iPhone 12/13 mini
   [1290, 2796, 430, 932, 3],
   [1179, 2556, 393, 852, 3],
   [1284, 2778, 428, 926, 3],

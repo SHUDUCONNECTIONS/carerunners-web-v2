@@ -13,14 +13,27 @@ import {
   MARKET_ORDERS,
   MARKET_PICKUP,
   RESERVATION_MINUTES,
-  deliveryFeeForKm,
   orderSummaryText,
   type MarketOrderLine,
 } from "@/lib/marketplace";
-import { drivingDistanceKm } from "@/utils/drivingDistance";
+import { googleDrivingRoute } from "@/utils/drivingDistance";
 import { TERMS_VERSION } from "@/lib/marketplaceTerms";
 import { releaseExpiredOrders } from "@/utils/marketplaceStock";
 import { isRateLimited } from "@/utils/rateLimit";
+import {
+  COURIER_ETA,
+  isAllowedDeliveryDate,
+  defaultDeliveryDate,
+  deliveryDayOptions,
+  deliveryFeeFor,
+  deliveryTimeText,
+  deliveryZone,
+  driveMinutes,
+  driveSurcharge,
+  isCourier,
+  needsProvinceCheck,
+} from "@/lib/marketplaceDeliveryDay";
+import { inSameProvince } from "@/utils/province";
 import { getMarketSettings } from "@/utils/marketplaceSettings";
 import { sendLowStockAlert } from "@/utils/email";
 
@@ -38,6 +51,8 @@ type Body = {
   quantity?: number;
   deliveryAddress?: string;
   phone?: string;
+  // YYYY-MM-DD: today (before the cut-off), tomorrow or the day after (see marketplaceDeliveryDay).
+  deliveryDate?: string;
   termsAccepted?: boolean;
   deliveryLat?: number;
   deliveryLng?: number;
@@ -75,12 +90,14 @@ export async function POST(req: NextRequest) {
   const deliveryAddress = body.deliveryAddress?.trim();
   const phone = body.phone?.trim();
   const dropoff = { lat: Number(body.deliveryLat), lng: Number(body.deliveryLng) };
-  if (!deliveryAddress || !phone || !Number.isFinite(dropoff.lat) || !Number.isFinite(dropoff.lng)) {
+  if (!deliveryAddress || !phone || deliveryAddress.length > 300 || phone.length > 30 || !Number.isFinite(dropoff.lat) || !Number.isFinite(dropoff.lng)) {
     return NextResponse.json(
       { message: "Delivery address (chosen from suggestions) and phone are required" },
       { status: 400 }
     );
   }
+  // Checked once the zone is known: courier orders don't pick a day.
+  let deliveryDate = body.deliveryDate === undefined ? defaultDeliveryDate() : body.deliveryDate;
   if (body.termsAccepted !== true) {
     return NextResponse.json({ message: "You must accept the Terms and Conditions to buy" }, { status: 400 });
   }
@@ -105,8 +122,31 @@ export async function POST(req: NextRequest) {
     // the transaction. All products on an order come from one store, so one pickup point.
     const pickupPre = await db.collection(MARKET_PICKUP).doc(ids[0]).get();
     if (!pickupPre.exists) return NextResponse.json({ message: "Item not found" }, { status: 404 });
-    const km = await drivingDistanceKm({ lat: pickupPre.data()!.lat, lng: pickupPre.data()!.lng }, dropoff);
-    const deliveryFee = deliveryFeeForKm(km);
+    // Priced to the delivery address the driver will go to, not the coordinates the browser sent,
+    // so a buyer can't send coordinates next to the store and pay the shortest-distance fee.
+    const from = { lat: pickupPre.data()!.lat, lng: pickupPre.data()!.lng };
+    const route = await googleDrivingRoute(from, deliveryAddress);
+    if (route === null) {
+      return NextResponse.json(
+        { message: "We couldn't find a driving route to that delivery address. Please choose it from the suggestions." },
+        { status: 422 }
+      );
+    }
+    const { km } = route;
+    const drive = driveMinutes(km, route.minutes);
+    // Our drivers within the province and up to a few hours into other provinces; otherwise another
+    // courier, booked by an admin.
+    const sameProvince = needsProvinceCheck(drive) ? await inSameProvince(from, deliveryAddress) : null;
+    const zone = deliveryZone(drive, sameProvince);
+    const courier = isCourier(zone);
+    const surcharge = courier ? 0 : driveSurcharge(drive);
+    if (courier) {
+      deliveryDate = deliveryDayOptions()[0].date; // the order date; the courier sets the delivery day
+    } else if (!isAllowedDeliveryDate(deliveryDate)) {
+      return NextResponse.json({ message: "That delivery day isn't available. Please choose one of the days shown." }, { status: 400 });
+    }
+    // Fixed price for the zone (or the chosen day), whatever the distance; never a price sent by the browser.
+    const deliveryFee = deliveryFeeFor(zone, deliveryDate, surcharge)!;
     const settings = await getMarketSettings(db);
 
     const lowStock: { title: string; left: number }[] = [];
@@ -190,7 +230,6 @@ export async function POST(req: NextRequest) {
       // The driver is paid from the full fee; any discount is paid by Care Runners.
       const delivery = deliveryCharge(settings, itemPrice, deliveryFee);
       const pickup = pickupSnap.data()!;
-      const today = new Date().toISOString().split("T")[0];
       const title = lines.length === 1 ? lines[0].title : `${lines[0].title} + ${lines.length - 1} more`;
       const summary = orderSummaryText(lines);
 
@@ -208,6 +247,10 @@ export async function POST(req: NextRequest) {
         buyerPhone: phone,
         sellerId,
         deliveryOption: "delivery",
+        deliveryMethod: courier ? "courier" : "driver",
+        deliveryZone: zone,
+        deliverySurcharge: surcharge,
+        deliveryDriveMinutes: Math.round(drive),
         deliveryAddress,
         quantity: units,
         itemPrice,
@@ -237,8 +280,11 @@ export async function POST(req: NextRequest) {
         documentDescription: `MarketPortal order: ${summary}`,
         pickupLocation: pickup.address,
         dropoffLocation: deliveryAddress,
-        pickupDate: today,
-        pickupTime: "Any time today",
+        pickupDate: deliveryDate,
+        pickupTime: courier ? `Courier, ${COURIER_ETA}` : deliveryTimeText(deliveryDate),
+        // Courier orders never go to drivers: once paid they wait for an admin to book the courier.
+        deliveryMethod: courier ? "courier" : "driver",
+        deliveryZone: zone,
         senderName: snaps[0].data()!.sellerName ?? "",
         senderNumber: pickup.phone ?? "",
         receiverName: buyerName,

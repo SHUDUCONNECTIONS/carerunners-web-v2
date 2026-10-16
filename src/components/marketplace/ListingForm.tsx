@@ -21,6 +21,7 @@ import {
   MarketCompany,
   formatRand,
 } from "@/lib/marketplace"
+import { MARKUP_RATE, priceWithMarkup } from "@/lib/marketplaceMarkup"
 
 // The item form used by admins (listing for a company, goes live) and by
 // company logins (submitting their own item for review).
@@ -48,7 +49,6 @@ export function ListingForm({
   const [knownIssues, setKnownIssues] = useState<string[]>([])
   const [additionalInfo, setAdditionalInfo] = useState("")
   const [companyPrice, setCompanyPrice] = useState("")
-  const [markup, setMarkup] = useState("")
   const [stock, setStock] = useState("")
   const [photos, setPhotos] = useState<{ file: File; preview: string }[]>([])
   const [submitting, setSubmitting] = useState(false)
@@ -70,8 +70,8 @@ export function ListingForm({
     })
 
   const price = Number(companyPrice)
-  const markupNum = Number(markup)
-  const customerPrice = Number.isFinite(price) && Number.isFinite(markupNum) ? price + markupNum : 0
+  // Customers pay the company price plus the standard markup; the server works it out the same way.
+  const { markupAmount, sellingPrice: customerPrice } = Number.isFinite(price) && price > 0 ? priceWithMarkup(price) : { markupAmount: 0, sellingPrice: 0 }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -80,7 +80,6 @@ export function ListingForm({
     if (!title.trim() || !category || !description.trim()) return setError("Item name, category and description are required.")
     if (!defects.trim()) return setError('Describe any defects or damage. Write "None" if there are none.')
     if (!Number.isFinite(price) || price <= 0) return setError("Enter the price the company wants to receive.")
-    if (isAdmin && (!Number.isFinite(markupNum) || markupNum < 0)) return setError("Enter a valid markup (0 or more).")
     if (isAdmin && stock.trim() && (!Number.isInteger(Number(stock)) || Number(stock) < 1))
       return setError("Quantity in stock must be a whole number (or leave it empty for a one-off item).")
     if (photos.length < MIN_PHOTOS) return setError(`Upload at least ${MIN_PHOTOS} photos (up to ${MAX_PHOTOS}).`)
@@ -110,7 +109,6 @@ export function ListingForm({
           knownIssues,
           additionalInfo,
           companyPrice: price,
-          markup: isAdmin ? markupNum : undefined,
           stock: isAdmin && stock.trim() ? Number(stock) : undefined,
           images,
         }),
@@ -271,13 +269,8 @@ export function ListingForm({
           </div>
           {isAdmin && (
             <div className="space-y-2">
-              <Label htmlFor="markup">Care Runners markup (R)</Label>
-              <Input id="markup" type="number" min="0" inputMode="decimal" value={markup} onChange={(e) => setMarkup(e.target.value)} />
-              {price > 0 && (
-                <button type="button" className="text-xs underline text-gray-600" onClick={() => setMarkup(String(Math.round(price * 0.2)))}>
-                  Suggest 20% ({formatRand(Math.round(price * 0.2))})
-                </button>
-              )}
+              <p className="text-sm font-medium">Care Runners markup ({MARKUP_RATE * 100}%)</p>
+              <p className="pt-2">{formatRand(markupAmount)}</p>
             </div>
           )}
         </div>
