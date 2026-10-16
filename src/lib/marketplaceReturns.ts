@@ -1,6 +1,6 @@
 // The MarketPortal Return, Refund and Exchange Policy, shown at /marketplace/returns. Edit the wording here
 // (and update RETURNS_EFFECTIVE_DATE) when the policy changes.
-import { SUPPORT_PHONE } from "@/lib/contact"
+import { SUPPORT_EMAIL, SUPPORT_PHONE } from "@/lib/contact"
 
 export const RETURNS_EFFECTIVE_DATE = "15 October 2026"
 
@@ -269,7 +269,7 @@ export const RETURNS_SECTIONS: ReturnsSection[] = [
         t: "p",
         text: "For return, refund, or exchange enquiries, customers should contact Care Runners Market Portal through the support contact details published on the platform.",
       },
-      { t: "terms", items: [["Phone", SUPPORT_PHONE]] },
+      { t: "terms", items: [["Phone", SUPPORT_PHONE], ["Email", SUPPORT_EMAIL]] },
       { t: "p", text: "Please include your order number and a brief description of the issue to help us assist you efficiently." },
     ],
   },

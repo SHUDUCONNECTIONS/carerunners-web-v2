@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import InstallButton from "@/components/InstallButton";
-import { SUPPORT_PHONE, SUPPORT_PHONE_LINK } from "@/lib/contact";
+import { SUPPORT_EMAIL, SUPPORT_PHONE, SUPPORT_PHONE_LINK } from "@/lib/contact";
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "@/utils/firebase"; // Adjust this import path if necessary
@@ -110,6 +110,8 @@ export default function ProtectedLayout({
               <p>
                 &copy; {new Date().getFullYear()} Care Runners. All rights reserved. Support:{" "}
                 <a href={SUPPORT_PHONE_LINK} className="font-medium text-white hover:underline">{SUPPORT_PHONE}</a>
+                {" · "}
+                <a href={`mailto:${SUPPORT_EMAIL}`} className="font-medium text-white hover:underline">{SUPPORT_EMAIL}</a>
               </p>
               <div className="flex items-center gap-2 rounded-full bg-white/10 py-1 pl-3 pr-1.5">
                 <span>A</span>
