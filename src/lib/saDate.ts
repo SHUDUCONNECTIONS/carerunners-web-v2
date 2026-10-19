@@ -9,3 +9,8 @@ export function saDay(now: Date = new Date(), offset = 0): string {
   const [y, m, d] = parts.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d + offset)).toISOString().split("T")[0];
 }
+
+// YYYY-MM-01: the first day of the current month in South African time.
+export function saMonthStart(now: Date = new Date()): string {
+  return saDay(now).slice(0, 8) + "01";
+}

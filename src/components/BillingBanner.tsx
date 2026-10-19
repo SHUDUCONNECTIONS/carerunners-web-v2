@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { auth, db } from "@/utils/firebase";
+import { saMonthStart } from "@/lib/saDate";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { AlertCircle } from "lucide-react";
@@ -14,8 +15,7 @@ export default function BillingBanner() {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) return;
       try {
-        const now = new Date();
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
+        const startOfMonth = saMonthStart();
 
         const q = query(
           collection(db, "pickupRequests"),

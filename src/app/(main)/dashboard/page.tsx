@@ -16,6 +16,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { auth, db } from "@/utils/firebase"
+import { saMonthStart } from "@/lib/saDate"
 import { onAuthStateChanged } from "firebase/auth"
 import {
   collection,
@@ -84,21 +85,13 @@ export default function Dashboard() {
 
       // Fetch trip count for the current month
       try {
-        const startOfMonth = new Date(
-          new Date().getFullYear(),
-          new Date().getMonth(),
-          1
+        // Counted here rather than with a pickupDate filter in the query: that combination needs a
+        // composite index, and one customer's trips are few.
+        const startOfMonth = saMonthStart()
+        const monthSnapshot = await getDocs(
+          query(collection(db, "pickupRequests"), where("userId", "==", user.uid))
         )
-          .toISOString()
-          .split("T")[0]
-
-        const monthQ = query(
-          collection(db, "pickupRequests"),
-          where("userId", "==", user.uid),
-          where("pickupDate", ">=", startOfMonth)
-        )
-        const monthSnapshot = await getDocs(monthQ)
-        setTripsThisMonth(monthSnapshot.size)
+        setTripsThisMonth(monthSnapshot.docs.filter((d) => (d.data().pickupDate ?? "") >= startOfMonth).length)
       } catch (err) {
         console.error("Dashboard: failed to fetch monthly trip count", err)
       }
