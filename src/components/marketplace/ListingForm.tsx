@@ -19,6 +19,7 @@ import {
   MAX_PHOTOS,
   MIN_PHOTOS,
   MarketCompany,
+  MarketListing,
   formatRand,
 } from "@/lib/marketplace"
 import { MARKUP_RATE, priceWithMarkup } from "@/lib/marketplaceMarkup"
@@ -31,30 +32,34 @@ export function ListingForm({
   uid,
   endpoint,
   onCreated,
+  initial,
 }: {
   mode: "admin" | "company"
   companies: MarketCompany[]
   uid: string
   endpoint: string
   onCreated: (id: string, customerPrice: number) => void
+  /** An item being corrected: the form starts filled in, and saving sends it back for review (PUT). */
+  initial?: MarketListing
 }) {
   const isAdmin = mode === "admin"
   const [companyId, setCompanyId] = useState(companies.length === 1 ? companies[0].id : "")
-  const [title, setTitle] = useState("")
-  const [category, setCategory] = useState("")
-  const [condition, setCondition] = useState<ItemCondition>("used_good")
-  const [description, setDescription] = useState("")
-  const [specifications, setSpecifications] = useState("")
-  const [defects, setDefects] = useState("")
-  const [knownIssues, setKnownIssues] = useState<string[]>([])
-  const [additionalInfo, setAdditionalInfo] = useState("")
-  const [companyPrice, setCompanyPrice] = useState("")
+  const [title, setTitle] = useState(initial?.title ?? "")
+  const [category, setCategory] = useState<string>(initial?.category ?? "")
+  const [condition, setCondition] = useState<ItemCondition>(initial?.condition ?? "used_good")
+  const [description, setDescription] = useState(initial?.description ?? "")
+  const [specifications, setSpecifications] = useState(initial?.specifications ?? "")
+  const [defects, setDefects] = useState(initial?.defects ?? "")
+  const [knownIssues, setKnownIssues] = useState<string[]>(initial?.knownIssues ?? [])
+  const [additionalInfo, setAdditionalInfo] = useState(initial?.additionalInfo ?? "")
+  const [companyPrice, setCompanyPrice] = useState(initial ? String(initial.askingPrice) : "")
   const [stock, setStock] = useState("")
-  const [photos, setPhotos] = useState<{ file: File; preview: string }[]>([])
+  // A photo already saved on the item has no file: its preview is its link.
+  const [photos, setPhotos] = useState<{ file?: File; preview: string }[]>((initial?.images ?? []).map((url) => ({ preview: url })))
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState("")
 
-  useEffect(() => () => photos.forEach((p) => URL.revokeObjectURL(p.preview)), []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => photos.forEach((p) => p.file && URL.revokeObjectURL(p.preview)), []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const addPhotos = (e: React.ChangeEvent<HTMLInputElement>) => {
     const picked = Array.from(e.target.files ?? [])
@@ -65,7 +70,7 @@ export function ListingForm({
 
   const removePhoto = (i: number) =>
     setPhotos((prev) => {
-      URL.revokeObjectURL(prev[i].preview)
+      if (prev[i].file) URL.revokeObjectURL(prev[i].preview)
       return prev.filter((_, j) => j !== i)
     })
 
@@ -88,7 +93,8 @@ export function ListingForm({
     try {
       const stamp = Date.now()
       const images = await Promise.all(
-        photos.map(async ({ file }, i) => {
+        photos.map(async ({ file, preview }, i) => {
+          if (!file) return preview
           const r = storageRef(storage, `marketplace/${uid}/${stamp}_${i}_${file.name}`)
           await uploadBytes(r, file)
           return getDownloadURL(r)
@@ -96,7 +102,7 @@ export function ListingForm({
       )
 
       const res = await authedFetch(endpoint, {
-        method: "POST",
+        method: initial ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           companyId,
@@ -300,7 +306,7 @@ export function ListingForm({
       )}
 
       <Button type="submit" disabled={submitting} className="w-full">
-        {submitting ? "Saving…" : isAdmin ? "Publish item" : "Submit for review"}
+        {submitting ? "Saving…" : isAdmin ? "Publish item" : initial ? "Resubmit for review" : "Submit for review"}
       </Button>
     </form>
   )

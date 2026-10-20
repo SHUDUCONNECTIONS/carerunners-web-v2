@@ -5,6 +5,7 @@
 import { Resend } from "resend";
 import { LEGACY_ADMIN_EMAILS } from "@/utils/adminEmails";
 import { adminDb } from "@/utils/firebaseAdmin";
+import { SUPPORT_EMAIL } from "@/lib/contact";
 
 // Who gets the admin alerts: everyone made an admin with scripts/set-admin.mjs (the adminUsers
 // collection), or the old list until that script has been run. Re-read at most every 5 minutes.
@@ -41,7 +42,12 @@ export function escapeHtml(value: unknown): string {
 
 async function send(to: string[], subject: string, html: string): Promise<boolean> {
   try {
-    await getResend().emails.send({ from: FROM, to, subject, html });
+    // Resend reports a refused email (bad key, unverified sender) in the result rather than by throwing.
+    const { error } = await getResend().emails.send({ from: FROM, to, subject, html });
+    if (error) {
+      console.error(`Failed to send "${subject}" email:`, error);
+      return false;
+    }
     return true;
   } catch (err) {
     console.error(`Failed to send "${subject}" email:`, err);
@@ -132,6 +138,32 @@ export async function sendAdminTripNotification(trip: {
 }
 
 // ── MarketPortal ─────────────────────────────────────────────────────────────────────────
+// A customer submitted (or corrected and resubmitted) an item: it waits for an admin to approve it.
+// Goes to the admins and the support inbox.
+export async function sendAdminItemSubmitted(p: {
+  title: string;
+  sellerName: string;
+  sellerEmail: string | null;
+  price: number;
+  photos: number;
+  resubmitted: boolean;
+  origin: string;
+}) {
+  const link = escapeHtml(`${p.origin}/admin/marketplace`);
+  const to = Array.from(new Set([...(await adminRecipients()), SUPPORT_EMAIL].map((e) => e.toLowerCase())));
+  return send(
+    to,
+    `${p.resubmitted ? "Item resubmitted" : "New item"} to approve: ${p.title}`.slice(0, 120),
+    `
+      <p>A customer has ${p.resubmitted ? "corrected and resubmitted" : "submitted"} an item for MarketPortal. It is not visible to buyers until an admin approves it.</p>
+      <p><strong>Item:</strong> ${escapeHtml(p.title)}</p>
+      <p><strong>Seller:</strong> ${escapeHtml(p.sellerName)}${p.sellerEmail ? ` (${escapeHtml(p.sellerEmail)})` : ""}</p>
+      <p><strong>Seller's price:</strong> R${escapeHtml(p.price)} &middot; ${escapeHtml(p.photos)} photo${p.photos === 1 ? "" : "s"}</p>
+      <p><a href="${link}">Review it (Admin &gt; MarketPortal &gt; Awaiting review)</a></p>
+    `
+  );
+}
+
 export function sendOrderStatusEmail(p: { email: string; heading: string; lines: string[]; link: string }) {
   const items = p.lines.map((l) => `<li>${escapeHtml(l)}</li>`).join("");
   return send(

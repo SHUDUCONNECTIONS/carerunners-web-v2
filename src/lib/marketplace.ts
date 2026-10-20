@@ -154,6 +154,8 @@ export interface MarketListing {
   reservedAt: number
   status: ListingStatus
   rejectionReason?: string
+  /** The seller withdrew or took down the item themselves (they can put it back up, after review). */
+  sellerRemoved?: boolean
   createdAt: number
 }
 
@@ -348,6 +350,7 @@ export function listingFromDoc(id: string, data: any): MarketListing {
     reservedAt: toMillis(data.reservedAt),
     status: data.status ?? "pending",
     rejectionReason: data.rejectionReason,
+    sellerRemoved: data.sellerRemoved === true,
     createdAt: toMillis(data.createdAt),
   }
 }

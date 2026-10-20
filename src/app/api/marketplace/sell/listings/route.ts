@@ -1,11 +1,13 @@
 // app/api/marketplace/sell/listings/route.ts
 // A customer submits one of their own items. It is saved as "pending" with no customer price, and only goes
 // live when an admin approves it (/api/admin/marketplace/approve adds the standard markup then).
+// Changing an item afterwards (withdraw, take down, fix and resubmit) is in ./[id]/route.ts.
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/utils/requireAuth";
 import { adminDb } from "@/utils/firebaseAdmin";
 import { isRateLimited } from "@/utils/rateLimit";
-import { createListing, parseListingInput } from "@/utils/marketplaceListing";
+import { sendAdminItemSubmitted } from "@/utils/email";
+import { createListing, isOwnPhoto, parseListingInput } from "@/utils/marketplaceListing";
 import { MARKET_COMPANIES, MARKET_LISTINGS } from "@/lib/marketplace";
 import { customerSellerId } from "@/lib/marketplaceSeller";
 
@@ -33,6 +35,9 @@ export async function POST(req: NextRequest) {
   // Customers always sell one-off items from their own seller account, whatever the request says.
   const parsed = parseListingInput({ ...b, stock: undefined }, { admin: false });
   if ("error" in parsed) return NextResponse.json({ message: parsed.error }, { status: 400 });
+  if (!parsed.data.images.every((url) => isOwnPhoto(url, user.uid))) {
+    return NextResponse.json({ message: "Upload the photos from this page." }, { status: 400 });
+  }
   const sellerId = customerSellerId(user.uid);
 
   try {
@@ -53,6 +58,15 @@ export async function POST(req: NextRequest) {
 
     const result = await createListing(db, { ...parsed.data, companyId: sellerId, stock: null }, user.uid, "pending");
     if ("error" in result) return NextResponse.json({ message: result.error }, { status: result.status });
+    await sendAdminItemSubmitted({
+      title: parsed.data.title,
+      sellerName: seller.name,
+      sellerEmail: user.email,
+      price: parsed.data.companyPrice,
+      photos: parsed.data.images.length,
+      resubmitted: false,
+      origin: process.env.NEXT_PUBLIC_SITE_URL || req.nextUrl.origin,
+    });
     return NextResponse.json({ id: result.id });
   } catch (err) {
     console.error("Error submitting a customer item:", err);

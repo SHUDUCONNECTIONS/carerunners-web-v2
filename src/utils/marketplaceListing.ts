@@ -33,6 +33,12 @@ export interface ListingInput {
   images: string[];
 }
 
+// A photo must be one this login uploaded (Storage folder marketplace/<uid>/), so an item can't point at
+// someone else's pictures or another website.
+export function isOwnPhoto(url: string, uid: string): boolean {
+  return /^https?:\/\//.test(url) && url.includes(`/o/marketplace%2F${encodeURIComponent(uid)}%2F`);
+}
+
 export function parseListingInput(b: any, opts: { admin: boolean }): { error: string } | { data: ListingInput } {
   const companyPrice = Number(b?.companyPrice);
   const stockRaw = opts.admin && b?.stock !== undefined && b?.stock !== null && b?.stock !== "" ? Number(b.stock) : null;

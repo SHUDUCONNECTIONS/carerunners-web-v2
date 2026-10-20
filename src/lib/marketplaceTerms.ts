@@ -1,6 +1,7 @@
 // Generated from "SELLER & BUYER TERMS AND CONDITIONS.docx". Edit the wording
 // here (and bump TERMS_VERSION) when the terms change.
-export const TERMS_VERSION = "2026-10-02"
+// 2026-10-20: customers selling their own items (sections 3, 4, 9, 10 and 26).
+export const TERMS_VERSION = "2026-10-20"
 
 export type TermsBlock = { t: "p"; text: string } | { t: "ul"; items: string[] }
 
@@ -106,6 +107,14 @@ export const TERMS_SECTIONS: TermsSection[] = [
       },
       {
         "t": "p",
+        "text": "To sell, the Seller must confirm their email address and provide their seller details: the name shown to buyers, their full name, a phone number, the pickup address and a bank account for payouts."
+      },
+      {
+        "t": "p",
+        "text": "Every item is reviewed by Care Runners and is only shown to buyers once Care Runners has approved it. If an item is not approved, the Seller will see the reason in My MarketPortal and may correct the item and submit it again."
+      },
+      {
+        "t": "p",
         "text": "Care Runners may edit the formatting, wording, photographs or presentation of a listing for marketing purposes, without changing the material facts about the item."
       }
     ]
@@ -130,6 +139,10 @@ export const TERMS_SECTIONS: TermsSection[] = [
       {
         "t": "p",
         "text": "Seller Price + Care Runners Markup/Service Fee = Customer Selling Price"
+      },
+      {
+        "t": "p",
+        "text": "The Care Runners service fee is currently 30% of the Seller's price, paid by the Buyer on top of the Seller's price. It does not reduce the amount the Seller receives. The Seller can see the Customer Selling Price in My MarketPortal once the item is approved."
       },
       {
         "t": "p",
@@ -284,7 +297,11 @@ export const TERMS_SECTIONS: TermsSection[] = [
       },
       {
         "t": "p",
-        "text": "If the item is sold elsewhere, withdrawn or becomes unavailable, the Seller must immediately notify Care Runners."
+        "text": "If the item is sold elsewhere, withdrawn or becomes unavailable, the Seller must immediately take it down using Take down in My MarketPortal, or notify Care Runners."
+      },
+      {
+        "t": "p",
+        "text": "An item cannot be taken down while a buyer is paying for it or after it has been sold. In that case the Seller must contact Care Runners immediately."
       },
       {
         "t": "p",
@@ -300,6 +317,10 @@ export const TERMS_SECTIONS: TermsSection[] = [
       {
         "t": "p",
         "text": "Seller payment will be processed according to the payment arrangement displayed or agreed at the time of the transaction."
+      },
+      {
+        "t": "p",
+        "text": "Unless otherwise agreed, Care Runners pays the Seller's price by EFT into the bank account in the Seller's details after the item has been delivered to the Buyer."
       },
       {
         "t": "p",
@@ -701,9 +722,14 @@ export const TERMS_SECTIONS: TermsSection[] = [
           "email address;",
           "delivery address;",
           "payment-related information;",
+          "a Seller's pickup address and bank account details for payouts;",
           "identification information where verification is required; and",
           "communications relating to a transaction."
         ]
+      },
+      {
+        "t": "p",
+        "text": "Buyers see only the suburb and city of a Seller's pickup address, never the full address. The Seller's phone number and pickup address are shared only with the Care Runners driver who collects the item. Bank details are used only to pay the Seller."
       },
       {
         "t": "p",

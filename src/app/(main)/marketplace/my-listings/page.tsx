@@ -42,6 +42,36 @@ export default function MyMarketPortalPage() {
   const [notice, setNotice] = useState("")
   const [issues, setIssues] = useState<MyIssue[]>([])
 
+  const [busyId, setBusyId] = useState("")
+
+  // A customer's own item (not a company an admin manages): withdraw it, or take it off sale.
+  const takeDown = async (l: MarketListing) => {
+    const live = l.status !== "pending"
+    const ok = window.confirm(
+      live
+        ? `Take "${l.title}" off sale? Buyers won't see it any more. You can edit it and send it back for review later.`
+        : `Withdraw "${l.title}"? It won't be reviewed. You can edit it and send it again later.`
+    )
+    if (!ok) return
+    setBusyId(l.id)
+    setError("")
+    try {
+      const res = await authedFetch(`/api/marketplace/sell/listings/${l.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "takedown" }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(data?.message || "Couldn't take the item down.")
+      setListings((prev) => prev.map((x) => (x.id === l.id ? { ...x, status: "inactive", sellerRemoved: true } : x)))
+      setNotice(live ? `"${l.title}" is no longer on sale.` : `"${l.title}" was withdrawn.`)
+    } catch (err: any) {
+      setError(err?.message || "Couldn't take the item down.")
+    } finally {
+      setBusyId("")
+    }
+  }
+
   const loadIssues = async () => {
     try {
       const res = await authedFetch("/api/marketplace/issues")
@@ -184,7 +214,14 @@ export default function MyMarketPortalPage() {
               </Card>
             ) : (
               listings.map((l) => {
-                const status = LISTING_STATUS_STYLES[l.status] ?? LISTING_STATUS_STYLES.inactive
+                const status =
+                  l.status === "inactive" && l.sellerRemoved
+                    ? { label: "Taken down", className: LISTING_STATUS_STYLES.inactive.className }
+                    : LISTING_STATUS_STYLES[l.status] ?? LISTING_STATUS_STYLES.inactive
+                // Customers manage their own items; logins of companies an admin set up only look.
+                const mine = l.sellerId?.startsWith("seller-")
+                const canTakeDown = mine && (l.status === "pending" || l.status === "active")
+                const canResubmit = mine && (l.status === "rejected" || (l.status === "inactive" && l.sellerRemoved))
                 return (
                   <Card key={l.id}>
                     <CardContent className="p-3 flex gap-3">
@@ -209,11 +246,26 @@ export default function MyMarketPortalPage() {
                         {l.status === "rejected" && l.rejectionReason && (
                           <p className="text-sm text-red-600">Reason: {l.rejectionReason}</p>
                         )}
-                        {l.status === "active" && (
-                          <Button asChild size="sm" variant="outline" className="mt-2">
-                            <Link href={`/marketplace/${l.id}`}>View listing</Link>
-                          </Button>
+                        {l.status === "reserved" && mine && (
+                          <p className="text-sm text-gray-600">A buyer is paying for this item. Contact support if it&apos;s no longer available.</p>
                         )}
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {l.status === "active" && (
+                            <Button asChild size="sm" variant="outline">
+                              <Link href={`/marketplace/${l.id}`}>View listing</Link>
+                            </Button>
+                          )}
+                          {canTakeDown && (
+                            <Button size="sm" variant="outline" disabled={busyId === l.id} onClick={() => takeDown(l)}>
+                              {l.status === "pending" ? "Withdraw" : "Take down"}
+                            </Button>
+                          )}
+                          {canResubmit && (
+                            <Button asChild size="sm">
+                              <Link href={`/marketplace/sell?edit=${l.id}`}>{l.status === "rejected" ? "Fix & resubmit" : "Edit & resubmit"}</Link>
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </CardContent>
                   </Card>

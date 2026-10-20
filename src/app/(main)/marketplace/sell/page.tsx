@@ -4,7 +4,8 @@ import React, { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { sendEmailVerification } from "firebase/auth"
-import { auth } from "@/utils/firebase"
+import { doc, getDoc } from "firebase/firestore"
+import { auth, db } from "@/utils/firebase"
 import { authedFetch } from "@/utils/authedFetch"
 import BackLink from "@/components/BackLink"
 import LoadingComponent from "@/components/loader"
@@ -17,7 +18,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CheckCircle2, MailCheck, Store } from "lucide-react"
-import { MarketCompany, SA_BANKS, SellerBank } from "@/lib/marketplace"
+import { MARKET_LISTINGS, MarketCompany, MarketListing, SA_BANKS, SellerBank, listingFromDoc } from "@/lib/marketplace"
 import { MARKUP_RATE } from "@/lib/marketplaceMarkup"
 
 type Seller = { id: string; name: string; contactName: string; phone: string; address: string; area: string; active: boolean; bank: string }
@@ -39,6 +40,8 @@ export default function SellPage() {
   const [error, setError] = useState("")
   const [submitted, setSubmitted] = useState(false)
   const [formKey, setFormKey] = useState(0)
+  // An item being corrected (?edit=<id>): a rejected item, or one the seller withdrew or took down.
+  const [editItem, setEditItem] = useState<MarketListing | null>(null)
 
   const load = useCallback(async () => {
     setError("")
@@ -48,6 +51,14 @@ export default function SellPage() {
       if (!res.ok) throw new Error(data?.message || "Couldn't load your seller details.")
       setVerified(data.emailVerified)
       setSeller(data.seller)
+      const editId = new URLSearchParams(window.location.search).get("edit")
+      if (editId && data.seller && data.emailVerified) {
+        const snap = await getDoc(doc(db, MARKET_LISTINGS, editId))
+        const item = snap.exists() ? listingFromDoc(snap.id, snap.data()) : null
+        const editable = item && (item.status === "pending" || item.status === "rejected" || (item.status === "inactive" && item.sellerRemoved))
+        if (editable) setEditItem(item)
+        else setError("That item can't be changed here. It may be live, sold, or taken down by Care Runners.")
+      }
     } catch (err: any) {
       setError(err?.message || "Couldn't load your seller details.")
     } finally {
@@ -104,7 +115,7 @@ export default function SellPage() {
         <Card>
           <CardContent className="space-y-4 py-10 text-center">
             <CheckCircle2 className="mx-auto h-14 w-14 text-green-600" />
-            <p className="text-lg font-semibold">Item sent for review</p>
+            <p className="text-lg font-semibold">{editItem ? "Item sent for review again" : "Item sent for review"}</p>
             <p className="text-sm text-gray-600">
               Care Runners will check it, usually within one working day. Once it&apos;s approved it goes live, and you can
               follow it under <b>My MarketPortal</b>. If it isn&apos;t approved, you&apos;ll see the reason there.
@@ -116,6 +127,8 @@ export default function SellPage() {
               <Button
                 onClick={() => {
                   setSubmitted(false)
+                  setEditItem(null)
+                  window.history.replaceState(null, "", "/marketplace/sell")
                   setFormKey((k) => k + 1)
                 }}
               >
@@ -140,15 +153,24 @@ export default function SellPage() {
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle>Your item</CardTitle>
+              <CardTitle>{editItem ? "Fix your item" : "Your item"}</CardTitle>
+              {editItem?.status === "rejected" && editItem.rejectionReason && (
+                <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
+                  Not approved because: {editItem.rejectionReason}
+                </p>
+              )}
+              {editItem && (
+                <p className="text-sm text-gray-600">Make your changes and resubmit. Care Runners checks it again before it goes live.</p>
+              )}
             </CardHeader>
             <CardContent>
               <ListingForm
-                key={formKey}
+                key={`${formKey}-${editItem?.id ?? "new"}`}
                 mode="company"
+                initial={editItem ?? undefined}
                 companies={[{ id: seller.id, name: seller.name } as MarketCompany]}
                 uid={uid}
-                endpoint="/api/marketplace/sell/listings"
+                endpoint={editItem ? `/api/marketplace/sell/listings/${editItem.id}` : "/api/marketplace/sell/listings"}
                 onCreated={() => setSubmitted(true)}
               />
             </CardContent>

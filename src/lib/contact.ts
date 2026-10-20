@@ -9,3 +9,5 @@ export const COMPANY_NAME = "Shudu Connections (Pty) Ltd"
 export const COMPANY_REG_NO = "2021/561091/07"
 export const COMPANY_ADDRESS = "1 Mark Shuttleworth Street, Lynnwood, Pretoria, 0087"
 export const COMPANY_WEBSITE = "www.shuduconnections.com"
+// ECTA s43(1)(e): the names of the office bearers (confirmed by the owner on 2026-10-20).
+export const COMPANY_DIRECTOR = "Mashudu Lucky Netshidzati"

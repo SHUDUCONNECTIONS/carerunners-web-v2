@@ -5,7 +5,7 @@ import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { TERMS_INTRO, TERMS_SECTIONS, TERMS_VERSION, TermsBlock } from "@/lib/marketplaceTerms"
-import { COMPANY_ADDRESS, COMPANY_NAME, COMPANY_REG_NO, COMPANY_WEBSITE, SUPPORT_EMAIL, SUPPORT_PHONE } from "@/lib/contact"
+import { COMPANY_ADDRESS, COMPANY_DIRECTOR, COMPANY_NAME, COMPANY_REG_NO, COMPANY_WEBSITE, SUPPORT_EMAIL, SUPPORT_PHONE } from "@/lib/contact"
 
 function Blocks({ blocks }: { blocks: TermsBlock[] }) {
   return (
@@ -49,6 +49,7 @@ export default function MarketplaceTermsPage() {
               (registration number {COMPANY_REG_NO}).
             </p>
             <p>Physical address: {COMPANY_ADDRESS}</p>
+            <p>Director: {COMPANY_DIRECTOR}</p>
             <p>
               Phone: {SUPPORT_PHONE} · Email: {SUPPORT_EMAIL} · Website: {COMPANY_WEBSITE}
             </p>
