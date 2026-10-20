@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "es5",
+    "target": "ES2017",
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
@@ -8,7 +8,7 @@
     "noEmit": true,
     "esModuleInterop": true,
     "module": "esnext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
@@ -23,7 +23,6 @@
     },
     "noImplicitAny": false,
     "noImplicitThis": false,
-    "alwaysStrict": false,
     "strictNullChecks": false,
     "strictFunctionTypes": false,
     "strictPropertyInitialization": false,
@@ -32,8 +31,6 @@
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": false,
     "useUnknownInCatchVariables": false,
-    "downlevelIteration": true,
-    "ignoreDeprecations": "5.0",
     "types": ["node", "prop-types", "json5"]
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],

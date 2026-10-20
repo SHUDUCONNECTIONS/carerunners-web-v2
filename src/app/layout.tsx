@@ -40,7 +40,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" data-scroll-behavior="smooth">
       <head>
         {/* Opens the connection to Peach early so the payment form loads faster. */}
         <link rel="preconnect" href="https://card.peachpayments.com" />
