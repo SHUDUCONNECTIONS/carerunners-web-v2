@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { auth, db } from "@/utils/firebase"
 import { signInWithPopup, GoogleAuthProvider, User } from "firebase/auth"
+import { googleSignInError } from "@/lib/googleSignInError"
 import { doc, getDoc } from "firebase/firestore"
 import { authedFetch } from "@/utils/authedFetch"
 import LoadingComponent from '@/components/loader'
@@ -69,7 +70,7 @@ function AcceptInvitationPageContent() {
       await signInWithPopup(auth, provider)
     } catch (error) {
       console.error("Error during Google sign-in:", error)
-      setError('An error occurred during sign-in. Please try again.')
+      setError(googleSignInError(error))
     } finally {
       setLoading(false)
     }

@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label"
 import { User, Users, Building2, Mail, Lock, Phone, AlertCircle } from "lucide-react"
 import { auth, db } from "@/utils/firebase" // Adjust this import path if necessary
 import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from "firebase/auth"
+import { googleSignInError } from "@/lib/googleSignInError"
 import { doc, setDoc, collection } from "firebase/firestore"
 import { StepIndicator, StepNav } from "@/components/Stepper"
 import InstallButton from "@/components/InstallButton"
@@ -145,12 +146,7 @@ export default function UserRegistrationPage() {
       routeAfterSignUp(firmId, accountType)
     } catch (error: any) {
       console.error("Error during Google signup:", error)
-      const messages: Record<string, string> = {
-        "auth/account-exists-with-different-credential": "An account already exists with this email. Try logging in instead.",
-        "auth/popup-closed-by-user": "Sign-in popup was closed. Please try again.",
-        "auth/network-request-failed": "Network error. Please check your connection and try again.",
-      }
-      setErrors({ submit: messages[error?.code] ?? "An error occurred during Google signup. Please try again." })
+      setErrors({ submit: googleSignInError(error, "Google sign-up didn't work. Please try again.") })
     } finally {
       setLoading(false)
     }

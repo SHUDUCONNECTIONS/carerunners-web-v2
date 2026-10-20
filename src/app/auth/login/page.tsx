@@ -7,6 +7,7 @@ import { AlertCircle, Check, Mail, Lock } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { auth } from "@/utils/firebase"
 import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, sendPasswordResetEmail } from "firebase/auth"
+import { googleSignInError } from "@/lib/googleSignInError"
 import { getFirestore, collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore'
 import InstallButton from "@/components/InstallButton"
 
@@ -129,7 +130,7 @@ export default function LoginPage() {
       router.push(home)
     } catch (error) {
       console.error("Error during Google login:", error)
-      setError("An error occurred during Google sign-in. Please try again.")
+      setError(googleSignInError(error))
     } finally {
       setLoading(false)
     }
