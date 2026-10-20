@@ -4,11 +4,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { requireAdmin } from "@/utils/requireAdmin";
 import { adminDb } from "@/utils/firebaseAdmin";
-import { MARKET_COMPANIES, MARKET_LISTINGS, MARKET_PICKUP, SA_BANKS } from "@/lib/marketplace";
+import { MARKET_COMPANIES, MARKET_LISTINGS, MARKET_PICKUP } from "@/lib/marketplace";
+import { parseSellerInput } from "@/lib/marketplaceSeller";
 import { TERMS_VERSION } from "@/lib/marketplaceTerms";
-
-const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function POST(req: NextRequest) {
   if (!(await requireAdmin(req))) {
@@ -22,46 +20,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: "Invalid request body" }, { status: 400 });
   }
 
-  const bank = b.bank ?? {};
-  const loginEmails: string[] = Array.from(
-    new Set((Array.isArray(b.loginEmails) ? b.loginEmails : []).map((e: unknown) => str(e).toLowerCase()).filter(Boolean))
-  );
-
-  const lat = Number(b.lat);
-  const lng = Number(b.lng);
-  const bankInfo = SA_BANKS.find((x) => x.id === bank.bankId);
-
-  const problem =
-    !str(b.name) ? "Company name is required."
-    : !str(b.contactName) ? "Contact person is required."
-    : str(b.phone).replace(/\D/g, "").length < 9 ? "A valid phone number is required."
-    : !str(b.address) || !Number.isFinite(lat) || !Number.isFinite(lng) ? "Choose the pickup address from the suggestions."
-    : !str(bank.accountHolder) || !bankInfo || !/^\d{6,16}$/.test(str(bank.accountNumber)) ? "Complete the bank details (account number 6 to 16 digits)."
-    : loginEmails.some((e) => !EMAIL.test(e)) ? "One of the login emails is not valid."
-    : !b.id && b.termsAccepted !== true ? "Confirm the company has accepted the Seller Terms."
-    : "";
-  if (problem) return NextResponse.json({ message: problem }, { status: 400 });
-
-  const data = {
-    name: str(b.name),
-    contactName: str(b.contactName),
-    contactEmail: str(b.contactEmail).toLowerCase(),
-    phone: str(b.phone),
-    address: str(b.address),
-    area: str(b.area) || str(b.address),
-    lat,
-    lng,
-    bank: {
-      accountHolder: str(bank.accountHolder),
-      bankId: bankInfo!.id,
-      accountNumber: str(bank.accountNumber),
-      accountType: bank.accountType === "cheque" ? "cheque" : "savings",
-      branchCode: bankInfo!.branchCode,
-    },
-    loginEmails,
-    active: b.active !== false,
-    updatedAt: FieldValue.serverTimestamp(),
-  };
+  // Admins confirm the company accepted the Seller Terms when creating it (not when editing).
+  const parsed = parseSellerInput(b, { requireTerms: !b.id });
+  if ("error" in parsed) {
+    const message = parsed.error === "Seller name is required." ? "Company name is required."
+      : parsed.error.startsWith("Accept the Seller Terms") ? "Confirm the company has accepted the Seller Terms." : parsed.error;
+    return NextResponse.json({ message }, { status: 400 });
+  }
+  const data = { ...parsed.data, active: b.active !== false, updatedAt: FieldValue.serverTimestamp() };
 
   try {
     const col = adminDb().collection(MARKET_COMPANIES);

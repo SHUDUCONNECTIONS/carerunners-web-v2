@@ -7,7 +7,7 @@ import { collection, getCountFromServer, getDocs, query, where } from "firebase/
 import { db } from "@/utils/firebase"
 import { useAdminGuard } from "@/utils/useAdminGuard"
 import { saDay, SA_TIME_ZONE } from "@/lib/saDate"
-import { MARKET_ORDERS } from "@/lib/marketplace"
+import { MARKET_LISTINGS, MARKET_ORDERS } from "@/lib/marketplace"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { AlertCircle, ArrowRight, Car, CheckCircle2, ClipboardList, Clock, FileText, RefreshCw, Smartphone, Store, type LucideIcon } from "lucide-react"
@@ -26,9 +26,11 @@ type Stats = {
   driverApplications: number | null
   unpaid: { trips: number; total: number } | null
   marketOrders: number | null
+  // Items customers have submitted for sale, waiting for an admin to approve or reject them.
+  itemsToReview: number | null
 }
 
-const NO_STATS: Stats = { today: null, waitingAll: null, driverApplications: null, unpaid: null, marketOrders: null }
+const NO_STATS: Stats = { today: null, waitingAll: null, driverApplications: null, unpaid: null, marketOrders: null, itemsToReview: null }
 
 // Each number is fetched on its own, so one failing query (a missing index, say) only blanks that number.
 async function loadStats(): Promise<Stats> {
@@ -36,13 +38,14 @@ async function loadStats(): Promise<Stats> {
   const today = saDay()
   const safe = <T,>(p: Promise<T>) => p.catch((err) => { console.error("Admin home:", err); return null })
 
-  const [todaySnap, waitingAll, driversSnap, unpaidSnap, marketOrders] = await Promise.all([
+  const [todaySnap, waitingAll, driversSnap, unpaidSnap, marketOrders, itemsToReview] = await Promise.all([
     safe(getDocs(query(trips, where("pickupDate", "==", today)))),
     // Trips dated before today can't be delivered any more, so only today's and later ones count (as on Requested Trips).
     safe(getDocs(query(trips, where("status", "==", "pending"))).then((s) => s.docs.filter((d) => !(d.data().pickupDate < today)).length)),
     safe(getDocs(collection(db, "drivers"))),
     safe(getDocs(query(trips, where("payment_status", "==", "unpaid"), where("status", "==", "completed")))),
     safe(getCountFromServer(query(collection(db, MARKET_ORDERS), where("status", "==", "paid"))).then((s) => s.data().count)),
+    safe(getCountFromServer(query(collection(db, MARKET_LISTINGS), where("status", "==", "pending"))).then((s) => s.data().count)),
   ])
 
   const todays = todaySnap?.docs.map((d) => d.data().status as string)
@@ -61,6 +64,7 @@ async function loadStats(): Promise<Stats> {
       ? { trips: unpaidSnap.size, total: unpaidSnap.docs.reduce((sum, d) => sum + (parseFloat(d.data().price) || 0), 0) }
       : null,
     marketOrders,
+    itemsToReview,
   }
 }
 
@@ -106,8 +110,12 @@ const DAILY: Tool[] = [
 
 const MARKET: Tool = {
   icon: Store, title: "MarketPortal", href: "/admin/marketplace", tone: "violet",
-  description: "Add companies, list items for them, and manage orders and company payouts.",
-  figure: (s) => (s.marketOrders === null ? null : { value: String(s.marketOrders), label: s.marketOrders === 1 ? "paid order to send" : "paid orders to send", pending: s.marketOrders }),
+  description: "Approve items customers want to sell, list items for companies, and manage orders and payouts.",
+  // Items waiting for approval come first: sellers are waiting on them.
+  figure: (s) =>
+    s.itemsToReview
+      ? { value: String(s.itemsToReview), label: s.itemsToReview === 1 ? "item to approve" : "items to approve", pending: s.itemsToReview + (s.marketOrders ?? 0) }
+      : s.marketOrders === null ? null : { value: String(s.marketOrders), label: s.marketOrders === 1 ? "paid order to send" : "paid orders to send", pending: s.marketOrders },
 }
 
 const OTHER: Tool[] = [

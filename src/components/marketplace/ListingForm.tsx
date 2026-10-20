@@ -79,7 +79,7 @@ export function ListingForm({
     if (!companyId) return setError("Choose the company this item belongs to.")
     if (!title.trim() || !category || !description.trim()) return setError("Item name, category and description are required.")
     if (!defects.trim()) return setError('Describe any defects or damage. Write "None" if there are none.')
-    if (!Number.isFinite(price) || price <= 0) return setError("Enter the price the company wants to receive.")
+    if (!Number.isFinite(price) || price <= 0) return setError(isAdmin ? "Enter the price the company wants to receive." : "Enter the price you want to receive.")
     if (isAdmin && stock.trim() && (!Number.isInteger(Number(stock)) || Number(stock) < 1))
       return setError("Quantity in stock must be a whole number (or leave it empty for a one-off item).")
     if (photos.length < MIN_PHOTOS) return setError(`Upload at least ${MIN_PHOTOS} photos (up to ${MAX_PHOTOS}).`)
@@ -145,7 +145,7 @@ export function ListingForm({
         </div>
       ) : (
         <p className="rounded-lg bg-gray-50 p-3 text-sm text-gray-700">
-          Listing for <b>{companies[0]?.name}</b>. We collect from the pickup address on file.
+          Listing for <b>{companies[0]?.name}</b>{companies[0]?.name?.endsWith(".") ? "" : "."} We collect from the pickup address on file.
         </p>
       )}
 

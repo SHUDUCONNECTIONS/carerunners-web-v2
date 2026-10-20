@@ -156,6 +156,9 @@ export default function MyMarketPortalPage() {
             </p>
           )}
         </div>
+        <Button asChild size="sm">
+          <Link href="/marketplace/sell">Sell an item</Link>
+        </Button>
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
@@ -163,8 +166,8 @@ export default function MyMarketPortalPage() {
 
       <Tabs defaultValue={isCompany ? "listings" : "purchases"}>
         <TabsList className="w-full sm:w-auto">
-          {isCompany && <TabsTrigger value="listings">Company items ({listings.length})</TabsTrigger>}
-          {isCompany && <TabsTrigger value="sales">Company sales ({sales.length})</TabsTrigger>}
+          {isCompany && <TabsTrigger value="listings">Items for sale ({listings.length})</TabsTrigger>}
+          {isCompany && <TabsTrigger value="sales">Sales ({sales.length})</TabsTrigger>}
           <TabsTrigger value="purchases">My purchases ({purchases.length})</TabsTrigger>
         </TabsList>
 
@@ -173,7 +176,10 @@ export default function MyMarketPortalPage() {
             {listings.length === 0 ? (
               <Card>
                 <CardContent className="py-10 text-center text-gray-500">
-                  No items listed for your company yet. Care Runners lists items on your behalf.
+                  No items yet.{" "}
+                  <Link href="/marketplace/sell" className="font-medium text-[var(--brand-600)] underline">
+                    Sell an item
+                  </Link>
                 </CardContent>
               </Card>
             ) : (

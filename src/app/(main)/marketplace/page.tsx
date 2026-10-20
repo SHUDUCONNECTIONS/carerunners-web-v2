@@ -16,7 +16,7 @@ import { isListingAvailable } from "@/lib/marketplace"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Clock, ImageOff, ListChecks, Search } from "lucide-react"
+import { Clock, ImageOff, ListChecks, Search, Tag } from "lucide-react"
 import LoadingComponent from "@/components/loader"
 import {
   MARKET_CATEGORIES,
@@ -49,7 +49,6 @@ const PRICE_BANDS = [
   { id: "200-1000", label: "R200 to R1,000", min: 200, max: 1000 },
   { id: "o1000", label: "Over R1,000", min: 1000, max: Infinity },
 ]
-const NEW_LISTING_DAYS = 7
 // A big catalogue is shown a page at a time so the grid stays quick.
 const PAGE_SIZE = 48
 
@@ -281,6 +280,11 @@ function MarketplaceContent() {
               >
                 <Link href="/marketplace/cart">Cart{inCart > 0 ? ` (${inCart})` : ""}</Link>
               </Button>
+              <Button asChild className="bg-white text-[var(--brand-700)] hover:bg-white/90">
+                <Link href="/marketplace/sell">
+                  <Tag className="h-4 w-4 mr-1" /> Sell an item
+                </Link>
+              </Button>
             </div>
           </div>
 
@@ -504,7 +508,6 @@ function MarketplaceContent() {
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
             {visible.slice(0, shown).map((l) => {
-              const isNew = now - l.createdAt < NEW_LISTING_DAYS * 24 * 60 * 60 * 1000
               const reserved = reservationActive(l, now)
               return (
                 <Link
@@ -523,16 +526,10 @@ function MarketplaceContent() {
                     ) : (
                       <ImageOff className="h-8 w-8 text-gray-300" />
                     )}
-                    {reserved ? (
+                    {reserved && (
                       <span className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-0.5 text-xs font-semibold text-white shadow">
                         <Clock className="h-3 w-3" /> Reserved
                       </span>
-                    ) : (
-                      isNew && (
-                        <span className="absolute left-2 top-2 rounded-full bg-[var(--brand-600)] px-2.5 py-0.5 text-xs font-semibold text-white shadow">
-                          Just added
-                        </span>
-                      )
                     )}
                     {(l.imageCount ?? l.images.length) > 1 && (
                       <span className="absolute bottom-2 right-2 rounded-full bg-black/60 px-2 py-0.5 text-xs text-white">
