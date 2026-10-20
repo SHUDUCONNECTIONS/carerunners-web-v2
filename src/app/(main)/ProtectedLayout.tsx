@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import InstallButton from "@/components/InstallButton";
-import { SUPPORT_EMAIL, SUPPORT_PHONE, SUPPORT_PHONE_LINK } from "@/lib/contact";
+import { COMPANY_ADDRESS, COMPANY_NAME, COMPANY_REG_NO, SUPPORT_EMAIL, SUPPORT_PHONE, SUPPORT_PHONE_LINK } from "@/lib/contact";
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "@/utils/firebase"; // Adjust this import path if necessary
@@ -112,6 +112,9 @@ export default function ProtectedLayout({
                 <a href={SUPPORT_PHONE_LINK} className="font-medium text-white hover:underline">{SUPPORT_PHONE}</a>
                 {" · "}
                 <a href={`mailto:${SUPPORT_EMAIL}`} className="font-medium text-white hover:underline">{SUPPORT_EMAIL}</a>
+                <span className="mt-1 block">
+                  Care Runners is operated by {COMPANY_NAME}, Reg. No. {COMPANY_REG_NO}, {COMPANY_ADDRESS}.
+                </span>
               </p>
               <div className="flex items-center gap-2 rounded-full bg-white/10 py-1 pl-3 pr-1.5">
                 <span>A</span>

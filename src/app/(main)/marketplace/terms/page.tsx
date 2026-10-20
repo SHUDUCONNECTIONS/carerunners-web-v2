@@ -5,6 +5,7 @@ import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { TERMS_INTRO, TERMS_SECTIONS, TERMS_VERSION, TermsBlock } from "@/lib/marketplaceTerms"
+import { COMPANY_ADDRESS, COMPANY_NAME, COMPANY_REG_NO, COMPANY_WEBSITE, SUPPORT_EMAIL, SUPPORT_PHONE } from "@/lib/contact"
 
 function Blocks({ blocks }: { blocks: TermsBlock[] }) {
   return (
@@ -39,6 +40,18 @@ export default function MarketplaceTermsPage() {
             <h1 className="text-2xl font-bold">Care Runners MarketPortal</h1>
             <h2 className="text-lg font-semibold text-gray-700">Seller &amp; Buyer Terms and Conditions</h2>
             <p className="text-xs text-gray-500">Version {TERMS_VERSION}</p>
+          </div>
+
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
+            <p className="font-semibold text-gray-900">Who we are</p>
+            <p>
+              Care Runners and its MarketPortal are operated by {COMPANY_NAME}, a private company registered in South Africa
+              (registration number {COMPANY_REG_NO}).
+            </p>
+            <p>Physical address: {COMPANY_ADDRESS}</p>
+            <p>
+              Phone: {SUPPORT_PHONE} · Email: {SUPPORT_EMAIL} · Website: {COMPANY_WEBSITE}
+            </p>
           </div>
 
           <section className="space-y-2">

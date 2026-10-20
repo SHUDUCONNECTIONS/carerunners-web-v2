@@ -8,6 +8,7 @@ import { ArrowLeft } from "lucide-react"
 import LoadingComponent from "@/components/loader"
 import { MarketOrder, formatRand, orderLines } from "@/lib/marketplace"
 import { fetchMyOrders } from "@/lib/marketplacePublicClient"
+import { COMPANY_ADDRESS, COMPANY_NAME, COMPANY_REG_NO, SUPPORT_EMAIL, SUPPORT_PHONE } from "@/lib/contact"
 
 export default function ReceiptPage() {
   return (
@@ -69,6 +70,13 @@ function Receipt() {
           <div>
             <h1 className="text-xl font-bold text-gray-900">Order receipt</h1>
             <p className="text-sm text-gray-600">Care Runners MarketPortal</p>
+            <p className="text-xs text-gray-500">
+              {COMPANY_NAME} · Reg. No. {COMPANY_REG_NO}
+              <br />
+              {COMPANY_ADDRESS}
+              <br />
+              {SUPPORT_PHONE} · {SUPPORT_EMAIL}
+            </p>
           </div>
           <div className="text-right text-sm text-gray-600">
             <p>Order {order.id}</p>
