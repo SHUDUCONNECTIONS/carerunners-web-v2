@@ -22,6 +22,9 @@ import { MARKUP_RATE } from "@/lib/marketplaceMarkup"
 
 type Seller = { id: string; name: string; contactName: string; phone: string; address: string; area: string; active: boolean; bank: string }
 
+// Marks a label as compulsory.
+const Req = () => <span aria-hidden className="ml-0.5 text-red-600">*</span>
+
 const EMPTY_BANK: SellerBank = { accountHolder: "", bankId: "", accountNumber: "", accountType: "savings", branchCode: "" }
 
 // A customer selling their own items: verify their email, set up their seller details once, then submit items.
@@ -233,7 +236,12 @@ function SellerSetup({ existing, onSaved, onCancel }: { existing: Seller | null;
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    if (!name.trim() || !contactName.trim()) return setError("Enter the seller name and your full name.")
+    if (phone.replace(/\D/g, "").length < 9) return setError("Enter a valid phone number.")
     if (!place) return setError("Choose your pickup address from the suggestions.")
+    if (!bank.accountHolder.trim()) return setError("Enter the bank account holder's name.")
+    if (!bank.bankId) return setError("Select your bank.")
+    if (!/^\d{6,16}$/.test(bank.accountNumber)) return setError("Enter your account number (6 to 16 digits).")
     if (!existing && !termsAccepted) return setError("Accept the Seller Terms and Conditions to continue.")
     setSaving(true)
     try {
@@ -266,21 +274,21 @@ function SellerSetup({ existing, onSaved, onCancel }: { existing: Seller | null;
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="sname">Seller name shown to buyers</Label>
-              <Input id="sname" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Thabo M." />
+              <Label htmlFor="sname">Seller name shown to buyers<Req /></Label>
+              <Input id="sname" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Thabo M." required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="scontact">Your full name</Label>
-              <Input id="scontact" value={contactName} onChange={(e) => setContactName(e.target.value)} />
+              <Label htmlFor="scontact">Your full name<Req /></Label>
+              <Input id="scontact" value={contactName} onChange={(e) => setContactName(e.target.value)} required />
             </div>
             <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="sphone">Phone (shared with the driver who collects)</Label>
-              <Input id="sphone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
+              <Label htmlFor="sphone">Phone (shared with the driver who collects)<Req /></Label>
+              <Input id="sphone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required />
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="saddress">Pickup address</Label>
+            <Label htmlFor="saddress">Pickup address<Req /></Label>
             <AddressAutocomplete
               id="saddress"
               value={address}
@@ -290,19 +298,21 @@ function SellerSetup({ existing, onSaved, onCancel }: { existing: Seller | null;
               }}
               onPick={setPlace}
               placeholder="Search the address where we collect your items…"
+              required
             />
             <p className="text-xs text-gray-500">Buyers only see your suburb and city, never your full address.</p>
           </div>
 
           <div className="space-y-3 rounded-lg border p-4">
-            <p className="text-sm font-semibold">Bank account for your payouts</p>
+            <p className="text-sm font-semibold">Bank account for your payouts<Req /></p>
+            <p className="text-xs text-gray-500">Required: this is where we pay you when your items sell.</p>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="sholder">Account holder</Label>
-                <Input id="sholder" value={bank.accountHolder} onChange={(e) => setBank({ ...bank, accountHolder: e.target.value })} />
+                <Label htmlFor="sholder">Account holder<Req /></Label>
+                <Input id="sholder" value={bank.accountHolder} onChange={(e) => setBank({ ...bank, accountHolder: e.target.value })} required />
               </div>
               <div className="space-y-2">
-                <Label>Bank</Label>
+                <Label>Bank<Req /></Label>
                 <Select value={bank.bankId} onValueChange={(id) => setBank({ ...bank, bankId: id, branchCode: SA_BANKS.find((b) => b.id === id)?.branchCode ?? "" })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a bank" />
@@ -317,11 +327,11 @@ function SellerSetup({ existing, onSaved, onCancel }: { existing: Seller | null;
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="sacc">Account number</Label>
-                <Input id="sacc" inputMode="numeric" value={bank.accountNumber} onChange={(e) => setBank({ ...bank, accountNumber: e.target.value.replace(/\D/g, "") })} />
+                <Label htmlFor="sacc">Account number<Req /></Label>
+                <Input id="sacc" inputMode="numeric" value={bank.accountNumber} onChange={(e) => setBank({ ...bank, accountNumber: e.target.value.replace(/\D/g, "") })} required minLength={6} maxLength={16} />
               </div>
               <div className="space-y-2">
-                <Label>Account type</Label>
+                <Label>Account type<Req /></Label>
                 <Select value={bank.accountType} onValueChange={(v) => setBank({ ...bank, accountType: v as SellerBank["accountType"] })}>
                   <SelectTrigger>
                     <SelectValue />
@@ -347,15 +357,18 @@ function SellerSetup({ existing, onSaved, onCancel }: { existing: Seller | null;
                 <Link href="/marketplace/returns" target="_blank" className="underline">
                   Returns &amp; Refunds policy
                 </Link>
-                .
+                .<Req />
               </span>
             </label>
           )}
+          <p className="text-xs text-gray-500">
+            <span className="text-red-600">*</span> Required
+          </p>
 
           {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
 
           <div className="flex gap-2">
-            <Button type="submit" disabled={saving}>
+            <Button type="submit" disabled={saving || (!existing && !termsAccepted)}>
               {saving ? "Saving…" : existing ? "Save details" : "Continue"}
             </Button>
             {onCancel && (
