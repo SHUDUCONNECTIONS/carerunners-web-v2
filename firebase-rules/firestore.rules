@@ -106,8 +106,14 @@ service cloud.firestore {
     // After that only three people can change a trip: an approved driver taking it, the driver
     // it's assigned to moving it along, and its customer rating it. Cancelling goes through
     // /api/cancel-trip. Admins can correct anything.
+    // Who can read a trip: its customer, its driver, approved drivers while it is open for taking (the driver
+    // dashboard lists status == "pending"), and admins. Every query in the app filters on one of these
+    // (userId, driverId or status == "pending"), which is what lets the rules allow it.
     match /pickupRequests/{tripId} {
-      allow read: if signedIn();   // phase 2: limit to the owner, their firm, drivers and admins
+      allow get, list: if isAdmin()
+        || (signedIn() && (resource.data.userId == uid()
+                           || resource.data.get("driverId", null) == uid()
+                           || (resource.data.status == "pending" && isApprovedDriver())));
 
       allow create: if signedIn()
         && request.resource.data.userId == uid()
@@ -205,8 +211,17 @@ service cloud.firestore {
       return firmId is string && get(/databases/$(database)/documents/firms/$(firmId)).data.adminId == uid();
     }
 
+    // True when the signed-in person has a profile that belongs to this firm.
+    function inMyFirm(firmId) {
+      return firmId is string
+        && exists(/databases/$(database)/documents/users/$(uid()))
+        && userDoc().get("firmId", null) == firmId;
+    }
+
+    // A profile (name, phone, address): the person, their own team (the team list and plan pages), and admins.
     match /users/{userId} {
-      allow read: if signedIn();   // phase 2: limit to the person, their firm and admins
+      allow get, list: if isAdmin()
+        || (signedIn() && (userId == uid() || inMyFirm(resource.data.get("firmId", null))));
       allow create: if signedIn() && userId == uid()
         && (!("firmId" in request.resource.data) || request.resource.data.firmId == null || adminsFirm(request.resource.data.firmId));
       allow update: if isAdmin()
@@ -218,8 +233,10 @@ service cloud.firestore {
             && get(/databases/$(database)/documents/firms/$(resource.data.firmId)).data.adminId == uid());
     }
 
+    // A company account: its admin (login looks it up by adminId), its members, and Care Runners admins.
     match /firms/{firmId} {
-      allow read: if signedIn();
+      allow get, list: if isAdmin()
+        || (signedIn() && (resource.data.get("adminId", null) == uid() || inMyFirm(firmId)));
       // Payment fields on a firm are written by the server only (the plan price charged comes from
       // src/lib/plans.ts, not from planPrice here). paidPlan/paidUntil are what was actually paid for;
       // selectedPlan is only the plan picked before paying.

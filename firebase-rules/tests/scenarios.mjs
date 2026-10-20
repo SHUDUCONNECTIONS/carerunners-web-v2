@@ -122,8 +122,24 @@ c("another customer cannot redirect someone's delivery", "DENY", "update", "pick
 c("admin corrects a trip price", "ALLOW", "update", "pickupRequests/t1", { as: ADMIN, existing: paid, incoming: { ...paid, price: 120 } });
 c("customer cannot delete a trip", "DENY", "delete", "pickupRequests/t1", { as: U1, existing: paid });
 c("admin can delete a trip", "ALLOW", "delete", "pickupRequests/t1", { as: ADMIN, existing: paid });
-c("signed-in reads trips (driver and firm queries)", "ALLOW", "list", "pickupRequests/t1", { as: U1, existing: paid });
 c("anonymous cannot read trips", "DENY", "get", "pickupRequests/t1", { existing: paid });
+// Who can read a trip (names, phone numbers and addresses): its customer, its driver, approved drivers while
+// it is open, and admins. A list scenario queries on every plain field of `existing`.
+const ownQ = { userId: "u1" }, driverQ = { driverId: "d1" }, openQ = { status: "pending" };
+c("customer reads their own trip", "ALLOW", "get", "pickupRequests/t1", { as: U1, existing: paid });
+c("customer lists their own trips (trips page, dashboard, billing)", "ALLOW", "list", "pickupRequests/t1", { as: U1, existing: ownQ });
+c("another customer cannot read the trip", "DENY", "get", "pickupRequests/t1", { as: U2, existing: paid });
+c("a customer cannot list someone else's trips", "DENY", "list", "pickupRequests/t1", { as: U2, existing: ownQ });
+c("a customer cannot list all trips", "DENY", "list", "pickupRequests/t1", { as: U1, existing: {} });
+c("a customer cannot list open trips", "DENY", "list", "pickupRequests/t1", { as: U2, existing: openQ });
+c("approved driver lists open trips", "ALLOW", "list", "pickupRequests/t1", { as: user("d1"), existing: openQ, mocks: [approved("d1")] });
+c("approved driver opens an open trip", "ALLOW", "get", "pickupRequests/t1", { as: user("d1"), existing: paid, mocks: [approved("d1")] });
+c("driver not yet approved cannot list open trips", "DENY", "list", "pickupRequests/t1", { as: user("d9"), existing: openQ, mocks: [mockGet("drivers/d9", { isApproved: false })] });
+c("approved driver cannot read another driver's trip", "DENY", "get", "pickupRequests/t1", { as: user("d2"), existing: { ...paid, status: "assigned", driverId: "d1" }, mocks: [approved("d2")] });
+c("approved driver cannot list all trips", "DENY", "list", "pickupRequests/t1", { as: user("d1"), existing: {}, mocks: [approved("d1")] });
+c("driver lists the trips assigned to them", "ALLOW", "list", "pickupRequests/t1", { as: user("d1"), existing: driverQ, mocks: [approved("d1")] });
+c("driver reads a finished trip of theirs", "ALLOW", "get", "pickupRequests/t1", { as: user("d1"), existing: { ...paid, status: "completed", driverId: "d1" } });
+c("admin lists all trips", "ALLOW", "list", "pickupRequests/t1", { as: ADMIN, existing: {} });
 
 // ── drivers ──
 const drv = { isApproved: false, applicationStatus: "pending", ratingSum: 10, ratingCount: 2, name: "D" };
@@ -150,6 +166,22 @@ c("driver cannot sign up pre-approved", "DENY", "create", "drivers/d1", { as: us
 c("driver cannot sign up as approved status", "DENY", "create", "drivers/d1", { as: user("d1"), incoming: { applicationStatus: "approved" } });
 
 // ── users and firms ──
+// Reading a profile or company: the person, their own team, and admins.
+c("person reads their own profile", "ALLOW", "get", "users/u1", { as: U1, existing: { firmId: "f1", phone: "1" } });
+c("person reads their own profile before it has a firm", "ALLOW", "get", "users/u1", { as: U1, existing: { phone: "1" } });
+c("another customer cannot read the profile", "DENY", "get", "users/u1", { as: U2, existing: { firmId: "f1", phone: "1" }, mocks: [mockExists("users/u2", true), mockGet("users/u2", { firmId: "f2" })] });
+c("a customer cannot list all profiles", "DENY", "list", "users/u1", { as: U2, existing: {}, mocks: [mockExists("users/u2", true), mockGet("users/u2", { firmId: "f2" })] });
+c("team member reads a colleague's profile (plan page)", "ALLOW", "get", "users/u1", { as: U2, existing: { firmId: "f1" }, mocks: [mockExists("users/u2", true), mockGet("users/u2", { firmId: "f1" })] });
+c("firm lists its own team", "ALLOW", "list", "users/u1", { as: U2, existing: { firmId: "f1" }, mocks: [mockExists("users/u2", true), mockGet("users/u2", { firmId: "f1" })] });
+c("firm cannot list another firm's team", "DENY", "list", "users/u1", { as: U2, existing: { firmId: "f1" }, mocks: [mockExists("users/u2", true), mockGet("users/u2", { firmId: "f2" })] });
+c("a driver (no profile) cannot read customer profiles", "DENY", "get", "users/u1", { as: user("d1"), existing: { firmId: "f1" }, mocks: [approved("d1")] });
+c("admin lists all profiles", "ALLOW", "list", "users/u1", { as: ADMIN, existing: {} });
+c("firm admin finds their firm at login", "ALLOW", "list", "firms/f1", { as: U1, existing: { adminId: "u1" } });
+c("firm admin reads their firm", "ALLOW", "get", "firms/f1", { as: U1, existing: { adminId: "u1" } });
+c("team member reads their firm", "ALLOW", "get", "firms/f1", { as: U2, existing: { adminId: "u1" }, mocks: [mockExists("users/u2", true), mockGet("users/u2", { firmId: "f1" })] });
+c("outsider cannot read a firm", "DENY", "get", "firms/f1", { as: user("u3"), existing: { adminId: "u1" }, mocks: [mockExists("users/u3", true), mockGet("users/u3", { firmId: "f9" })] });
+c("a customer cannot list all firms", "DENY", "list", "firms/f1", { as: U2, existing: {}, mocks: [mockExists("users/u2", true), mockGet("users/u2", { firmId: "f2" })] });
+c("admin lists all firms", "ALLOW", "list", "firms/f1", { as: ADMIN, existing: {} });
 c("person updates their own profile", "ALLOW", "update", "users/u1", { as: U1, existing: { firmId: "f1" }, incoming: { firmId: "f1", contact: "1" } });
 c("person cannot edit someone else's profile", "DENY", "update", "users/u1", { as: U2, existing: { firmId: "f1" }, incoming: { contact: "1" } });
 c("person creates their own profile", "ALLOW", "create", "users/u1", { as: U1, incoming: { email: "u1@example.com" } });

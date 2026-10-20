@@ -60,7 +60,27 @@ so publishing is done in the Firebase console by someone who owns the project.
 Paste `previous-live-firestore.rules` (Firestore) or `previous-live-storage.rules` (Storage) back into the same
 place and Publish. The console also keeps a history of every published version.
 
-## Still open (phase 2)
-Who may READ trips and users. They are still readable by any signed-in user (addresses, phone numbers), because
-the driver app and company accounts rely on broad queries. Driver profiles are readable too, but no longer hold
-ID documents or licence/insurance numbers.
+## Privacy step (2026-10-20): who can READ trips, profiles and companies
+Before this step any signed-in user could read every trip and every profile (names, phone numbers, addresses).
+Now:
+- Firestore `pickupRequests`: the trip's customer, its driver, approved drivers while it is open ("pending"), admins.
+- Firestore `users`: the person, their own company team, admins. `firms`: the company's admin and members, admins.
+- Realtime Database `trips` (a copy of each trip, with names, numbers and addresses; the web app only writes it,
+  so the reader is the driver mobile app): the whole list for admins and approved drivers (approved in the Realtime
+  Database `drivers` node), one trip for its own customer or driver, and a customer's or driver's own trips when
+  asked for by `userId` or `driverId`.
+
+Every query in the web app filters on one of those, and the August version on the live site does the same, so it
+can be published before or after the next deploy. Tests: 29 new Firestore scenarios (164 in all) and
+`tests/database-emulator.mjs` (12 checks):
+`npx firebase-tools emulators:exec --config firebase-rules/firebase.app-emulators.json --only database --project demo-carerunners "node firebase-rules/tests/database-emulator.mjs"`
+
+Publish in two steps, because the driver mobile app is not in this repo:
+1. Firestore > Rules: paste `firestore.rules`, Publish. Then open the mobile app as a driver (open trips list,
+   my trips) and as a customer. If anything stops loading, paste `before-privacy-firestore.rules` back.
+2. Realtime Database > Rules: paste `database.rules.json`, Publish, and check the mobile app again. If it stops
+   loading trips, paste `before-privacy-database.rules.json` back.
+
+Still readable by any signed-in user: driver public profiles (name, vehicle; ID documents are private) in Firestore
+`drivers` and the Realtime Database `drivers` node (which also has phone and email), because customers see their
+driver.
