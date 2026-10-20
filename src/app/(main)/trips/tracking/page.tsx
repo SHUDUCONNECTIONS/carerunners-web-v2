@@ -1,4 +1,5 @@
 "use client";
+import BackLink from "@/components/BackLink";
 
 import React, { useState, useEffect } from "react";
 import { doc, getDoc } from "firebase/firestore";
@@ -237,6 +238,7 @@ export default function TripDetailsPage() {
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6">
       <div className="max-w-2xl mx-auto">
+        <BackLink href="/trips" label="Back" smart className="mb-4" />
 
         {/* Trip Header Card */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4">

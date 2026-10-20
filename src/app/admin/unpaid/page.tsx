@@ -1,6 +1,7 @@
 // @ts-nocheck
 "use client"
 
+import BackLink from "@/components/BackLink"
 import React, { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { onAuthStateChanged } from "firebase/auth"
@@ -183,6 +184,7 @@ export default function AdminUnpaidPage() {
   return (
     <div>
       <div className="max-w-5xl mx-auto space-y-6">
+        <BackLink href="/admin" label="Admin" />
 
         {/* Header */}
         <Card>

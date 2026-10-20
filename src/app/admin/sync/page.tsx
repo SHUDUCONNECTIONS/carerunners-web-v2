@@ -1,5 +1,6 @@
 // @ts-nocheck
 "use client"
+import BackLink from "@/components/BackLink"
 import React, { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -123,6 +124,8 @@ function SyncPageContent() {
 
   return (
     <div className="flex items-center justify-center py-16">
+      <div className="w-full max-w-md space-y-4">
+      <BackLink href="/admin" label="Admin" />
       <Card className="w-full max-w-md">
         <CardHeader className="bg-teal-600 text-white">
           <CardTitle className="text-xl font-bold text-center">Fix Trip Prices</CardTitle>
@@ -179,6 +182,7 @@ function SyncPageContent() {
           )}
         </CardContent>
       </Card>
+      </div>
     </div>
   )
 }

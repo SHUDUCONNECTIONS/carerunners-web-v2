@@ -1,4 +1,5 @@
 "use client";
+import BackLink from "@/components/BackLink";
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
@@ -180,6 +181,7 @@ export default function PlanPaymentSummary() {
   return (
     <div className="min-h-screen bg-gray-100 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto">
+        <BackLink href="/pricing" label="Plans" className="mb-4" />
         <Card>
           <CardHeader className="bg-teal-600 text-white">
             <CardTitle className="text-2xl font-bold">Plan Summary</CardTitle>
@@ -191,14 +193,14 @@ export default function PlanPaymentSummary() {
                   <Building2 className="h-5 w-5 text-teal-600" />
                   <span className="font-semibold">Company:</span>
                 </div>
-                <span>{planData.companyName}</span>
+                <span className="min-w-0 pl-4 text-right [overflow-wrap:anywhere]">{planData.companyName}</span>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <User className="h-5 w-5 text-teal-600" />
                   <span className="font-semibold">Admin:</span>
                 </div>
-                <span>{planData.adminName}</span>
+                <span className="min-w-0 pl-4 text-right [overflow-wrap:anywhere]">{planData.adminName}</span>
               </div>
               <Separator />
               <div className="flex items-center justify-between">

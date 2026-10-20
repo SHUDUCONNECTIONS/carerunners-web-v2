@@ -1,5 +1,6 @@
 // @ts-nocheck
 "use client"
+import BackLink from "@/components/BackLink"
 
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
@@ -289,6 +290,7 @@ export default function AdminMarketplacePage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 p-4">
+      <BackLink href="/admin" label="Admin" />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">MarketPortal admin</h1>
         <div className="flex flex-wrap gap-2">

@@ -1,4 +1,5 @@
 "use client";
+import BackLink from "@/components/BackLink";
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
@@ -20,6 +21,22 @@ function formatCurrency(value, locale = 'en-ZA', currency = 'ZAR') {
   }).format(value);
 }
 
+// One label/value line of the summary. The label keeps to one line; a long value (an email address, an
+// address) wraps inside the card instead of running off a phone screen. Empty values are left out.
+function Row({ icon: Icon, label, children }: { icon: React.ElementType; label: string; children: React.ReactNode }) {
+  const empty = children == null || children === "" || (React.isValidElement(children) && !(children.props as any)?.children);
+  if (empty) return null;
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <div className="flex shrink-0 items-center gap-2">
+        <Icon className="h-5 w-5 text-teal-600" />
+        <span className="whitespace-nowrap font-semibold">{label}</span>
+      </div>
+      <div className="min-w-0 text-right [overflow-wrap:anywhere]">{children}</div>
+    </div>
+  );
+}
+
 
 type TripSummaryData = {
   attorneyName?: string;
@@ -34,6 +51,8 @@ type TripSummaryData = {
   specialInstructions?: string;
   distance: string;
   price: string;
+  status?: string;
+  payment_status?: string;
   marketItemAmount?: number;
   marketDeliveryDiscount?: number;
   marketItems?: { title: string; quantity: number; unitPrice: number }[];
@@ -199,13 +218,15 @@ export default function TripSummary() {
   }
 
 
-  if (error) {
-    return <div>Error: {error}</div>;
-  }
-
-
-  if (!tripData) {
-    return <div>No trip data available</div>;
+  if (error || !tripData) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-4 px-4 py-8">
+        <BackLink href="/trips" label="Back" smart />
+        <div className="rounded-lg border border-gray-200 bg-white p-6 text-gray-700">
+          We couldn't find this trip. It may have been removed, or it belongs to a different account.
+        </div>
+      </div>
+    );
   }
 
 
@@ -218,90 +239,27 @@ export default function TripSummary() {
   return (
     <div className="min-h-screen bg-gray-100 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto">
+        <BackLink href="/trips" label="Back" smart className="mb-4" />
         <Card>
           <CardHeader className="bg-teal-600 text-white">
             <CardTitle className="text-2xl font-bold">Trip Summary</CardTitle>
           </CardHeader>
           <CardContent className="mt-6">
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <User className="h-5 w-5 text-teal-600" />
-                  <span className="font-semibold">Requested by:</span>
-                </div>
-                <span>{tripData.attorneyName}</span>
-              </div>
-              {tripData.firmName && (
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <Briefcase className="h-5 w-5 text-teal-600" />
-                    <span className="font-semibold">Company:</span>
-                  </div>
-                  <span>{tripData.firmName}</span>
-                </div>
-              )}
+              <Row icon={User} label="Requested by:">{tripData.attorneyName}</Row>
+              <Row icon={Briefcase} label="Company:">{tripData.firmName}</Row>
               <Separator />
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <MapPin className="h-5 w-5 text-teal-600" />
-                  <span className="font-semibold">Pickup:</span>
-                </div>
-                <span>{tripData.pickupLocation}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <MapPin className="h-5 w-5 text-teal-600" />
-                  <span className="font-semibold">Dropoff:</span>
-                </div>
-                <span>{tripData.dropoffLocation}</span>
-              </div>
+              <Row icon={MapPin} label="Pickup:">{tripData.pickupLocation}</Row>
+              <Row icon={MapPin} label="Dropoff:">{tripData.dropoffLocation}</Row>
               <Separator />
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Calendar className="h-5 w-5 text-teal-600" />
-                  <span className="font-semibold">Date:</span>
-                </div>
-                <span>{tripData.pickupDate}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Clock className="h-5 w-5 text-teal-600" />
-                  <span className="font-semibold">Time:</span>
-                </div>
-                <span>{tripData.pickupTime}</span>
-              </div>
+              <Row icon={Calendar} label="Date:">{tripData.pickupDate}</Row>
+              <Row icon={Clock} label="Time:">{tripData.pickupTime}</Row>
               <Separator />
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <FileText className="h-5 w-5 text-teal-600" />
-                  <span className="font-semibold">Description:</span>
-                </div>
-                <span>{tripData.documentDescription}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Truck className="h-5 w-5 text-teal-600" />
-                  <span className="font-semibold">Urgency:</span>
-                </div>
-                <span className="capitalize">{tripData.urgency}</span>
-              </div>
-              {tripData.specialInstructions && (
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <FileText className="h-5 w-5 text-teal-600" />
-                    <span className="font-semibold">Special Instructions:</span>
-                  </div>
-                  <span>{tripData.specialInstructions}</span>
-                </div>
-              )}
+              <Row icon={FileText} label="Description:">{tripData.documentDescription}</Row>
+              <Row icon={Truck} label="Urgency:"><span className="capitalize">{tripData.urgency}</span></Row>
+              <Row icon={FileText} label="Special Instructions:">{tripData.specialInstructions}</Row>
               <Separator />
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Truck className="h-5 w-5 text-teal-600" />
-                  <span className="font-semibold">Estimated Distance:</span>
-                </div>
-                <span>{tripData.distance} km</span>
-              </div>
+              <Row icon={Truck} label="Estimated Distance:">{tripData.distance ? `${tripData.distance} km` : null}</Row>
               {itemAmount > 0 && (
                 <>
                   {(tripData.marketItems ?? []).map((it) => (
@@ -339,7 +297,15 @@ export default function TripSummary() {
            
             <div className="mt-8">
               <h3 className="text-lg font-semibold mb-4">Payment</h3>
-              {prepareError ? (
+              {tripData.status === "cancelled" || tripData.payment_status === "cancelled" ? (
+                <div role="status" className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+                  This trip was cancelled, so there is nothing to pay. You have not been charged.
+                </div>
+              ) : tripData.payment_status === "paid" ? (
+                <div role="status" className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800">
+                  This trip has already been paid.
+                </div>
+              ) : prepareError ? (
                 <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 space-y-3">
                   <p>{prepareError}</p>
                   <button
