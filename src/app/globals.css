@@ -141,7 +141,10 @@
 :where(.dark) .border-blue-100{border-color:#192f57}
 :where(.dark) .bg-blue-50\/60{background-color:rgb(20 36 66 / 0.6)}
 :where(.dark) .text-blue-950{color:#bfdbfe}
+:where(.dark) .hover\:bg-white\/90:hover{background-color:rgb(15 23 42 / 0.9)}
 :where(.dark) .hover\:bg-gray-50:hover{background-color:#0b1220}
+:where(.dark) .text-green-600{color:#4ade80}
+:where(.dark) .text-red-700{color:#fca5a5}
 :where(.dark) .bg-white\/90{background-color:rgb(15 23 42 / 0.9)}
 :where(.dark) .hover\:bg-white:hover{background-color:#0f172a}
 :where(.dark) .text-amber-900{color:#fde68a}
@@ -149,7 +152,9 @@
 :where(.dark) .bg-emerald-50{background-color:#0f2a34}
 :where(.dark) .text-emerald-900{color:#a7f3d0}
 :where(.dark) .bg-amber-200\/70{background-color:rgb(79 61 33 / 0.7)}
-:where(.dark) .text-red-700{color:#fca5a5}
+:where(.dark) .border-green-200{border-color:#154f3b}
+:where(.dark) .bg-green-50{background-color:#112c30}
+:where(.dark) .text-green-800{color:#bbf7d0}
 :where(.dark) .bg-green-100{background-color:#123633}
 :where(.dark) .bg-red-100{background-color:#371f2f}
 :where(.dark) .from-slate-50{--tw-gradient-from:#0a1020 var(--tw-gradient-from-position);--tw-gradient-to:rgb(10 16 32 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to)}
@@ -163,7 +168,6 @@
 :where(.dark) .bg-teal-50{background-color:#102a39}
 :where(.dark) .border-teal-200{border-color:#114b52}
 :where(.dark) .bg-teal-200{background-color:#10444d}
-:where(.dark) .border-green-200{border-color:#154f3b}
 :where(.dark) .bg-orange-100{background-color:#392826}
 :where(.dark) .text-orange-700{color:#fdba74}
 :where(.dark) .border-orange-200{border-color:#5a3424}
@@ -176,8 +180,6 @@
 :where(.dark) .ring-gray-100{--tw-ring-color:#1e293b}
 :where(.dark) .border-red-300{border-color:#6d2a35}
 :where(.dark) .hover\:bg-red-50:hover{background-color:#2a1c2d}
-:where(.dark) .text-green-600{color:#4ade80}
-:where(.dark) .text-green-800{color:#bbf7d0}
 :where(.dark) .bg-yellow-100{background-color:#363324}
 :where(.dark) .text-yellow-800{color:#fef08a}
 :where(.dark) .text-red-800{color:#fecaca}
@@ -203,7 +205,6 @@
 :where(.dark) .from-teal-600{--tw-gradient-from:#115e59 var(--tw-gradient-from-position);--tw-gradient-to:rgb(17 94 89 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to)}
 :where(.dark) .to-teal-800{--tw-gradient-to:#042f2e var(--tw-gradient-to-position)}
 :where(.dark) .hover\:text-gray-600:hover{color:#cbd5e1}
-:where(.dark) .bg-green-50{background-color:#112c30}
 :where(.dark) .from-teal-700{--tw-gradient-from:#134e4a var(--tw-gradient-from-position);--tw-gradient-to:rgb(19 78 74 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to)}
 :where(.dark) .via-teal-600{--tw-gradient-to:rgb(17 94 89 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),#115e59 var(--tw-gradient-via-position),var(--tw-gradient-to)}
 :where(.dark) .bg-gray-300{background-color:#3b4a68}
