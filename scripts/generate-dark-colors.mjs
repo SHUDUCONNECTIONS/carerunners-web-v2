@@ -64,8 +64,11 @@ function darkColor(prop, name) {
 
 // ── collect the colour classes in use ─────────────────────────────────────
 const files = [];
+// Sorted by name: the order folders are listed in differs between Windows and Linux, and the rules
+// are written in the order classes are found, so CI (Linux) and a Windows machine must agree.
 (function walk(dir) {
-  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+  const entries = fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  for (const e of entries) {
     const p = path.join(dir, e.name);
     if (e.isDirectory()) walk(p);
     else if (/\.(tsx|ts|jsx|js)$/.test(e.name)) files.push(p);
