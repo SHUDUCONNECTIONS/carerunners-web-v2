@@ -10,7 +10,30 @@ import { getPaymentStatus, isSuccessCode, isPendingCode, refundPayment } from "@
 import { markOrderPaid } from "@/utils/marketplaceStock";
 import { nextPaidUntil } from "@/lib/plans";
 import { mirrorTripToRtdb } from "@/utils/tripMirror";
-import { sendAdminOrderNotification, sendAdminTripNotification, sendPaymentReceipt, sendPlanConfirmation } from "@/utils/email";
+import { sendAdminOrderNotification, sendAdminTripNotification, sendPaymentReceipt, sendPlanConfirmation, sendSellerSaleEmail } from "@/utils/email";
+import { MARKET_COMPANIES, MARKET_ORDERS, orderLines } from "@/lib/marketplace";
+
+// Tells the seller of a paid order to get it ready for collection, and what they'll be paid.
+// The seller is a MarketPortal company (one an admin set up, or a customer's own seller account).
+async function notifySeller(db: Firestore, orderId: string, origin: string) {
+  const order = (await db.collection(MARKET_ORDERS).doc(orderId).get()).data();
+  if (!order?.sellerId) return;
+  const company = (await db.collection(MARKET_COMPANIES).doc(order.sellerId).get()).data();
+  if (!company) return;
+  const to = Array.from(
+    new Set([company.contactEmail, ...(company.loginEmails ?? [])].map((e) => String(e ?? "").trim().toLowerCase()).filter(Boolean))
+  );
+  const lines = orderLines(order as any);
+  await sendSellerSaleEmail({
+    to,
+    sellerName: company.contactName || company.name || "there",
+    lines: lines.map((l) => ({ title: l.title, quantity: l.quantity })),
+    sellerAmount: Number(order.sellerPrice) || lines.reduce((sum, l) => sum + l.sellerUnitPrice * l.quantity, 0),
+    pickupAddress: company.address || company.area || "your pickup address",
+    courier: order.deliveryMethod === "courier",
+    link: `${origin}/marketplace/my-listings`,
+  });
+}
 
 // A finalize that started this long ago and never finished (crashed function)
 // can be taken over by the next caller.
@@ -199,6 +222,7 @@ export async function finalizeCheckout(
             courier: newlyRequestedTrip.deliveryMethod === "courier",
             origin: opts.origin,
           });
+          await notifySeller(db, newlyRequestedTrip.marketOrderId, opts.origin);
         } else if (newlyRequestedTrip) {
           await sendAdminTripNotification({
             pickupLocation: newlyRequestedTrip.pickupLocation,

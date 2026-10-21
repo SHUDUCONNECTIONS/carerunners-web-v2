@@ -5,7 +5,7 @@
 import { Resend } from "resend";
 import { LEGACY_ADMIN_EMAILS } from "@/utils/adminEmails";
 import { adminDb } from "@/utils/firebaseAdmin";
-import { SUPPORT_EMAIL } from "@/lib/contact";
+import { SUPPORT_EMAIL, SUPPORT_PHONE } from "@/lib/contact";
 
 // Who gets the admin alerts: everyone made an admin with scripts/set-admin.mjs (the adminUsers
 // collection), or the old list until that script has been run. Re-read at most every 5 minutes.
@@ -160,6 +160,40 @@ export async function sendAdminOrderNotification(p: {
       ${p.deliveryAddress ? `<p><strong>Deliver to:</strong> ${escapeHtml(p.deliveryAddress)}</p>` : ""}
       <p><strong>Delivery:</strong> ${p.courier ? "by courier: book the courier in the admin page" : "by a Care Runners driver: it is now in the drivers' open trips"}</p>
       <p><a href="${link}">View paid orders</a></p>
+    `
+  );
+}
+
+// The seller's item has been bought and paid for: get it ready for collection. Says what they will be paid,
+// but nothing about the buyer (the driver handles the hand-over).
+export async function sendSellerSaleEmail(p: {
+  to: string[];
+  sellerName: string;
+  lines: { title: string; quantity: number }[];
+  sellerAmount: number;
+  pickupAddress: string;
+  courier: boolean;
+  link: string;
+}) {
+  if (p.to.length === 0) return false;
+  const items = p.lines.map((l) => `<li>${escapeHtml(l.quantity)} x ${escapeHtml(l.title)}</li>`).join("");
+  const first = p.lines[0]?.title ?? "your item";
+  const subject = p.lines.length === 1 && p.lines[0].quantity === 1 ? `Your item sold: ${first}` : `You made a sale on MarketPortal`;
+  return send(
+    p.to,
+    subject.slice(0, 120),
+    `
+      <p>Hi ${escapeHtml(p.sellerName)},</p>
+      <p>Good news: a buyer has bought and paid for the following on Care Runners MarketPortal:</p>
+      <ul>${items}</ul>
+      <p><strong>Please get it ready for collection.</strong> ${
+        p.courier
+          ? "Care Runners will book a courier to collect it from"
+          : "A Care Runners driver will collect it from"
+      } <strong>${escapeHtml(p.pickupAddress)}</strong>. Only hand it to the ${p.courier ? "courier" : "Care Runners driver"}, and make sure it matches your listing.</p>
+      <p><strong>You will receive:</strong> R${escapeHtml(p.sellerAmount.toFixed(2))}, paid by EFT into your bank account on file after the buyer receives the item.</p>
+      <p>If the item is no longer available, contact Care Runners straight away on ${escapeHtml(SUPPORT_PHONE)} or ${escapeHtml(SUPPORT_EMAIL)}.</p>
+      <p><a href="${escapeHtml(p.link)}">View your sales in My MarketPortal</a></p>
     `
   );
 }

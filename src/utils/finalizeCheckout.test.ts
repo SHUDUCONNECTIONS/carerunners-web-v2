@@ -10,6 +10,7 @@ vi.mock("@/utils/peach", () => ({
 vi.mock("@/utils/marketplaceStock", () => ({ markOrderPaid: vi.fn(async () => ({ summary: "1 x Toy", itemTotal: 10 })) }));
 vi.mock("@/utils/email", () => ({
   sendAdminOrderNotification: vi.fn(),
+  sendSellerSaleEmail: vi.fn(),
   sendAdminTripNotification: vi.fn(),
   sendPaymentReceipt: vi.fn(),
   sendPlanConfirmation: vi.fn(),
@@ -17,7 +18,7 @@ vi.mock("@/utils/email", () => ({
 
 import { getPaymentStatus, refundPayment } from "@/utils/peach";
 import { markOrderPaid } from "@/utils/marketplaceStock";
-import { sendAdminOrderNotification, sendAdminTripNotification, sendPaymentReceipt } from "@/utils/email";
+import { sendAdminOrderNotification, sendAdminTripNotification, sendPaymentReceipt, sendSellerSaleEmail } from "@/utils/email";
 import { finalizeCheckout } from "./finalizeCheckout";
 
 // Minimal in-memory Firestore: doc get/update and transactions over them.
@@ -91,6 +92,34 @@ describe("finalizeCheckout", () => {
     expect(db._store.pickupRequests.t1.status).toBe("pending");
     expect(sendAdminOrderNotification).toHaveBeenCalledWith(expect.objectContaining({ courier: false }));
     expect(sendAdminTripNotification).not.toHaveBeenCalled();
+  });
+
+  it("tells the seller their item sold, what they'll be paid and where it's collected", async () => {
+    const db = fakeDb({
+      ...seed({ status: "awaiting-payment", marketOrderId: "o1" }),
+      marketplaceOrders: {
+        o1: { sellerId: "seller-u9", sellerPrice: 500, deliveryMethod: "driver", items: [{ listingId: "l1", title: "Office chair", quantity: 1, sellerUnitPrice: 500 }] },
+      },
+      marketplaceCompanies: {
+        "seller-u9": { name: "Thabo M.", contactName: "Thabo Mokoena", contactEmail: "Thabo@x.com", loginEmails: ["thabo@x.com"], address: "1 Test St, Hatfield" },
+      },
+    });
+    await run(db);
+    expect(sendSellerSaleEmail).toHaveBeenCalledWith({
+      to: ["thabo@x.com"],
+      sellerName: "Thabo Mokoena",
+      lines: [{ title: "Office chair", quantity: 1 }],
+      sellerAmount: 500,
+      pickupAddress: "1 Test St, Hatfield",
+      courier: false,
+      link: "http://x/marketplace/my-listings",
+    });
+  });
+
+  it("doesn't email a seller when an ordinary trip is paid", async () => {
+    const db = fakeDb(seed({ status: "awaiting-payment" }));
+    await run(db);
+    expect(sendSellerSaleEmail).not.toHaveBeenCalled();
   });
 
   it("refunds a payment that arrives after the trip was cancelled", async () => {
