@@ -9,6 +9,7 @@ vi.mock("@/utils/peach", () => ({
 }));
 vi.mock("@/utils/marketplaceStock", () => ({ markOrderPaid: vi.fn(async () => ({ summary: "1 x Toy", itemTotal: 10 })) }));
 vi.mock("@/utils/email", () => ({
+  sendAdminOrderNotification: vi.fn(),
   sendAdminTripNotification: vi.fn(),
   sendPaymentReceipt: vi.fn(),
   sendPlanConfirmation: vi.fn(),
@@ -16,7 +17,7 @@ vi.mock("@/utils/email", () => ({
 
 import { getPaymentStatus, refundPayment } from "@/utils/peach";
 import { markOrderPaid } from "@/utils/marketplaceStock";
-import { sendPaymentReceipt } from "@/utils/email";
+import { sendAdminOrderNotification, sendAdminTripNotification, sendPaymentReceipt } from "@/utils/email";
 import { finalizeCheckout } from "./finalizeCheckout";
 
 // Minimal in-memory Firestore: doc get/update and transactions over them.
@@ -68,13 +69,28 @@ describe("finalizeCheckout", () => {
     expect(db._store.pickupRequests.t1).toMatchObject({ status: "pending", payment_status: "paid", checkoutId: "chk1" });
     expect(refundPayment).not.toHaveBeenCalled();
     expect(sendPaymentReceipt).toHaveBeenCalled();
+    expect(sendAdminTripNotification).toHaveBeenCalledTimes(1);
+    expect(sendAdminOrderNotification).not.toHaveBeenCalled();
   });
 
   it("sends a paid courier order to the admins, not the drivers", async () => {
-    const db = fakeDb(seed({ status: "awaiting-payment", deliveryMethod: "courier", marketOrderId: "o1" }));
+    const db = fakeDb(seed({ status: "awaiting-payment", deliveryMethod: "courier", marketOrderId: "o1", dropoffLocation: "2 Buyer St" }));
     await run(db);
     expect(db._store.pickupRequests.t1.status).toBe("courier");
     expect(markOrderPaid).toHaveBeenCalledWith(db, "o1");
+    // Admins get the order email (items, amount, courier), not the "trip waiting for a driver" one.
+    expect(sendAdminOrderNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ summary: "1 x Toy", amount: "120.00", buyerEmail: "buyer@x.com", deliveryAddress: "2 Buyer St", courier: true })
+    );
+    expect(sendAdminTripNotification).not.toHaveBeenCalled();
+  });
+
+  it("tells the admins about a paid MarketPortal order delivered by a driver", async () => {
+    const db = fakeDb(seed({ status: "awaiting-payment", marketOrderId: "o1" }));
+    await run(db);
+    expect(db._store.pickupRequests.t1.status).toBe("pending");
+    expect(sendAdminOrderNotification).toHaveBeenCalledWith(expect.objectContaining({ courier: false }));
+    expect(sendAdminTripNotification).not.toHaveBeenCalled();
   });
 
   it("refunds a payment that arrives after the trip was cancelled", async () => {

@@ -10,7 +10,7 @@ import { getPaymentStatus, isSuccessCode, isPendingCode, refundPayment } from "@
 import { markOrderPaid } from "@/utils/marketplaceStock";
 import { nextPaidUntil } from "@/lib/plans";
 import { mirrorTripToRtdb } from "@/utils/tripMirror";
-import { sendAdminTripNotification, sendPaymentReceipt, sendPlanConfirmation } from "@/utils/email";
+import { sendAdminOrderNotification, sendAdminTripNotification, sendPaymentReceipt, sendPlanConfirmation } from "@/utils/email";
 
 // A finalize that started this long ago and never finished (crashed function)
 // can be taken over by the next caller.
@@ -189,7 +189,17 @@ export async function finalizeCheckout(
       try {
         const email = (await adminAuth().getUser(checkout.uid)).email ?? null;
         await sendConfirmationEmail(checkout, email, peachResult, orderSummary);
-        if (newlyRequestedTrip) {
+        if (newlyRequestedTrip?.marketOrderId) {
+          // A purchase: the admins need the items and how it's being delivered, not just a trip.
+          await sendAdminOrderNotification({
+            summary: orderSummary || "MarketPortal order",
+            amount: peachResult.amount,
+            buyerEmail: email,
+            deliveryAddress: newlyRequestedTrip.dropoffLocation,
+            courier: newlyRequestedTrip.deliveryMethod === "courier",
+            origin: opts.origin,
+          });
+        } else if (newlyRequestedTrip) {
           await sendAdminTripNotification({
             pickupLocation: newlyRequestedTrip.pickupLocation,
             dropoffLocation: newlyRequestedTrip.dropoffLocation,

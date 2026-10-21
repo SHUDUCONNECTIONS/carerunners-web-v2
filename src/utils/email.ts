@@ -138,6 +138,32 @@ export async function sendAdminTripNotification(trip: {
 }
 
 // ── MarketPortal ─────────────────────────────────────────────────────────────────────────
+// A MarketPortal order has been paid: the admins arrange collection from the seller (a driver picks it up
+// from the open trips, or an admin books the courier).
+export async function sendAdminOrderNotification(p: {
+  summary: string;
+  amount: unknown;
+  buyerEmail: string | null;
+  deliveryAddress?: string;
+  courier: boolean;
+  origin: string;
+}) {
+  const link = escapeHtml(`${p.origin}/admin/marketplace`);
+  return send(
+    await adminRecipients(),
+    `New MarketPortal order: ${p.summary}`.slice(0, 120),
+    `
+      <p>A MarketPortal order has been paid.</p>
+      <p><strong>Items:</strong> ${escapeHtml(p.summary)}</p>
+      <p><strong>Paid:</strong> R${escapeHtml(p.amount)} (items and delivery)</p>
+      <p><strong>Buyer:</strong> ${escapeHtml(p.buyerEmail || "Unknown")}</p>
+      ${p.deliveryAddress ? `<p><strong>Deliver to:</strong> ${escapeHtml(p.deliveryAddress)}</p>` : ""}
+      <p><strong>Delivery:</strong> ${p.courier ? "by courier: book the courier in the admin page" : "by a Care Runners driver: it is now in the drivers' open trips"}</p>
+      <p><a href="${link}">View paid orders</a></p>
+    `
+  );
+}
+
 // A customer submitted (or corrected and resubmitted) an item: it waits for an admin to approve it.
 // Goes to the admins and the support inbox.
 export async function sendAdminItemSubmitted(p: {
