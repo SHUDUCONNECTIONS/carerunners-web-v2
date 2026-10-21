@@ -40,6 +40,7 @@ import { sendLowStockAlert } from "@/utils/email";
 // An email goes to the admins when an item drops to this many units or fewer.
 const LOW_STOCK = 10;
 import { belowMinimum, deliveryCharge } from "@/lib/marketplaceSettings";
+import { customerSellerId } from "@/lib/marketplaceSeller";
 
 const MAX_QTY_PER_LINE = 1000;
 const MAX_LINES = 20;
@@ -167,7 +168,8 @@ export async function POST(req: NextRequest) {
         if (l.sellerId !== sellerId) {
           return { status: 400, message: "An order can only hold items from one store. Please order them separately." };
         }
-        if (l.sellerId === user.uid) return { status: 403, message: "You can't buy your own item" };
+        // A customer sells from their own seller account (seller-<uid>), not under their uid.
+        if (l.sellerId === user.uid || l.sellerId === customerSellerId(user.uid)) return { status: 403, message: "You can't buy your own item" };
 
         const reservedAt = l.reservedAt?.toMillis?.() ?? 0;
         const reservationExpired = Date.now() - reservedAt > RESERVATION_MINUTES * 60 * 1000;
