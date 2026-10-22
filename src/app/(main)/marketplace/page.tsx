@@ -4,6 +4,8 @@ import React, { Suspense, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { authedFetch } from "@/utils/authedFetch"
+import { auth } from "@/utils/firebase"
+import { withNext } from "@/lib/authRedirect"
 import { cartCount, loadCart, subscribeCart } from "@/lib/marketplaceCart"
 import { settlePendingCart } from "@/lib/marketplaceCartSync"
 import { RatingSummary } from "@/components/marketplace/Stars"
@@ -65,6 +67,10 @@ function MarketplaceContent() {
   // ?store=<company id> shows one store's products only.
   const params = useSearchParams()
   const storeId = params.get("store")
+  // The layout only shows this page once sign-in has been checked, so this is settled by now.
+  // Guests can browse; opening an item takes them to sign up first, then on to that item.
+  const guest = !auth.currentUser
+  const itemHref = (id: string) => (guest ? withNext("/auth/sign-up", `/marketplace/${id}`) : `/marketplace/${id}`)
   // Brand-new and used items are kept apart. ?kind=new or ?kind=used keeps the choice when coming back.
   const [kind, setKindState] = useState<"all" | ItemKind>(() => {
     const k = params.get("kind")
@@ -108,7 +114,7 @@ function MarketplaceContent() {
     const t = setTimeout(() => {
       recordSearch(search)
       const term = search.trim().toLowerCase().replace(/\s+/g, " ")
-      if (term.length < 3 || term === lastSent.current) return
+      if (guest || term.length < 3 || term === lastSent.current) return
       lastSent.current = term
       authedFetch("/api/marketplace/searches", {
         method: "POST",
@@ -117,7 +123,7 @@ function MarketplaceContent() {
       }).catch(() => {})
     }, 1500)
     return () => clearTimeout(t)
-  }, [search])
+  }, [search, guest])
 
   const [shown, setShown] = useState(PAGE_SIZE)
   const [inCart, setInCart] = useState(0)
@@ -126,9 +132,9 @@ function MarketplaceContent() {
     const sync = () => setInCart(cartCount(loadCart()))
     sync()
     // Empties the cart if its order has been paid since (the count updates through subscribeCart).
-    settlePendingCart().catch(() => {})
+    if (!guest) settlePendingCart().catch(() => {})
     return subscribeCart(sync)
-  }, [])
+  }, [guest])
 
   useEffect(() => setShown(PAGE_SIZE), [search, category, sort, band, inStockOnly, savedOnly, kind])
 
@@ -138,7 +144,7 @@ function MarketplaceContent() {
         // One cached list from the server, not one Firestore read per listing per
         // visitor. Reserved items stay visible (marked as reserved) so an
         // abandoned checkout can never hide an item permanently.
-        const res = await authedFetch("/api/marketplace/listings")
+        const res = await fetch("/api/marketplace/listings")
         if (!res.ok) throw new Error(`Listings request failed: ${res.status}`)
         const { listings: rows } = await res.json()
         setListings(
@@ -263,6 +269,20 @@ function MarketplaceContent() {
             <p className="max-w-xl text-sm sm:text-base text-white/90">
               Brand-new stock and quality pre-owned items from trusted companies. Pick what you like and Care Runners delivers it to your door.
             </p>
+            {guest ? (
+              <div className="flex flex-wrap gap-2">
+                <Button asChild className="bg-white text-[var(--brand-700)] hover:bg-white/90">
+                  <Link href={withNext("/auth/sign-up", "/marketplace")}>Sign up to buy or sell</Link>
+                </Button>
+                <Button
+                  asChild
+                  variant="outline"
+                  className="bg-white/10 border-white/60 text-white hover:bg-white/20 hover:text-white"
+                >
+                  <Link href={withNext("/auth/login", "/marketplace")}>Log in</Link>
+                </Button>
+              </div>
+            ) : (
             <div className="flex flex-wrap gap-2">
               <Button
                 asChild
@@ -286,6 +306,7 @@ function MarketplaceContent() {
                 </Link>
               </Button>
             </div>
+            )}
           </div>
 
           <div className="hidden md:block w-64 rounded-2xl bg-[var(--mp-green)] p-5 shadow-lg">
@@ -460,7 +481,7 @@ function MarketplaceContent() {
             {recommended.map((l) => (
               <Link
                 key={l.id}
-                href={`/marketplace/${l.id}`}
+                href={itemHref(l.id)}
                 className="group flex w-40 shrink-0 flex-col overflow-hidden rounded-2xl border border-gray-300 bg-white shadow-sm hover:border-[var(--brand-500)] sm:w-48"
               >
                 <div className="flex aspect-[4/3] items-center justify-center overflow-hidden bg-gray-100">
@@ -512,7 +533,7 @@ function MarketplaceContent() {
               return (
                 <Link
                   key={l.id}
-                  href={`/marketplace/${l.id}`}
+                  href={itemHref(l.id)}
                   className="group flex flex-col overflow-hidden rounded-2xl border border-gray-300 bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-[var(--brand-500)] hover:shadow-lg"
                 >
                   <div className="relative aspect-[4/3] overflow-hidden bg-gray-100 flex items-center justify-center">

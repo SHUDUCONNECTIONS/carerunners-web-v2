@@ -4,8 +4,7 @@
 // instance) instead of once per visitor, which keeps reads and load time down
 // as the catalogue grows. Stock here can be up to a minute old; the product
 // page and checkout always use the live record.
-import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/utils/requireAuth";
+import { NextResponse } from "next/server";
 import { adminDb } from "@/utils/firebaseAdmin";
 import { MARKET_LISTINGS, toMillis } from "@/lib/marketplace";
 import { releaseExpiredOrdersThrottled } from "@/utils/marketplaceStock";
@@ -62,14 +61,18 @@ async function loadCards(): Promise<ListingCard[]> {
   return rows;
 }
 
-export async function GET(req: NextRequest) {
-  const user = await requireAuth(req);
-  if (!user) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+// Open to guests too, so people can look around MarketPortal before making an account.
+// Cards hold only what's already shown publicly; opening an item still needs a login.
+export async function GET() {
   try {
     // Abandoned checkouts give their stock back before the grid is built (and the cached grid is
     // rebuilt when they do), so an unpaid item doesn't sit at "Out of stock".
     if ((await releaseExpiredOrdersThrottled(adminDb())) > 0) cache = null;
-    return NextResponse.json({ listings: await loadCards() }, { headers: { "Cache-Control": "private, max-age=30" } });
+    // Any site may read it: the Care Runners website shows a preview of what's on sale.
+    return NextResponse.json(
+      { listings: await loadCards() },
+      { headers: { "Cache-Control": "public, max-age=30", "Access-Control-Allow-Origin": "*" } }
+    );
   } catch (err) {
     console.error("Error loading marketplace listings:", err);
     return NextResponse.json({ message: "Internal Server Error" }, { status: 500 });

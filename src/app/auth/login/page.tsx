@@ -10,6 +10,7 @@ import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, sendPa
 import { googleSignInError } from "@/lib/googleSignInError"
 import { getFirestore, collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore'
 import InstallButton from "@/components/InstallButton"
+import { nextPath, withNext } from "@/lib/authRedirect"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -47,8 +48,9 @@ export default function LoginPage() {
   // Where to go after signing in: customers (individual or company) to their dashboard, drivers to the driver
   // portal (they can also sign in at /auth/driver/login), or null when the login has no account here.
   // Someone who is both lands on the customer dashboard.
+  // Customers go back to the page that asked them to sign in (?next=), if there was one.
   const homeFor = async (uid: string): Promise<string | null> => {
-    if (await hasRegisteredAccount(uid)) return "/dashboard"
+    if (await hasRegisteredAccount(uid)) return nextPath() ?? "/dashboard"
     try {
       if ((await getDoc(doc(db, "drivers", uid))).exists()) return "/driver/dashboard"
     } catch (error) {
@@ -137,7 +139,7 @@ export default function LoginPage() {
   }
 
   const handleSignUp = () => {
-    router.push("/auth/sign-up")
+    router.push(withNext("/auth/sign-up", nextPath()))
   }
 
   const handlePasswordReset = async () => {

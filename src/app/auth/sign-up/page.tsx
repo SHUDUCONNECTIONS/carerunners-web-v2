@@ -1,6 +1,7 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
+import { nextPath, withNext } from "@/lib/authRedirect"
 import { useRouter } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -27,6 +28,9 @@ export default function UserRegistrationPage() {
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
   const [loading, setLoading] = useState(false)
   const [currentStep, setCurrentStep] = useState(0)
+  // The page they came from (e.g. a MarketPortal item), to go back to once signed up.
+  const [next, setNext] = useState<string | null>(null)
+  useEffect(() => setNext(nextPath()), [])
   const router = useRouter()
 
   const validateStep0 = (newErrors: { [key: string]: string }) => {
@@ -100,7 +104,7 @@ export default function UserRegistrationPage() {
   }
 
   const routeAfterSignUp = (firmId: string, type: AccountType) => {
-    router.push(type === "firm" ? `/firm-registration?firmId=${firmId}` : "/dashboard")
+    router.push(type === "firm" ? `/firm-registration?firmId=${firmId}` : next ?? "/dashboard")
   }
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -445,7 +449,7 @@ export default function UserRegistrationPage() {
             <div className="mt-6 flex flex-col items-center gap-2 text-sm text-gray-500">
               <span>Already have an account?</span>
               <a
-                href="/auth/login"
+                href={withNext("/auth/login", next)}
                 className="w-full rounded-lg border border-teal-600 bg-white py-3 text-center text-sm font-medium text-teal-700 transition-colors hover:bg-teal-50"
               >
                 Sign in
