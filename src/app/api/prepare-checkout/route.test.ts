@@ -5,13 +5,14 @@ vi.mock("@/utils/requireAuth", () => ({ requireAuth: vi.fn() }));
 vi.mock("@/utils/firebaseAdmin", () => ({ adminDb: vi.fn() }));
 vi.mock("@/utils/peach", () => ({ createCheckout: vi.fn() }));
 vi.mock("@/utils/tripPricing", () => ({ priceTrip: vi.fn() }));
-vi.mock("@/utils/marketplaceStock", () => ({ releaseMarketplaceOrder: vi.fn() }));
+vi.mock("@/utils/marketplaceStock", () => ({ releaseMarketplaceOrder: vi.fn(), holdOrderForPayment: vi.fn(async () => true) }));
 
 import { requireAuth } from "@/utils/requireAuth";
 import { adminDb } from "@/utils/firebaseAdmin";
 import { isRateLimited } from "@/utils/rateLimit";
 import { createCheckout } from "@/utils/peach";
 import { priceTrip } from "@/utils/tripPricing";
+import { holdOrderForPayment } from "@/utils/marketplaceStock";
 import { standardPlans } from "@/lib/plans";
 import { POST } from "./route";
 
@@ -47,6 +48,7 @@ beforeEach(() => {
   vi.mocked(isRateLimited).mockResolvedValue(false);
   vi.mocked(createCheckout).mockResolvedValue({ id: "chk1" });
   vi.mocked(priceTrip).mockResolvedValue({ price: 120, distanceKm: 10 });
+  vi.mocked(holdOrderForPayment).mockResolvedValue(true);
 });
 
 describe("prepare-checkout", () => {
@@ -121,11 +123,24 @@ describe("prepare-checkout", () => {
         marketplaceOrders: { o1: { buyerId: "u1", tripId: "t1", status: "awaiting-payment", listingId: "l1", quantity: 1 } },
         marketplaceListings: { l1: { status: "rejected" } },
       });
+      vi.mocked(holdOrderForPayment).mockResolvedValue(false);
       vi.mocked(adminDb).mockReturnValue(db as any);
       const res = await call({ type: "trip", requestId: "t1" });
       expect(res.status).toBe(409);
       expect(db._store.pickupRequests.t1.status).toBe("cancelled");
       expect(createCheckout).not.toHaveBeenCalled();
+    });
+
+    it("charges a marketplace order its server-worked-out total once its items are held for payment", async () => {
+      signedIn();
+      const db = fakeDb({
+        pickupRequests: { t1: { userId: "u1", payment_status: "unpaid", marketOrderId: "o1", price: 1 } },
+        marketplaceOrders: { o1: { buyerId: "u1", tripId: "t1", status: "awaiting-payment", totalAmount: 5150 } },
+      });
+      vi.mocked(adminDb).mockReturnValue(db as any);
+      expect((await call({ type: "trip", requestId: "t1" })).status).toBe(200);
+      expect(holdOrderForPayment).toHaveBeenCalledWith(db, "o1");
+      expect(createCheckout).toHaveBeenCalledWith({ amount: "5150.00" });
     });
   });
 

@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/utils/requireAuth";
 import { adminDb } from "@/utils/firebaseAdmin";
 import { MARKET_LISTINGS, toMillis } from "@/lib/marketplace";
+import { releaseExpiredOrdersThrottled } from "@/utils/marketplaceStock";
 
 const TTL_MS = 60 * 1000;
 let cache: { at: number; rows: ListingCard[] } | null = null;
@@ -65,6 +66,9 @@ export async function GET(req: NextRequest) {
   const user = await requireAuth(req);
   if (!user) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   try {
+    // Abandoned checkouts give their stock back before the grid is built (and the cached grid is
+    // rebuilt when they do), so an unpaid item doesn't sit at "Out of stock".
+    if ((await releaseExpiredOrdersThrottled(adminDb())) > 0) cache = null;
     return NextResponse.json({ listings: await loadCards() }, { headers: { "Cache-Control": "private, max-age=30" } });
   } catch (err) {
     console.error("Error loading marketplace listings:", err);

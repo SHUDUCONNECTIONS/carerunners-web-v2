@@ -4,8 +4,7 @@ import { requireAuth } from "@/utils/requireAuth";
 import { adminDb } from "@/utils/firebaseAdmin";
 import { isRateLimited } from "@/utils/rateLimit";
 import { createCheckout } from "@/utils/peach";
-import { releaseMarketplaceOrder } from "@/utils/marketplaceStock";
-import { orderLines } from "@/lib/marketplace";
+import { holdOrderForPayment, releaseMarketplaceOrder } from "@/utils/marketplaceStock";
 import { findPlan } from "@/lib/plans";
 import { priceTrip } from "@/utils/tripPricing";
 
@@ -63,13 +62,10 @@ export async function POST(req: NextRequest) {
         if (order && (order.buyerId !== uid || order.tripId !== requestId)) {
           return NextResponse.json({ message: "This order doesn't belong to this trip" }, { status: 403 });
         }
-        let unavailable = !orderSnap.exists || order?.status !== "awaiting-payment";
-        if (!unavailable) {
-          const lines = orderLines(orderSnap.data() as any);
-          const listings = await Promise.all(lines.map((l) => db.collection("marketplaceListings").doc(l.listingId).get()));
-          unavailable = listings.some((l) => !l.exists || l.data()?.status === "inactive" || l.data()?.status === "rejected");
-        }
-        if (unavailable) {
+        // Checks every item is still held for this order and restarts the payment window, so the
+        // expiry clean-up can't cancel it (or another buyer take it) while they're on the payment page.
+        const held = orderSnap.exists && (await holdOrderForPayment(db, trip.marketOrderId));
+        if (!held) {
           if (orderSnap.exists) await releaseMarketplaceOrder(db, trip.marketOrderId);
           await snap.ref.update({ status: "cancelled", payment_status: "cancelled" });
           return NextResponse.json(
@@ -83,9 +79,6 @@ export async function POST(req: NextRequest) {
         // MarketPortal: items + delivery, as worked out by the server when the order was placed.
         // Read from the order (server-written), never from money fields on the trip.
         amount = Number(orderSnap?.data()?.totalAmount);
-        // The buyer is about to pay: keep the order's stock held for a full payment window from now,
-        // so the expiry clean-up can't cancel it while they're on the payment page.
-        await orderSnap!.ref.update({ paymentStartedAt: Date.now() });
       } else {
         // The trip and its price were written by the browser, so work the price out again from
         // the addresses before charging, and save it so every screen shows what was charged.

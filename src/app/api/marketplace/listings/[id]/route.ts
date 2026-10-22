@@ -7,6 +7,7 @@ import { isAdminUser } from "@/utils/requireAdmin";
 import { adminDb } from "@/utils/firebaseAdmin";
 import { MARKET_LISTINGS } from "@/lib/marketplace";
 import { publicListingData } from "@/lib/marketplacePublic";
+import { releaseExpiredOrdersThrottled } from "@/utils/marketplaceStock";
 
 const HIDDEN_STATUSES = ["pending", "rejected"];
 
@@ -15,6 +16,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!user) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   const { id } = await params;
   try {
+    await releaseExpiredOrdersThrottled(adminDb()); // so an abandoned checkout's stock is back before we read it
     const snap = await adminDb().collection(MARKET_LISTINGS).doc(id).get();
     const data = snap.data();
     if (!data || (HIDDEN_STATUSES.includes(data.status) && !isAdminUser(user))) {
