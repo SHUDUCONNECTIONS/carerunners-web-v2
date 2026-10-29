@@ -19,6 +19,7 @@ import { addToCart, loadCart, saveCart } from "@/lib/marketplaceCart"
 import { Reviews } from "@/components/marketplace/Reviews"
 import { loadSaved, subscribeSaved, toggleSaved } from "@/lib/marketplaceSaved"
 import { RatingSummary } from "@/components/marketplace/Stars"
+import { ShareButton } from "@/components/marketplace/ShareButton"
 import { averageRating } from "@/lib/marketplaceReviews"
 import { belowMinimum, deliveryCharge } from "@/lib/marketplaceSettings"
 import { useMarketSettings } from "@/lib/useMarketSettings"
@@ -46,12 +47,15 @@ import {
 function TitleBlock({ listing, price }: { listing: MarketListing; price: string }) {
   return (
     <div className="space-y-2">
-      <Link
-        href={`/marketplace?store=${encodeURIComponent(listing.sellerId)}`}
-        className="inline-block rounded-full border border-[var(--brand-600)] px-3 py-1 text-sm font-medium text-[var(--brand-700)] hover:bg-[var(--brand-50)]"
-      >
-        Sold by {listing.sellerName || "Store"} · see all items
-      </Link>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Link
+          href={`/marketplace?store=${encodeURIComponent(listing.sellerId)}`}
+          className="inline-block rounded-full border border-[var(--brand-600)] px-3 py-1 text-sm font-medium text-[var(--brand-700)] hover:bg-[var(--brand-50)]"
+        >
+          Sold by {listing.sellerName || "Store"} · see all items
+        </Link>
+        <ShareButton listingId={listing.id} title={listing.title} />
+      </div>
       <h1 className="text-2xl font-bold leading-tight text-gray-900 sm:text-3xl">{listing.title}</h1>
       <p className="text-3xl font-extrabold text-[var(--brand-600)]">{price}</p>
       <a href="#reviews" className="inline-block">

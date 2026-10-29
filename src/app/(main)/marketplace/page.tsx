@@ -10,6 +10,7 @@ import { cartCount, loadCart, subscribeCart } from "@/lib/marketplaceCart"
 import { settlePendingCart } from "@/lib/marketplaceCartSync"
 import { RatingSummary } from "@/components/marketplace/Stars"
 import { DeliveryAreaNotice } from "@/components/marketplace/DeliveryAreaNotice"
+import { ShareButton } from "@/components/marketplace/ShareButton"
 import { averageRating } from "@/lib/marketplaceReviews"
 import { loadSaved, subscribeSaved } from "@/lib/marketplaceSaved"
 import { clearSearches, loadSearches, recordSearch, subscribeSearches, SearchEntry } from "@/lib/marketplaceSearchHistory"
@@ -479,10 +480,10 @@ function MarketplaceContent() {
           </div>
           <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {recommended.map((l) => (
+              <div key={l.id} className="relative flex w-40 shrink-0 sm:w-48">
               <Link
-                key={l.id}
                 href={itemHref(l.id)}
-                className="group flex w-40 shrink-0 flex-col overflow-hidden rounded-2xl border border-gray-300 bg-white shadow-sm hover:border-[var(--brand-500)] sm:w-48"
+                className="group flex flex-1 flex-col overflow-hidden rounded-2xl border border-gray-300 bg-white shadow-sm hover:border-[var(--brand-500)]"
               >
                 <div className="flex aspect-[4/3] items-center justify-center overflow-hidden bg-gray-100">
                   {l.images[0] ? (
@@ -496,6 +497,8 @@ function MarketplaceContent() {
                   <p className="font-bold text-[var(--brand-600)]">{formatRand(l.sellingPrice)}</p>
                 </div>
               </Link>
+              <ShareButton listingId={l.id} title={l.title} variant="icon" className="absolute right-2 top-2" />
+              </div>
             ))}
           </div>
         </section>
@@ -531,10 +534,11 @@ function MarketplaceContent() {
             {visible.slice(0, shown).map((l) => {
               const reserved = reservationActive(l, now)
               return (
+                // The share button sits beside the card's link, not inside it.
+                <div key={l.id} className="relative flex transition-transform duration-200 hover:-translate-y-1">
                 <Link
-                  key={l.id}
                   href={itemHref(l.id)}
-                  className="group flex flex-col overflow-hidden rounded-2xl border border-gray-300 bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-[var(--brand-500)] hover:shadow-lg"
+                  className="group flex flex-1 flex-col overflow-hidden rounded-2xl border border-gray-300 bg-white shadow-sm transition-all duration-200 hover:border-[var(--brand-500)] hover:shadow-lg"
                 >
                   <div className="relative aspect-[4/3] overflow-hidden bg-gray-100 flex items-center justify-center">
                     {l.images[0] ? (
@@ -581,6 +585,8 @@ function MarketplaceContent() {
                     </p>
                   </div>
                 </Link>
+                <ShareButton listingId={l.id} title={l.title} variant="icon" className="absolute right-2 top-2" />
+                </div>
               )
             })}
           </div>
